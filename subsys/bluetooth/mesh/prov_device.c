@@ -36,9 +36,11 @@
 #include "pb_gatt_srv.h"
 #include "prov.h"
 #include "settings.h"
+#include "rpr.h"
 
 static void send_pub_key(void);
 static void pub_key_ready(const uint8_t *pkey);
+static void reprovision_fail(void);
 
 static int reset_state(void)
 {
@@ -69,6 +71,11 @@ static void prov_fail(uint8_t reason)
 	 * close the link.
 	 */
 	prov_send_fail_msg(reason);
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) &&
+	    atomic_test_bit(bt_mesh_prov_link.flags, REPROVISION)) {
+		reprovision_fail();
+	}
 }
 
 static void prov_invite(const uint8_t *data)
@@ -510,6 +517,31 @@ static inline bool is_pb_gatt(void)
 	       bt_mesh_prov_link.bearer->type == BT_MESH_PROV_GATT;
 }
 
+static bool refresh_is_valid(const uint8_t *netkey, uint16_t net_idx,
+			     uint32_t iv_index)
+{
+	enum bt_mesh_rpr_node_refresh proc = bt_mesh_node_refresh_get();
+	struct bt_mesh_subnet *sub = bt_mesh_subnet_get(net_idx);
+	uint16_t old_addr = bt_mesh_primary_addr();
+
+	if (iv_index != bt_mesh.iv_index) {
+		BT_ERR("Invalid IV index");
+		return false;
+	}
+
+	if (!sub || memcmp(netkey, sub->keys[SUBNET_KEY_TX_IDX(sub)].net, 16)) {
+		BT_ERR("Invalid netkey");
+		return false;
+	}
+
+	if (proc == BT_MESH_RPR_NODE_REFRESH_ADDR) {
+		return bt_mesh_prov_link.addr < old_addr ||
+		       bt_mesh_prov_link.addr >= old_addr + bt_mesh_comp_get()->elem_count;
+	}
+
+	return bt_mesh_prov_link.addr == bt_mesh_primary_addr();
+}
+
 static void prov_data(const uint8_t *data)
 {
 	PROV_BUF(msg, PDU_LEN_COMPLETE);
@@ -519,7 +551,6 @@ static void prov_data(const uint8_t *data)
 	uint8_t pdu[25];
 	uint8_t flags;
 	uint32_t iv_index;
-	uint16_t addr;
 	uint16_t net_idx;
 	int err;
 	bool identity_enable;
@@ -566,10 +597,17 @@ static void prov_data(const uint8_t *data)
 	net_idx = sys_get_be16(&pdu[16]);
 	flags = pdu[18];
 	iv_index = sys_get_be32(&pdu[19]);
-	addr = sys_get_be16(&pdu[23]);
+	bt_mesh_prov_link.addr = sys_get_be16(&pdu[23]);
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) &&
+	    atomic_test_bit(bt_mesh_prov_link.flags, REPROVISION) &&
+	    !refresh_is_valid(pdu, net_idx, iv_index)) {
+		prov_send_fail_msg(PROV_ERR_INVALID_DATA);
+		return;
+	}
 
 	BT_DBG("net_idx %u iv_index 0x%08x, addr 0x%04x",
-	       net_idx, iv_index, addr);
+	       net_idx, iv_index, bt_mesh_prov_link.addr);
 
 	bt_mesh_prov_buf_init(&msg, PROV_COMPLETE);
 	if (bt_mesh_prov_send(&msg, NULL)) {
@@ -579,6 +617,13 @@ static void prov_data(const uint8_t *data)
 
 	/* Ignore any further PDUs on this link */
 	bt_mesh_prov_link.expect = PROV_NO_PDU;
+	atomic_set_bit(bt_mesh_prov_link.flags, COMPLETE);
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) &&
+	    atomic_test_bit(bt_mesh_prov_link.flags, REPROVISION)) {
+		bt_mesh_dev_key_cand(dev_key);
+		return;
+	}
 
 	/* Store info, since bt_mesh_provision() will end up clearing it */
 	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY)) {
@@ -587,7 +632,8 @@ static void prov_data(const uint8_t *data)
 		identity_enable = false;
 	}
 
-	err = bt_mesh_provision(pdu, net_idx, flags, iv_index, addr, dev_key);
+	err = bt_mesh_provision(pdu, net_idx, flags, iv_index,
+				bt_mesh_prov_link.addr, dev_key);
 	if (err) {
 		BT_ERR("Failed to provision (err %d)", err);
 		return;
@@ -599,6 +645,28 @@ static void prov_data(const uint8_t *data)
 	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY) && identity_enable) {
 		bt_mesh_proxy_identity_enable();
 	}
+}
+
+static void reprovision_complete(void)
+{
+	bt_mesh_reprovision(bt_mesh_prov_link.addr);
+
+	/* When performing the refresh composition procedure,
+	 * the device key will be activated after the first
+	 * successful decryption with the new key.
+	 */
+	if (bt_mesh_node_refresh_get() == BT_MESH_RPR_NODE_REFRESH_ADDR) {
+		bt_mesh_dev_key_cand_activate();
+	}
+
+	if (bt_mesh_prov->reprovisioned) {
+		bt_mesh_prov->reprovisioned(bt_mesh_primary_addr());
+	}
+}
+
+static void reprovision_fail(void)
+{
+	bt_mesh_dev_key_cand_remove();
 }
 
 static void local_input_complete(void)
@@ -613,12 +681,27 @@ static void local_input_complete(void)
 
 static void prov_link_closed(void)
 {
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) &&
+	    atomic_test_bit(bt_mesh_prov_link.flags, REPROVISION)) {
+		if (atomic_test_bit(bt_mesh_prov_link.flags, COMPLETE)) {
+			reprovision_complete();
+		} else {
+			reprovision_fail();
+		}
+	} else if (bt_mesh_prov_link.conf_inputs.invite[0]) {
+		/* Disable Attention Timer if it was set */
+		bt_mesh_attention(NULL, 0);
+	}
+
 	reset_state();
 }
 
 static void prov_link_opened(void)
 {
 	bt_mesh_prov_link.expect = PROV_INVITE;
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) && bt_mesh_is_provisioned()) {
+		atomic_set_bit(bt_mesh_prov_link.flags, REPROVISION);
+	}
 }
 
 static const struct bt_mesh_prov_role role_device = {
@@ -638,7 +721,15 @@ static const struct bt_mesh_prov_role role_device = {
 
 int bt_mesh_prov_enable(bt_mesh_prov_bearer_t bearers)
 {
-	if (bt_mesh_is_provisioned()) {
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV) &&
+	    (bearers & BT_MESH_PROV_REMOTE)) {
+		pb_remote_srv.link_accept(bt_mesh_prov_bearer_cb_get(), NULL);
+
+		/* Only PB-Remote supports reprovisioning */
+		if (bt_mesh_is_provisioned()) {
+			return 0;
+		}
+	} else if (bt_mesh_is_provisioned()) {
 		return -EALREADY;
 	}
 
