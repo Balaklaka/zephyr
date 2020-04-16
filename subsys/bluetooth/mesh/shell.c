@@ -550,7 +550,50 @@ static const struct bt_mesh_blob_srv_cb blob_srv_cb = {
 struct bt_mesh_blob_srv bt_mesh_shell_blob_srv = {
 	.cb = &blob_srv_cb
 };
+#endif
 
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+static void rpr_scan_report(struct bt_mesh_rpr_cli *cli,
+			    const struct bt_mesh_rpr_node *srv,
+			    struct bt_mesh_rpr_unprov *unprov,
+			    struct net_buf_simple *adv_data)
+{
+	char uuid_hex_str[32 + 1];
+
+	bin2hex(unprov->uuid, 16, uuid_hex_str, sizeof(uuid_hex_str));
+
+	shell_print(ctx_shell,
+		    "Server 0x%04x:\n"
+		    "\tuuid:   %s\n"
+		    "\tOOB:    0x%04x",
+		    srv->addr, uuid_hex_str, unprov->oob);
+
+	while (adv_data && adv_data->len > 2) {
+		uint8_t len, type;
+		uint8_t data[31];
+
+		len = net_buf_simple_pull_u8(adv_data) - 1;
+		type = net_buf_simple_pull_u8(adv_data);
+		memcpy(data, net_buf_simple_pull_mem(adv_data, len), len);
+		data[len] = '\0';
+
+		if (type == BT_DATA_URI) {
+			shell_print(ctx_shell, "\tURI:    \"\\x%02x%s\"",
+				    data[0], &data[1]);
+		} else if (type == BT_DATA_NAME_COMPLETE) {
+			shell_print(ctx_shell, "\tName:   \"%s\"", data);
+		} else {
+			char string[64 + 1];
+
+			bin2hex(data, len, string, sizeof(string));
+			shell_print(ctx_shell, "\t0x%02x:  %s", type, string);
+		}
+	}
+}
+
+struct bt_mesh_rpr_cli bt_mesh_shell_rpr_cli = {
+	.scan_report = rpr_scan_report,
+};
 #endif
 #endif /* CONFIG_BT_MESH_DFD_SRV */
 
@@ -565,6 +608,18 @@ static void prov_complete(uint16_t net_idx, uint16_t addr)
 	net.local = addr;
 	net.net_idx = net_idx,
 	net.dst = addr;
+}
+
+static void reprovisioned(uint16_t addr)
+{
+	shell_print(ctx_shell, "Local node re-provisioned, new address 0x%04x",
+		    addr);
+
+	if (net.dst == net.local) {
+		net.dst = addr;
+	}
+
+	net.local = addr;
 }
 
 static void prov_node_added(uint16_t net_idx, uint8_t uuid[16], uint16_t addr,
@@ -691,6 +746,8 @@ static const char *bearer2str(bt_mesh_prov_bearer_t bearer)
 		return "PB-ADV";
 	case BT_MESH_PROV_GATT:
 		return "PB-GATT";
+	case BT_MESH_PROV_REMOTE:
+		return "PB-REMOTE";
 	default:
 		return "unknown";
 	}
@@ -713,6 +770,7 @@ struct bt_mesh_prov bt_mesh_shell_prov = {
 	.link_open = link_open,
 	.link_close = link_close,
 	.complete = prov_complete,
+	.reprovisioned = reprovisioned,
 	.node_added = prov_node_added,
 	.reset = prov_reset,
 	.static_val = NULL,
@@ -823,6 +881,10 @@ static int cmd_init(const struct shell *sh, size_t argc, char *argv[])
 
 	blob_io = &dummy_blob_io;
 
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV)) {
+		bt_mesh_prov_enable(BT_MESH_PROV_REMOTE);
+	}
+
 	return 0;
 }
 
@@ -856,6 +918,23 @@ static int cmd_reset(const struct shell *shell, size_t argc, char *argv[])
 
 	return 0;
 }
+
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+static uint8_t str2u8(const char *str)
+{
+	if (isdigit((unsigned char)str[0])) {
+		return strtoul(str, NULL, 0);
+	}
+
+	return (!strcmp(str, "on") || !strcmp(str, "enable") ||
+		!strcmp(str, "true"));
+}
+
+static bool str2bool(const char *str)
+{
+	return str2u8(str);
+}
+#endif
 
 #if defined(CONFIG_BT_MESH_LOW_POWER)
 static int cmd_lpn(const struct shell *shell, size_t argc, char *argv[])
@@ -976,7 +1055,7 @@ static int cmd_get_comp(const struct shell *shell, size_t argc, char *argv[])
 		return 0;
 	}
 
-	if (page != 0x00) {
+	if (page != 0x00 && page != 0x80) {
 		shell_print(shell, "Got page 0x%02x. No parser available.",
 			    page);
 		return 0;
@@ -1107,7 +1186,7 @@ static int cmd_net_send(const struct shell *shell, size_t argc, char *argv[])
 		.net_idx = net.net_idx,
 		.addr = net.dst,
 		.app_idx = net.app_idx,
-
+		.send_rel = true,
 	};
 	struct bt_mesh_net_tx tx = {
 		.ctx = &ctx,
@@ -4375,6 +4454,271 @@ static int cmd_dfu_progress(const struct shell *shell, size_t argc,
 #endif
 #endif /* !defined(CONFIG_BT_MESH_DFD_SRV) */
 
+
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+static int cmd_rpr_scan(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_rpr_scan_status rsp;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	uint8_t uuid[16] = {0};
+	int err;
+
+	if (argc > 2) {
+		hex2bin(argv[2], strlen(argv[2]), uuid, 16);
+	}
+
+	err = bt_mesh_rpr_scan_start(&bt_mesh_shell_rpr_cli, &srv, argc > 2 ? uuid : NULL,
+				     strtoul(argv[1], NULL, 0),
+				     BT_MESH_RPR_SCAN_MAX_DEVS_ANY, &rsp);
+	if (err) {
+		shell_print(shell, "Scan start failed: %d", err);
+		return err;
+	}
+
+	if (rsp.status == BT_MESH_RPR_SUCCESS) {
+		shell_print(shell, "Scan started.");
+	} else {
+		shell_print(shell, "Scan start response: %d", rsp.status);
+	}
+
+	return 0;
+}
+
+static int cmd_rpr_scan_ext(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	uint8_t ad_types[CONFIG_BT_MESH_RPR_AD_TYPES_MAX];
+	uint8_t uuid[16] = {0};
+	int i, err;
+
+	hex2bin(argv[2], strlen(argv[2]), uuid, 16);
+
+	for (i = 0; i < argc - 3; i++) {
+		ad_types[i] = strtoul(argv[3 + i], NULL, 0);
+	}
+
+	err = bt_mesh_rpr_scan_start_ext(&bt_mesh_shell_rpr_cli, &srv, uuid,
+					 strtoul(argv[1], NULL, 0), ad_types,
+					 (argc - 3));
+	if (err) {
+		shell_print(shell, "Scan start failed: %d", err);
+		return err;
+	}
+
+	shell_print(shell, "Extended scan started.");
+
+	return 0;
+}
+
+static int cmd_rpr_scan_srv(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	uint8_t ad_types[CONFIG_BT_MESH_RPR_AD_TYPES_MAX];
+	int i, err;
+
+	for (i = 0; i < argc - 1; i++) {
+		ad_types[i] = strtoul(argv[1 + i], NULL, 0);
+	}
+
+	err = bt_mesh_rpr_scan_start_ext(&bt_mesh_shell_rpr_cli, &srv, NULL, 0, ad_types,
+					 (argc - 1));
+	if (err) {
+		shell_print(shell, "Scan start failed: %d", err);
+		return err;
+	}
+
+	return 0;
+}
+
+static int cmd_rpr_scan_caps(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	struct bt_mesh_rpr_caps caps;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	int err;
+
+	err = bt_mesh_rpr_scan_caps_get(&bt_mesh_shell_rpr_cli, &srv, &caps);
+	if (err) {
+		shell_print(shell, "Scan capabilities get failed: %d", err);
+		return err;
+	}
+
+	shell_print(shell, "Remote Provisioning scan capabilities of 0x%04x:",
+		    net.dst);
+	shell_print(shell, "\tMax devices:     %u", caps.max_devs);
+	shell_print(shell, "\tActive scanning: %s",
+		    caps.active_scan ? "true" : "false");
+	return 0;
+}
+
+static int cmd_rpr_scan_get(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	struct bt_mesh_rpr_scan_status rsp;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	int err;
+
+	err = bt_mesh_rpr_scan_get(&bt_mesh_shell_rpr_cli, &srv, &rsp);
+	if (err) {
+		shell_print(shell, "Scan get failed: %d", err);
+		return err;
+	}
+
+	shell_print(shell, "Remote Provisioning scan on 0x%04x:", net.dst);
+	shell_print(shell, "\tStatus:         %u", rsp.status);
+	shell_print(shell, "\tScan type:      %u", rsp.scan);
+	shell_print(shell, "\tMax devices:    %u", rsp.max_devs);
+	shell_print(shell, "\tRemaining time: %u", rsp.timeout);
+	return 0;
+}
+
+static int cmd_rpr_scan_stop(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	struct bt_mesh_rpr_scan_status rsp;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	int err;
+
+	err = bt_mesh_rpr_scan_stop(&bt_mesh_shell_rpr_cli, &srv, &rsp);
+	if (err || rsp.status) {
+		shell_print(shell, "Scan stop failed: %d %u", err, rsp.status);
+		return err;
+	}
+
+	shell_print(shell, "Remote Provisioning scan on 0x%04x stopped.",
+		    net.dst);
+	return 0;
+}
+
+static int cmd_rpr_link_get(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	struct bt_mesh_rpr_link rsp;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	int err;
+
+	err = bt_mesh_rpr_link_get(&bt_mesh_shell_rpr_cli, &srv, &rsp);
+	if (err) {
+		shell_print(shell, "Link get failed: %d %u", err, rsp.status);
+		return err;
+	}
+
+	shell_print(shell, "Remote Provisioning Link on 0x%04x:", net.dst);
+	shell_print(shell, "\tStatus: %u", rsp.status);
+	shell_print(shell, "\tState:  %u", rsp.state);
+	return 0;
+}
+
+static int cmd_rpr_link_close(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	struct bt_mesh_rpr_link rsp;
+	const struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	int err;
+
+	err = bt_mesh_rpr_link_close(&bt_mesh_shell_rpr_cli, &srv, &rsp);
+	if (err) {
+		shell_print(shell, "Link close failed: %d %u", err, rsp.status);
+		return err;
+	}
+
+	shell_print(shell, "Remote Provisioning Link on 0x%04x:", net.dst);
+	shell_print(shell, "\tStatus: %u", rsp.status);
+	shell_print(shell, "\tState:  %u", rsp.state);
+	return 0;
+}
+
+static int cmd_provision_remote(const struct shell *shell, size_t argc,
+				char *argv[])
+{
+	struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	uint8_t uuid[16];
+	size_t len;
+	int err;
+
+	len = hex2bin(argv[1], strlen(argv[1]), uuid, sizeof(uuid));
+	(void)memset(uuid + len, 0, sizeof(uuid) - len);
+
+	err = bt_mesh_provision_remote(&bt_mesh_shell_rpr_cli, &srv, uuid,
+				       strtoul(argv[2], NULL, 0),
+				       strtoul(argv[3], NULL, 0));
+	if (err) {
+		shell_print(shell, "Prov remote start failed: %d", err);
+	}
+
+	return err;
+}
+
+static int cmd_reprovision_remote(const struct shell *shell, size_t argc,
+				  char *argv[])
+{
+	struct bt_mesh_rpr_node srv = {
+		.addr = net.dst,
+		.net_idx = net.net_idx,
+		.ttl = BT_MESH_TTL_DEFAULT,
+	};
+	bool composition_changed;
+	uint16_t addr;
+	int err;
+
+	addr = strtoul(argv[1], NULL, 0);
+	if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
+		shell_print(shell, "Must be a valid unicast address");
+		return -EINVAL;
+	}
+
+	composition_changed = (argc > 2 && str2bool(argv[2]));
+
+	err = bt_mesh_reprovision_remote(&bt_mesh_shell_rpr_cli, &srv, addr,
+					 composition_changed);
+	if (err) {
+		shell_print(shell, "Reprovisioning failed: %d", err);
+	}
+
+	return 0;
+}
+
+#endif
+
+
 /* List of Mesh subcommands.
  *
  * Each command is documented in doc/reference/bluetooth/mesh/shell.rst.
@@ -4616,6 +4960,25 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 #endif
 #endif /* !defined(CONFIG_BT_MESH_DFD_SRV) */
 
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+	SHELL_CMD_ARG(rpr-scan, NULL, "<timeout in seconds> [<UUID>]",
+		      cmd_rpr_scan, 2, 1),
+	SHELL_CMD_ARG(rpr-scan-ext, NULL,
+		      "<timeout in seconds> <UUID> [<AD-type> ... ]",
+		      cmd_rpr_scan_ext, 3, CONFIG_BT_MESH_RPR_AD_TYPES_MAX),
+	SHELL_CMD_ARG(rpr-scan-srv, NULL, "[<AD-type> ... ]",
+		      cmd_rpr_scan_srv, 1, CONFIG_BT_MESH_RPR_AD_TYPES_MAX),
+	SHELL_CMD_ARG(rpr-scan-caps, NULL, NULL, cmd_rpr_scan_caps, 1, 0),
+	SHELL_CMD_ARG(rpr-scan-get, NULL, NULL, cmd_rpr_scan_get, 1, 0),
+	SHELL_CMD_ARG(rpr-scan-stop, NULL, NULL, cmd_rpr_scan_stop, 1, 0),
+	SHELL_CMD_ARG(rpr-link-get, NULL, NULL, cmd_rpr_link_get, 1, 0),
+	SHELL_CMD_ARG(rpr-link-close, NULL, NULL, cmd_rpr_link_close, 1, 0),
+	SHELL_CMD_ARG(provision-remote, NULL, "<UUID> <NetKeyIndex> <addr>",
+		      cmd_provision_remote, 4, 0),
+	SHELL_CMD_ARG(reprovision-remote, NULL,
+		      "<addr> [<comp changed: false, true>]",
+		      cmd_reprovision_remote, 2, 1),
+#endif
 	SHELL_SUBCMD_SET_END
 );
 
