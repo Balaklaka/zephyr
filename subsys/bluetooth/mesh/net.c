@@ -89,6 +89,10 @@ struct bt_mesh_net bt_mesh = {
 	.local_queue = SYS_SLIST_STATIC_INIT(&bt_mesh.local_queue),
 	.sar_tx = BT_MESH_SAR_TX_INIT,
 	.sar_rx = BT_MESH_SAR_RX_INIT,
+
+#if defined(CONFIG_BT_MESH_PRIV_BEACONS)
+	.priv_beacon_int = 0x3c,
+#endif
 };
 
 /* Mesh Profile Specification 3.10.6

@@ -134,6 +134,8 @@ struct bt_mesh_elem {
 #define BT_MESH_MODEL_ID_SAR_CFG_CLI               0xbf53
 #define BT_MESH_MODEL_ID_LARGE_COMP_DATA_SRV       0xbf56
 #define BT_MESH_MODEL_ID_LARGE_COMP_DATA_CLI       0xbf57
+#define BT_MESH_MODEL_ID_PRIV_BEACON_SRV           0xbf40
+#define BT_MESH_MODEL_ID_PRIV_BEACON_CLI           0xbf41
 
 /* Models from the Mesh Model Specification */
 #define BT_MESH_MODEL_ID_GEN_ONOFF_SRV             0x1000
@@ -271,6 +273,7 @@ struct bt_mesh_model_op {
  *  @param _cb        Callback structure, or NULL to keep no callbacks.
  *  @param _metadata  Metadata structure.
  */
+#if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)
 #define BT_MESH_MODEL_METADATA_CB(_id, _op, _pub, _user_data, _cb, _metadata)                    \
 {                                                                            \
 	.id = (_id),                                                         \
@@ -282,6 +285,10 @@ struct bt_mesh_model_op {
 	.user_data = _user_data,                                             \
 	.metadata = _metadata,                                               \
 }
+#else
+#define BT_MESH_MODEL_METADATA_CB(_id, _op, _pub, _user_data, _cb, _metadata)  \
+	BT_MESH_MODEL_CB(_id, _op, _pub, _user_data, _cb)
+#endif
 
 /** @def BT_MESH_MODEL_VND_CB
  *

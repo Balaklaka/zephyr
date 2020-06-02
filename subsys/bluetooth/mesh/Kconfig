@@ -418,6 +418,7 @@ config BT_MESH_ADV_STACK_SIZE
 	int "Mesh advertiser thread stack size"
 	depends on BT_MESH_ADV_LEGACY
 	default 1024 if BT_HOST_CRYPTO
+	default 776 if BT_MESH_PRIV_BEACONS
 	default 768
 	help
 	  Size of bt mesh adv thread stack.
@@ -848,6 +849,12 @@ config BT_MESH_FRIEND_SEG_RX
 
 endif # BT_MESH_FRIEND
 
+config BT_MESH_PRIV_BEACONS
+	bool "Support for private beacons"
+	default y
+	help
+	  Enable support for private beacons.
+
 config BT_MESH_CFG_CLI
 	bool "Support for Configuration Client Model"
 	help
@@ -1244,6 +1251,17 @@ config BT_MESH_LARGE_COMP_DATA_CLI
 	bool "Support for Large Composition Data Client Model"
 	help
 	  Enable support for the Large Composition Data Client model.
+
+config BT_MESH_PRIV_BEACON_SRV
+	bool "Support for Private Beacon Server Model"
+	depends on BT_MESH_PRIV_BEACONS
+	help
+	  Enable support for the Private Beacon Server model.
+
+config BT_MESH_PRIV_BEACON_CLI
+	bool "Support for Private Beacon Client Model"
+	help
+	  Enable support for the Private Beacon Client model.
 
 rsource "shell/Kconfig"
 

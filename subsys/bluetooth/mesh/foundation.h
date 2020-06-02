@@ -103,6 +103,16 @@
 #define OP_MODELS_METADATA_GET             BT_MESH_MODEL_OP_2(0xB8, 0x13)
 #define OP_MODELS_METADATA_STATUS          BT_MESH_MODEL_OP_2(0xB8, 0x14)
 
+#define OP_PRIV_BEACON_GET                 BT_MESH_MODEL_OP_2(0xB7, 0x11)
+#define OP_PRIV_BEACON_SET                 BT_MESH_MODEL_OP_2(0xB7, 0x12)
+#define OP_PRIV_BEACON_STATUS              BT_MESH_MODEL_OP_2(0xB7, 0x13)
+#define OP_PRIV_GATT_PROXY_GET             BT_MESH_MODEL_OP_2(0xB7, 0x14)
+#define OP_PRIV_GATT_PROXY_SET             BT_MESH_MODEL_OP_2(0xB7, 0x15)
+#define OP_PRIV_GATT_PROXY_STATUS          BT_MESH_MODEL_OP_2(0xB7, 0x16)
+#define OP_PRIV_NODE_ID_GET                BT_MESH_MODEL_OP_2(0xB7, 0x18)
+#define OP_PRIV_NODE_ID_SET                BT_MESH_MODEL_OP_2(0xB7, 0x19)
+#define OP_PRIV_NODE_ID_STATUS             BT_MESH_MODEL_OP_2(0xB7, 0x1A)
+
 #define STATUS_SUCCESS                     0x00
 #define STATUS_INVALID_ADDRESS             0x01
 #define STATUS_INVALID_MODEL               0x02

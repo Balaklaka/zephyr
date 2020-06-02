@@ -5,6 +5,7 @@
  */
 
 #include "subnet.h"
+#include <bluetooth/mesh/sar_cfg.h>
 
 #define BT_MESH_IV_UPDATE(flags)   ((flags >> 1) & 0x01)
 #define BT_MESH_KEY_REFRESH(flags) (flags & 0x01)
@@ -181,6 +182,8 @@ enum {
 	BT_MESH_BEACON,
 	BT_MESH_GATT_PROXY,
 	BT_MESH_FRIEND,
+	BT_MESH_PRIV_BEACON,
+	BT_MESH_PRIV_GATT_PROXY,
 
 	/* Don't touch - intentionally last */
 	BT_MESH_FLAG_COUNT,
@@ -211,6 +214,10 @@ struct bt_mesh_net {
 	uint8_t net_xmit;
 	uint8_t relay_xmit;
 	uint8_t default_ttl;
+
+#if defined(CONFIG_BT_MESH_PRIV_BEACONS)
+	uint8_t priv_beacon_int;
+#endif
 
 	/* Timer to track duration in current IV Update state */
 	struct k_work_delayable ivu_timer;
