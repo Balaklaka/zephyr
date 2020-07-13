@@ -984,6 +984,64 @@ config BT_MESH_BLOB_IO_FLASH
 	  Enable the BLOB flash stream for reading and writing BLOBs directly to
 	  and from flash.
 
+config BT_MESH_DFU_SRV
+	bool "Support for DFU Server model"
+	depends on BT_MESH_BLOB_SRV
+	help
+	  Enable the Device Firmware Update Server model.
+
+config BT_MESH_DFU_CLI
+	bool "Support for DFU Client model"
+	depends on BT_MESH_BLOB_CLI
+	help
+	  Enable the Device Firmware Update Client model.
+
+menu "DFU model configuration"
+	visible if BT_MESH_DFU_SRV || BT_MESH_DFU_CLI
+
+config BT_MESH_DFU_FWID_MAXLEN
+	int "DFU FWID max length"
+	default 16
+	range 0 106
+	help
+	  This value defines the maximum length of an image's firmware ID.
+
+config BT_MESH_DFU_METADATA_MAXLEN
+	int "DFU metadata max length"
+	default 32
+	range 0 255
+	help
+	  This value defines the maximum length of an image's metadata.
+
+config BT_MESH_DFU_URI_MAXLEN
+	int "DFU URI max length"
+	default 32
+	range 0 255
+	help
+	  This value defines the maximum length of an image's URI, not including
+	  a string terminator.
+
+endmenu
+
+menuconfig BT_MESH_DFU_SLOTS
+	bool "Enable Firmware image slot manager"
+	default y if BT_MESH_DFU_CLI
+	help
+	  Enable the DFU image slot manager, for managing Firmware distribution slots
+	  for the DFU Client model.
+
+if BT_MESH_DFU_SLOTS
+
+config BT_MESH_DFU_SLOT_CNT
+	int "Number of firmware image slots"
+	default 1
+	range 1 32767
+	help
+	  This value defines the number of firmware slots the DFU image slot manager
+	  can keep simultaneously.
+
+endif
+
 rsource "shell/Kconfig"
 
 config BT_MESH_MODEL_EXTENSIONS
@@ -1103,6 +1161,11 @@ config BT_MESH_DEBUG_MODEL
 	help
 	  Use this option to enable debug logs for the Foundation
 	  Models.
+
+config BT_MESH_DEBUG_DFU
+	bool "Mesh DFU debug"
+	help
+	  Use this option to enable debug logs for the Mesh DFU subsystem.
 
 config BT_MESH_DEBUG_ADV
 	bool "Advertising debug"
