@@ -74,4 +74,6 @@ zephyr_library_sources_ifdef(CONFIG_BT_MESH_DFU_CLI dfu_cli.c)
 
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_DFU_SRV dfu_srv.c)
 
+zephyr_library_sources_ifdef(CONFIG_BT_MESH_DFD_SRV dfd_srv.c)
+
 zephyr_library_sources_ifdef(CONFIG_BT_MESH_DFU_SLOTS dfu_slot.c)
