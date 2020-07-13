@@ -41,6 +41,18 @@ extern struct bt_mesh_health_srv bt_mesh_shell_health_srv;
 /** @brief External reference to health client */
 extern struct bt_mesh_health_cli bt_mesh_shell_health_cli;
 
+/** @brief External reference to DFU Server */
+extern struct bt_mesh_dfu_srv bt_mesh_shell_dfu_srv;
+
+/** @brief External reference to DFU Client */
+extern struct bt_mesh_dfu_cli bt_mesh_shell_dfu_cli;
+
+/** @brief External reference to BLOB Server */
+extern struct bt_mesh_blob_srv bt_mesh_shell_blob_srv;
+
+/** @brief External reference to BLOB Client */
+extern struct bt_mesh_blob_cli bt_mesh_shell_blob_cli;
+
 /** @brief External reference to provisioning handler. */
 extern struct bt_mesh_prov bt_mesh_shell_prov;
 

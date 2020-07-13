@@ -16,6 +16,9 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/bluetooth/mesh/shell.h>
+#include <dfu/mcuboot.h>
+#include <storage/flash_map.h>
+#include <sys/reboot.h>
 
 /* Private includes for raw Network & Transport layer access */
 #include "mesh.h"
@@ -25,6 +28,7 @@
 #include "foundation.h"
 #include "settings.h"
 #include "access.h"
+#include "dfu_slot.h"
 
 #define CID_NVAL   0xffff
 
@@ -135,11 +139,23 @@ static int fault_test(struct bt_mesh_model *model, uint8_t test_id,
 	return 0;
 }
 
+static void attn_on(struct bt_mesh_model *mod)
+{
+	shell_print(ctx_shell, "Attention!");
+}
+
+static void attn_off(struct bt_mesh_model *mod)
+{
+	shell_print(ctx_shell, "Attention ended.");
+}
+
 static const struct bt_mesh_health_srv_cb health_srv_cb = {
 	.fault_get_cur = fault_get_cur,
 	.fault_get_reg = fault_get_reg,
 	.fault_clear = fault_clear,
 	.fault_test = fault_test,
+	.attn_on = attn_on,
+	.attn_off = attn_off,
 };
 
 struct bt_mesh_health_srv bt_mesh_shell_health_srv = {
@@ -192,6 +208,256 @@ static void health_period_status(struct bt_mesh_health_cli *cli, uint16_t addr,
 {
 	shell_print_ctx("Health Fast Period Divisor Status from 0x%04x: %u", addr, period);
 }
+
+#if defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV)
+
+static uint8_t blob_rx_sum;
+static bool blob_valid;
+static const char *blob_data = "blob";
+
+static int blob_io_open(const struct bt_mesh_blob_io *io,
+		    const struct bt_mesh_blob_xfer *xfer,
+		    enum bt_mesh_blob_io_mode mode)
+{
+	blob_rx_sum = 0;
+	blob_valid = true;
+	return 0;
+}
+
+static int blob_chunk_wr(const struct bt_mesh_blob_io *io,
+			 const struct bt_mesh_blob_xfer *xfer,
+			 const struct bt_mesh_blob_block *block,
+			 const struct bt_mesh_blob_chunk *chunk)
+{
+	int i;
+
+	for (i = 0; i < chunk->size; ++i) {
+		blob_rx_sum += chunk->data[i];
+		if (chunk->data[i] !=
+		    blob_data[(i + chunk->offset) % sizeof(blob_data)]) {
+			blob_valid = false;
+		}
+	}
+
+	return 0;
+}
+
+static int blob_chunk_rd(const struct bt_mesh_blob_io *io,
+			 const struct bt_mesh_blob_xfer *xfer,
+			 const struct bt_mesh_blob_block *block,
+			 const struct bt_mesh_blob_chunk *chunk)
+{
+	for (int i = 0; i < chunk->size; ++i) {
+		chunk->data[i] =
+			blob_data[(i + chunk->offset) % sizeof(blob_data)];
+	}
+
+	return 0;
+}
+
+static const struct bt_mesh_blob_io blob_io = {
+	.open = blob_io_open,
+	.rd = blob_chunk_rd,
+	.wr = blob_chunk_wr,
+};
+
+#endif /* defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV) */
+
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+
+static void dfu_cli_ended(struct bt_mesh_dfu_cli *cli,
+			  enum bt_mesh_dfu_status reason)
+{
+	shell_print(ctx_shell, "DFU ended: %u", reason);
+}
+
+static void dfu_cli_applied(struct bt_mesh_dfu_cli *cli)
+{
+	shell_print(ctx_shell, "DFU applied.");
+}
+
+static void dfu_cli_lost_target(struct bt_mesh_dfu_cli *cli,
+				struct bt_mesh_dfu_target *target)
+{
+	shell_print(ctx_shell, "DFU target lost: 0x%04x", target->blob.addr);
+}
+
+const struct bt_mesh_dfu_cli_cb dfu_cli_cb = {
+	.ended = dfu_cli_ended,
+	.applied = dfu_cli_applied,
+	.lost_target = dfu_cli_lost_target,
+};
+
+struct bt_mesh_dfu_cli bt_mesh_shell_dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb);
+
+#elif defined(CONFIG_BT_MESH_BLOB_CLI)
+
+static struct {
+	struct bt_mesh_blob_cli_ctx ctx;
+	struct bt_mesh_blob_target targets[32];
+	uint8_t target_count;
+	struct bt_mesh_blob_xfer xfer;
+	struct bt_mesh_blob_cli_bounds bounds;
+} blob_cli_xfer;
+
+static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
+				 struct bt_mesh_blob_target *target,
+				 enum bt_mesh_blob_status reason)
+{
+	shell_print(ctx_shell, "Mesh Blob: Lost target 0x%04x (reason: %u)",
+		    target->addr, reason);
+}
+
+static void blob_cli_bounds(struct bt_mesh_blob_cli *cli,
+			    const struct bt_mesh_blob_cli_bounds *bounds)
+{
+	static const char * const modes[] = {
+		"none",
+		"push",
+		"pull",
+		"all",
+	};
+
+	shell_print(ctx_shell, "Mesh BLOB: bounds:");
+	shell_print(ctx_shell, "\tMax BLOB size: %u bytes", bounds->max_size);
+	shell_print(ctx_shell, "\tBlock size: %u-%u (%u-%u bytes)",
+		    bounds->min_block_size_log, bounds->max_block_size_log,
+		    1 << bounds->min_block_size_log,
+		    1 << bounds->max_block_size_log);
+	shell_print(ctx_shell, "\tMax chunks: %u", bounds->max_chunks);
+	shell_print(ctx_shell, "\tChunk size: %u", bounds->chunk_size);
+	shell_print(ctx_shell, "\tMTU size: %u", bounds->mtu_size);
+	shell_print(ctx_shell, "\tModes: %s", modes[bounds->modes]);
+}
+
+static void blob_cli_end(struct bt_mesh_blob_cli *cli,
+			 const struct bt_mesh_blob_xfer *xfer, bool success)
+{
+	if (success) {
+		shell_print(ctx_shell, "Mesh BLOB transfer complete.");
+	} else {
+		shell_print(ctx_shell, "Mesh BLOB transfer failed.");
+	}
+}
+
+static const struct bt_mesh_blob_cli_cb blob_cli_handlers = {
+	.lost_target = blob_cli_lost_target,
+	.bounds = blob_cli_bounds,
+	.end = blob_cli_end,
+};
+
+struct bt_mesh_blob_cli bt_mesh_shell_blob_cli = {
+	.cb = &blob_cli_handlers
+};
+
+#endif
+
+
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+
+struct shell_dfu_fwid {
+	uint8_t type;
+	struct mcuboot_img_sem_ver ver;
+};
+
+static struct bt_mesh_dfu_img dfu_imgs[] = { {
+	.fwid = &((struct shell_dfu_fwid){ 0x01, { 1, 0, 0, 0 } }),
+	.fwid_len = sizeof(struct shell_dfu_fwid),
+} };
+
+static int dfu_meta_check(struct bt_mesh_dfu_srv *srv,
+			      const struct bt_mesh_dfu_img *img,
+			      const uint8_t *metadata, size_t metadata_len,
+			      enum bt_mesh_dfu_effect *effect)
+{
+	return 0;
+}
+
+static int dfu_start(struct bt_mesh_dfu_srv *srv,
+		     const struct bt_mesh_dfu_img *img, const uint8_t *metadata,
+		     size_t metadata_len, const struct bt_mesh_blob_io **io)
+{
+	shell_print(ctx_shell, "DFU setup");
+
+	*io = &blob_io;
+
+	return 0;
+}
+
+static void dfu_end(struct bt_mesh_dfu_srv *srv,
+		    const struct bt_mesh_dfu_img *img, bool success)
+{
+	if (!success) {
+		shell_print(ctx_shell, "DFU failed");
+		return;
+	}
+
+	if (!blob_valid) {
+		bt_mesh_dfu_srv_rejected(srv);
+		return;
+	}
+
+	bt_mesh_dfu_srv_verified(srv);
+}
+
+static int dfu_apply(struct bt_mesh_dfu_srv *srv,
+		     const struct bt_mesh_dfu_img *img)
+{
+	if (!blob_valid) {
+		return -EINVAL;
+	}
+
+	shell_print(ctx_shell, "Applying DFU transfer...");
+
+	return 0;
+}
+
+static const struct bt_mesh_dfu_srv_cb dfu_handlers = {
+	.check = dfu_meta_check,
+	.start = dfu_start,
+	.end = dfu_end,
+	.apply = dfu_apply,
+};
+
+struct bt_mesh_dfu_srv bt_mesh_shell_dfu_srv =
+	BT_MESH_DFU_SRV_INIT(&dfu_handlers, dfu_imgs, ARRAY_SIZE(dfu_imgs));
+
+#elif defined(CONFIG_BT_MESH_BLOB_SRV)
+static int64_t blob_time;
+
+static int blob_srv_start(struct bt_mesh_blob_srv *srv,
+			  struct bt_mesh_msg_ctx *ctx,
+			  struct bt_mesh_blob_xfer *xfer)
+{
+	shell_print(ctx_shell, "BLOB start");
+	blob_time = k_uptime_get();
+	return 0;
+}
+
+static void blob_srv_end(struct bt_mesh_blob_srv *srv, uint64_t id,
+			 bool success)
+{
+	if (success) {
+		int64_t duration = k_uptime_delta(&blob_time);
+
+		shell_print(ctx_shell, "BLOB completed in %u.%03u s",
+			(uint32_t)(duration / MSEC_PER_SEC),
+			(uint32_t)(duration % MSEC_PER_SEC));
+	} else {
+		shell_print(ctx_shell, "BLOB cancelled");
+	}
+}
+
+static const struct bt_mesh_blob_srv_cb blob_srv_cb = {
+	.start = blob_srv_start,
+	.end = blob_srv_end,
+};
+
+struct bt_mesh_blob_srv bt_mesh_shell_blob_srv = {
+	.cb = &blob_srv_cb
+};
+
+#endif
 
 struct bt_mesh_health_cli bt_mesh_shell_health_cli = {
 	.current_status = health_current_status,
@@ -331,7 +597,6 @@ static int input(bt_mesh_input_action_t act, uint8_t size)
 	input_size = size;
 	return 0;
 }
-
 static const char *bearer2str(bt_mesh_prov_bearer_t bearer)
 {
 	switch (bearer) {
@@ -401,6 +666,9 @@ static void capabilities(const struct bt_mesh_dev_capabilities *cap)
 }
 #endif
 
+#if defined(CONFIG_BT_MESH_PROV)
+static uint8_t static_val[16];
+
 static int cmd_static_oob(const struct shell *shell, size_t argc, char *argv[])
 {
 	if (argc < 2) {
@@ -425,6 +693,7 @@ static int cmd_static_oob(const struct shell *shell, size_t argc, char *argv[])
 
 	return 0;
 }
+#endif
 
 static int cmd_uuid(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -449,6 +718,21 @@ static int cmd_init(const struct shell *sh, size_t argc, char *argv[])
 
 	ctx_shell = sh;
 	shell_print(sh, "Mesh shell initialized");
+
+#if defined(CONFIG_BT_MESH_DFU_SRV) && defined(CONFIG_BOOTLOADER_MCUBOOT)
+	struct mcuboot_img_header img_header;
+
+	err = boot_read_bank_header(DT_FLASH_AREA_IMAGE_0_ID, &img_header,
+				    sizeof(img_header));
+	if (!err) {
+		struct shell_dfu_fwid *fwid =
+			(struct shell_dfu_fwid *)dfu_imgs[0].fwid;
+
+		fwid->ver = img_header.h.v1.sem_ver;
+
+		boot_write_img_confirmed();
+	}
+#endif
 
 	return 0;
 }
@@ -3353,6 +3637,561 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+
+static struct {
+	struct bt_mesh_dfu_target targets[32];
+	size_t target_cnt;
+	struct bt_mesh_blob_cli_ctx ctx;
+} dfu_tx;
+
+static int cmd_dfu_slot_add(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	const struct bt_mesh_dfu_slot *slot;
+	size_t size;
+	uint8_t fwid[CONFIG_BT_MESH_DFU_FWID_MAXLEN];
+	size_t fwid_len = 0;
+	uint8_t metadata[CONFIG_BT_MESH_DFU_METADATA_MAXLEN];
+	size_t metadata_len = 0;
+	const char *uri = "";
+
+	size = strtoul(argv[1], NULL, 0);
+
+	if (argc > 2) {
+		fwid_len = hex2bin(argv[2], strlen(argv[2]), fwid,
+				   sizeof(fwid));
+	}
+
+	if (argc > 3) {
+		metadata_len = hex2bin(argv[3], strlen(argv[3]), metadata,
+				       sizeof(metadata));
+	}
+
+	if (argc > 4) {
+		uri = argv[4];
+	}
+
+	shell_print(shell, "Adding slot (size: %u)", size);
+
+	slot = bt_mesh_dfu_slot_add(size, fwid, fwid_len, metadata,
+				    metadata_len, uri, strlen(uri));
+	if (!slot) {
+		shell_print(shell, "Failed.");
+		return 0;
+	}
+
+	bt_mesh_dfu_slot_valid_set(slot, true);
+
+	shell_print(shell, "Slot added. ID: %u", bt_mesh_dfu_slot_idx_get(slot));
+
+	return 0;
+}
+
+static int cmd_dfu_slot_del(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	const struct bt_mesh_dfu_slot *slot;
+	uint8_t idx;
+	int err;
+
+	idx = strtoul(argv[1], NULL, 0);
+	slot = bt_mesh_dfu_slot_at(idx);
+	if (!slot) {
+		shell_print(shell, "No slot at %u", idx);
+		return 0;
+	}
+
+	err = bt_mesh_dfu_slot_del(slot);
+	if (err) {
+		shell_print(shell, "Failed deleting slot %u (err: %d)", idx,
+			    err);
+		return 0;
+	}
+
+	shell_print(shell, "Slot %u deleted.", idx);
+	return 0;
+}
+
+static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	const struct bt_mesh_dfu_slot *slot;
+	uint8_t idx;
+	char fwid[2 * CONFIG_BT_MESH_DFU_FWID_MAXLEN + 1];
+	char metadata[2 * CONFIG_BT_MESH_DFU_METADATA_MAXLEN + 1];
+	char uri[CONFIG_BT_MESH_DFU_URI_MAXLEN + 1];
+	size_t len;
+
+	idx = strtoul(argv[1], NULL, 0);
+	slot = bt_mesh_dfu_slot_at(idx);
+	if (!slot) {
+		shell_print(shell, "No slot at %u", idx);
+		return 0;
+	}
+
+	len = bin2hex(slot->fwid, slot->fwid_len, fwid, sizeof(fwid));
+	fwid[len] = '\0';
+	len = bin2hex(slot->metadata, slot->metadata_len, metadata,
+		      sizeof(metadata));
+	metadata[len] = '\0';
+	memcpy(uri, slot->uri, slot->uri_len);
+	uri[slot->uri_len] = '\0';
+
+	shell_print(shell, "Slot %u:", idx);
+	shell_print(shell, "\tSize:     %u bytes", slot->size);
+	shell_print(shell, "\tFWID:     %s", fwid);
+	shell_print(shell, "\tMetadata: %s", metadata);
+	shell_print(shell, "\tURI:      %s", uri);
+	return 0;
+}
+
+static int cmd_dfu_target(const struct shell *shell, size_t argc, char *argv[])
+{
+	uint8_t img_idx;
+	uint16_t addr;
+
+	addr = strtoul(argv[1], NULL, 0);
+	img_idx = strtoul(argv[2], NULL, 0);
+
+	if (dfu_tx.target_cnt == ARRAY_SIZE(dfu_tx.targets)) {
+		shell_print(shell, "No room.");
+		return 0;
+	}
+
+
+	dfu_tx.targets[dfu_tx.target_cnt].blob.addr = addr;
+	dfu_tx.targets[dfu_tx.target_cnt].img_idx = img_idx;
+	sys_slist_append(&dfu_tx.ctx.targets,
+			 &dfu_tx.targets[dfu_tx.target_cnt].blob.n);
+	dfu_tx.target_cnt++;
+
+	shell_print(shell, "Added target 0x%04x", addr);
+	return 0;
+}
+
+static int cmd_dfu_target_state(const struct shell *shell, size_t argc,
+				char *argv[])
+{
+	struct bt_mesh_dfu_target_status rsp;
+	struct bt_mesh_msg_ctx ctx = {
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.net_idx = net.net_idx,
+		.addr = net.dst,
+		.app_idx = net.app_idx,
+	};
+	int err;
+
+	err = bt_mesh_dfu_cli_status_get(&bt_mesh_shell_dfu_cli, &ctx, &rsp);
+	if (err) {
+		shell_print(shell, "Failed getting target status (err: %d)",
+			    err);
+		return 0;
+	}
+
+	shell_print(shell, "Target 0x%04x:", net.dst);
+	shell_print(shell, "\tStatus:     %u", rsp.status);
+	shell_print(shell, "\tPhase:      %u", rsp.phase);
+	if (rsp.phase != BT_MESH_DFU_PHASE_IDLE) {
+		shell_print(shell, "\tEffect:       %u", rsp.effect);
+		shell_print(shell, "\tImg Idx:      %u", rsp.img_idx);
+		shell_print(shell, "\tTTL:          %u", rsp.ttl);
+		shell_print(shell, "\tTimeout base: %u", rsp.timeout_base);
+	}
+
+	return 0;
+}
+
+static enum bt_mesh_dfu_iter dfu_img_cb(struct bt_mesh_dfu_cli *cli,
+					struct bt_mesh_msg_ctx *ctx,
+					uint8_t idx, uint8_t total,
+					const struct bt_mesh_dfu_img *img,
+					void *cb_data)
+{
+	char fwid[2 * CONFIG_BT_MESH_DFU_FWID_MAXLEN + 1];
+	size_t len;
+
+	len = bin2hex(img->fwid, img->fwid_len, fwid, sizeof(fwid));
+	fwid[len] = '\0';
+
+	shell_print(ctx_shell, "Image %u:", idx);
+	shell_print(ctx_shell, "\tFWID: %s", fwid);
+	if (img->uri) {
+		shell_print(ctx_shell, "\tURI:  %s", img->uri);
+	}
+
+	return BT_MESH_DFU_ITER_CONTINUE;
+}
+
+static int cmd_dfu_target_imgs(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	struct bt_mesh_msg_ctx ctx = {
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.net_idx = net.net_idx,
+		.addr = net.dst,
+		.app_idx = net.app_idx,
+	};
+	uint8_t img_cnt = 0xff;
+	int err;
+
+	if (argc == 2) {
+		img_cnt = strtoul(argv[1], NULL, 0);
+	}
+
+	shell_print(shell, "Requesting DFU images in 0x%04x", net.dst);
+
+	err = bt_mesh_dfu_cli_imgs_get(&bt_mesh_shell_dfu_cli, &ctx, dfu_img_cb, NULL,
+				       img_cnt);
+	if (err) {
+		shell_print(shell, "Request failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_target_check(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	struct bt_mesh_dfu_metadata_status rsp;
+	const struct bt_mesh_dfu_slot *slot;
+	struct bt_mesh_msg_ctx ctx = {
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.net_idx = net.net_idx,
+		.addr = net.dst,
+		.app_idx = net.app_idx,
+	};
+	uint8_t slot_idx, img_idx;
+	int err;
+
+	slot_idx = strtoul(argv[1], NULL, 0);
+
+	slot = bt_mesh_dfu_slot_at(slot_idx);
+	if (!slot) {
+		shell_print(shell, "No image in slot %u", slot_idx);
+		return 0;
+	}
+
+	img_idx = strtoul(argv[2], NULL, 0);
+
+	err = bt_mesh_dfu_cli_metadata_check(&bt_mesh_shell_dfu_cli, &ctx, img_idx, slot,
+					     &rsp);
+	if (err) {
+		shell_print(shell, "Metadata check failed. err: %d", err);
+		return 0;
+	}
+
+	shell_print(shell, "Slot %u check for 0x%04x image %u:", slot_idx,
+		    net.dst, img_idx);
+	shell_print(shell, "\tStatus: %u", rsp.status);
+	shell_print(shell, "\tEffect: 0x%x", rsp.effect);
+
+	return 0;
+}
+
+static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
+{
+	const struct bt_mesh_dfu_slot *slot;
+	uint8_t slot_idx;
+	uint16_t group;
+	int err;
+
+	slot_idx = strtoul(argv[1], NULL, 0);
+	if (argc > 2) {
+		group = strtoul(argv[2], NULL, 0);
+	} else {
+		group = BT_MESH_ADDR_UNASSIGNED;
+	}
+
+	if (!dfu_tx.target_cnt) {
+		shell_print(shell, "No targets.");
+		return 0;
+	}
+
+	slot = bt_mesh_dfu_slot_at(slot_idx);
+	if (!slot) {
+		shell_print(shell, "No image in slot %u", slot_idx);
+		return 0;
+	}
+
+	shell_print(shell, "Starting DFU from slot %u (%u targets)", slot_idx,
+		    dfu_tx.target_cnt);
+
+	dfu_tx.ctx.group = group;
+	dfu_tx.ctx.app_idx = net.app_idx;
+	dfu_tx.ctx.ttl = BT_MESH_TTL_DEFAULT;
+
+	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.ctx, NULL, &blob_io,
+				   BT_MESH_BLOB_XFER_MODE_PUSH);
+	if (err) {
+		shell_print(shell, "Failed (err: %d)", err);
+		return 0;
+	}
+	return 0;
+}
+
+static int cmd_dfu_cancel(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_msg_ctx ctx = {
+		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.net_idx = net.net_idx,
+		.addr = net.dst,
+		.app_idx = net.app_idx,
+	};
+	int err;
+
+	if (argc == 2) {
+		ctx.addr = strtoul(argv[1], NULL, 0);
+		shell_print(shell, "Cancelling DFU for 0x%04x", ctx.addr);
+	} else {
+		shell_print(shell, "Cancelling DFU");
+	}
+
+	bt_mesh_dfu_srv_cancel(&bt_mesh_shell_dfu_srv);
+
+	err = bt_mesh_dfu_cli_cancel(&bt_mesh_shell_dfu_cli, (argc == 2) ? &ctx : NULL);
+	if (err) {
+		shell_print(shell, "Failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_apply(const struct shell *shell, size_t argc, char *argv[])
+{
+	int err;
+
+	shell_print(shell, "Applying DFU");
+
+	err = bt_mesh_dfu_cli_apply(&bt_mesh_shell_dfu_cli);
+	if (err) {
+		shell_print(shell, "Failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_confirm(const struct shell *shell, size_t argc, char *argv[])
+{
+	int err;
+
+	shell_print(shell, "Confirming DFU");
+
+	err = bt_mesh_dfu_cli_confirm(&bt_mesh_shell_dfu_cli);
+	if (err) {
+		shell_print(shell, "Failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+#elif defined(CONFIG_BT_MESH_BLOB_CLI)
+
+static void blob_cli_ctx_prepare(uint16_t group)
+{
+	int i;
+
+	blob_cli_xfer.ctx.ttl = BT_MESH_TTL_DEFAULT;
+	blob_cli_xfer.ctx.group = group;
+	blob_cli_xfer.ctx.app_idx = net.app_idx;
+	sys_slist_init(&blob_cli_xfer.ctx.targets);
+
+	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
+		sys_slist_append(&blob_cli_xfer.ctx.targets,
+				 &blob_cli_xfer.targets[i].n);
+	}
+}
+
+static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_blob_cli_bounds bounds = bt_mesh_blob_cli_boundaries;
+	uint16_t group;
+	int err;
+
+	blob_cli_xfer.xfer.id = strtoul(argv[1], NULL, 0);
+	blob_cli_xfer.xfer.size = strtoul(argv[2], NULL, 0);
+	bounds.max_block_size_log = strtoul(argv[3], NULL, 0);
+	bounds.chunk_size = strtoul(argv[4], NULL, 0);
+
+	if (argc >= 6) {
+		group = strtoul(argv[5], NULL, 0);
+	} else {
+		group = BT_MESH_ADDR_UNASSIGNED;
+	}
+
+	if (argc < 7 || !strcmp(argv[6], "push")) {
+		blob_cli_xfer.xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
+	} else if (!strcmp(argv[6], "pull")) {
+		blob_cli_xfer.xfer.mode = BT_MESH_BLOB_XFER_MODE_PULL;
+	} else {
+		shell_print(shell, "Mode must be either push or pull");
+		return -EINVAL;
+	}
+
+	if (!blob_cli_xfer.target_count) {
+		shell_print(shell, "Failed: No targets");
+		return 0;
+	}
+
+	blob_cli_ctx_prepare(group);
+
+	shell_print(shell,
+		    "Sending transfer 0x%x (mode: %s, %u bytes) to 0x%04x",
+		    (uint32_t)blob_cli_xfer.xfer.id,
+		    blob_cli_xfer.xfer.mode == BT_MESH_BLOB_XFER_MODE_PUSH ?
+			    "push" :
+			    "pull",
+		    blob_cli_xfer.xfer.size, group);
+
+	err = bt_mesh_blob_cli_send(&bt_mesh_shell_blob_cli, &blob_cli_xfer.ctx,
+				    &blob_cli_xfer.xfer, &bounds, &blob_io);
+	if (err) {
+		shell_print(shell, "BLOB transfer TX failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_blob_target(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_blob_target *t;
+
+	if (blob_cli_xfer.target_count ==
+	    ARRAY_SIZE(blob_cli_xfer.targets)) {
+		shell_print(shell, "No more room");
+		return 0;
+	}
+
+	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
+
+	t->addr = strtoul(argv[1], NULL, 0);
+
+	shell_print(shell, "Added target 0x%04x", t->addr);
+
+	blob_cli_xfer.target_count++;
+	return 0;
+}
+
+static int cmd_blob_bounds(const struct shell *shell, size_t argc, char *argv[])
+{
+	uint16_t group;
+	int err;
+
+	shell_print(shell, "Checking transfer parameter boundaries...");
+
+	if (argc > 1) {
+		group = strtoul(argv[1], NULL, 0);
+	} else {
+		group = BT_MESH_ADDR_UNASSIGNED;
+	}
+
+	if (!blob_cli_xfer.target_count) {
+		shell_print(shell, "Failed: No targets");
+		return 0;
+	}
+
+	blob_cli_ctx_prepare(group);
+	blob_cli_xfer.bounds = bt_mesh_blob_cli_boundaries;
+
+	err = bt_mesh_blob_cli_bounds_check(&bt_mesh_shell_blob_cli, &blob_cli_xfer.ctx,
+					    &blob_cli_xfer.bounds);
+	if (err) {
+		shell_print(shell, "Boundary check start failed (err: %d)",
+			    err);
+	}
+
+	return 0;
+}
+
+static int cmd_blob_tx_cancel(const struct shell *shell, size_t argc,
+			      char *argv[])
+{
+	shell_print(shell, "Cancelling transfer");
+	bt_mesh_blob_cli_cancel(&bt_mesh_shell_blob_cli);
+	return 0;
+}
+
+#endif
+
+#if defined(CONFIG_BT_MESH_BLOB_SRV)
+
+static int cmd_blob_rx(const struct shell *shell, size_t argc, char *argv[])
+{
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	struct bt_mesh_blob_srv *srv = &bt_mesh_shell_dfu_srv.blob;
+#else
+	struct bt_mesh_blob_srv *srv = &bt_mesh_shell_blob_srv;
+#endif
+	uint16_t timeout_base;
+	uint32_t id;
+	int err;
+
+	id = strtoul(argv[1], NULL, 0);
+	blob_rx_sum = 0;
+
+	if (argc > 2) {
+		timeout_base = strtoul(argv[2], NULL, 0);
+	} else {
+		timeout_base = 0U;
+	}
+
+	shell_print(shell, "Receive BLOB 0x%x", id);
+	err = bt_mesh_blob_srv_recv(srv, id, &blob_io, BT_MESH_TTL_MAX,
+				    timeout_base);
+	if (err) {
+		shell_print(shell, "BLOB RX setup failed (%d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_blob_rx_cancel(const struct shell *shell, size_t argc,
+			      char *argv[])
+{
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	struct bt_mesh_blob_srv *srv = &bt_mesh_shell_dfu_srv.blob;
+#else
+	struct bt_mesh_blob_srv *srv = &bt_mesh_shell_blob_srv;
+#endif
+	int err;
+
+	shell_print(shell, "Cancelling BLOB rx");
+	err = bt_mesh_blob_srv_cancel(srv);
+	if (err) {
+		shell_print(shell, "BLOB cancel failed (%d)", err);
+	}
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+static int cmd_dfu_applied(const struct shell *shell, size_t argc, char *argv[])
+{
+	bt_mesh_dfu_srv_applied(&bt_mesh_shell_dfu_srv);
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_BT_MESH_DFU_CLI) || defined(CONFIG_BT_MESH_DFU_SRV)
+static int cmd_dfu_progress(const struct shell *shell, size_t argc,
+			    char *argv[])
+{
+	shell_print(shell, "DFU progress:");
+
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	shell_print(shell, "\tServer: %u %%",
+		    bt_mesh_dfu_srv_progress(&bt_mesh_shell_dfu_srv));
+#endif
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	shell_print(shell, "\tClient: %u %%",
+		    bt_mesh_dfu_cli_progress(&bt_mesh_shell_dfu_cli));
+#endif
+
+	return 0;
+}
+#endif
+
 /* List of Mesh subcommands.
  *
  * Each command is documented in doc/reference/bluetooth/mesh/shell.rst.
@@ -3536,6 +4375,48 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      "[<AppKey>]", cmd_cdb_app_key_add, 3, 1),
 	SHELL_CMD_ARG(cdb-app-key-del, NULL, "<AppKeyIdx>", cmd_cdb_app_key_del,
 		      2, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	/* DFU Client Model Operations */
+	SHELL_CMD_ARG(dfu-slot-add, NULL,
+		      "<size> [<fwid> [<metadata> [<uri>]]]",
+		      cmd_dfu_slot_add, 2, 3),
+	SHELL_CMD_ARG(dfu-slot-del, NULL, "<slot idx>", cmd_dfu_slot_del, 2, 0),
+	SHELL_CMD_ARG(dfu-slot-get, NULL, "<slot idx>", cmd_dfu_slot_get, 2, 0),
+	SHELL_CMD_ARG(dfu-target, NULL, "<addr> <img idx>", cmd_dfu_target, 3,
+		      0),
+	SHELL_CMD_ARG(dfu-target-state, NULL, NULL, cmd_dfu_target_state, 1, 0),
+	SHELL_CMD_ARG(dfu-target-imgs, NULL, "[<max count>]",
+		      cmd_dfu_target_imgs, 1, 1),
+	SHELL_CMD_ARG(dfu-target-check, NULL, "<slot idx> <target img idx>",
+		      cmd_dfu_target_check, 3, 0),
+	SHELL_CMD_ARG(dfu-send, NULL, "<slot idx>  [<group>] "
+		      "[<mode: push, pull>]", cmd_dfu_send, 2, 2),
+	SHELL_CMD_ARG(dfu-cancel, NULL, "[<addr>]", cmd_dfu_cancel, 1, 1),
+	SHELL_CMD_ARG(dfu-apply, NULL, NULL, cmd_dfu_apply, 0, 0),
+	SHELL_CMD_ARG(dfu-confirm, NULL, NULL, cmd_dfu_confirm, 0, 0),
+#elif defined(CONFIG_BT_MESH_BLOB_CLI)
+	/* BLOB Client Model Operations */
+	SHELL_CMD_ARG(blob-target, NULL, "<addr>", cmd_blob_target, 2, 0),
+	SHELL_CMD_ARG(blob-bounds, NULL, "[<group>]", cmd_blob_bounds, 1, 1),
+	SHELL_CMD_ARG(blob-tx, NULL, "<id> <size> <block size log> "
+		      "<chunk size> [<group> [<mode: push, pull>]]",
+		      cmd_blob_tx, 5, 2),
+	SHELL_CMD_ARG(blob-tx-cancel, NULL, NULL, cmd_blob_tx_cancel, 1, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	SHELL_CMD_ARG(dfu-applied, NULL, NULL, cmd_dfu_applied, 1, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_BLOB_SRV)
+	/* BLOB Server Model Operations */
+	SHELL_CMD_ARG(blob-rx, NULL, "<id> [<timeout base>]", cmd_blob_rx, 2, 1),
+	SHELL_CMD_ARG(blob-rx-cancel, NULL, NULL, cmd_blob_rx_cancel, 1, 0),
+#endif
+#if defined(CONFIG_BT_MESH_DFU_CLI) || defined(CONFIG_BT_MESH_DFU_SRV)
+	SHELL_CMD_ARG(dfu-progress, NULL, NULL, cmd_dfu_progress, 1, 0),
 #endif
 
 	SHELL_SUBCMD_SET_END
