@@ -2261,12 +2261,23 @@ static int krp_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
 	return send_krp_status(model, ctx, idx, phase, status);
 }
 
+static uint8_t hb_sub_count_log(uint32_t val)
+{
+	if (val == 0xffff) {
+		return 0xff;
+	} else {
+		return bt_mesh_hb_log(val);
+	}
+}
+
 static uint8_t hb_pub_count_log(uint16_t val)
 {
 	if (!val) {
 		return 0x00;
 	} else if (val == 0x01) {
 		return 0x01;
+	} else if (val == 0xfffe) {
+		return 0x11;
 	} else if (val == 0xffff) {
 		return 0xff;
 	} else {
@@ -2333,7 +2344,13 @@ static int heartbeat_pub_set(struct bt_mesh_model *model,
 	BT_DBG("src 0x%04x", ctx->addr);
 
 	pub.dst = sys_le16_to_cpu(param->dst);
-	pub.count = bt_mesh_hb_pwr2(param->count_log);
+	if (param->count_log == 0x11) {
+		/* Special case defined in Mesh Profile Errata 11737 */
+		pub.count = 0xfffe;
+	} else {
+		pub.count = bt_mesh_hb_pwr2(param->count_log);
+	}
+
 	pub.period = bt_mesh_hb_pwr2(param->period_log);
 	pub.ttl = param->ttl;
 	pub.feat = sys_le16_to_cpu(param->feat);
@@ -2350,7 +2367,7 @@ static int heartbeat_pub_set(struct bt_mesh_model *model,
 		goto rsp;
 	}
 
-	if (param->period_log > 0x10) {
+	if (param->period_log > 0x11) {
 		status = STATUS_CANNOT_SET;
 		goto rsp;
 	}
@@ -2385,7 +2402,7 @@ static int hb_sub_send_status(struct bt_mesh_model *model,
 	net_buf_simple_add_le16(&msg, sub->src);
 	net_buf_simple_add_le16(&msg, sub->dst);
 	net_buf_simple_add_u8(&msg, bt_mesh_hb_log(sub->remaining));
-	net_buf_simple_add_u8(&msg, bt_mesh_hb_log(sub->count));
+	net_buf_simple_add_u8(&msg, hb_sub_count_log(sub->count));
 	net_buf_simple_add_u8(&msg, sub->min_hops);
 	net_buf_simple_add_u8(&msg, sub->max_hops);
 
