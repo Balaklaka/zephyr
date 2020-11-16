@@ -18,6 +18,8 @@
 #define LOG_MODULE_NAME bt_mesh_access
 #include "common/log.h"
 
+#include "host/testing.h"
+
 #include "mesh.h"
 #include "adv.h"
 #include "net.h"
@@ -685,6 +687,11 @@ void bt_mesh_model_recv(struct bt_mesh_msg_ctx *ctx, struct net_buf_simple *buf)
 	BT_DBG("app_idx 0x%04x src 0x%04x dst 0x%04x", ctx->app_idx, ctx->addr,
 	       ctx->recv_dst);
 	BT_DBG("len %u: %s", buf->len, bt_hex(buf->data, buf->len));
+
+	if (IS_ENABLED(CONFIG_BT_TESTING)) {
+		bt_test_mesh_model_recv(ctx->addr, ctx->recv_dst, buf->data,
+					buf->len);
+	}
 
 	if (get_opcode(buf, &opcode) < 0) {
 		BT_WARN("Unable to decode OpCode");
