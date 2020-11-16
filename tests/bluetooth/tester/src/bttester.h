@@ -1447,6 +1447,14 @@ struct mesh_prov_node_added_ev {
 	uint8_t num_elems;
 } __packed;
 
+#define MESH_EV_MODEL_RECV 			0x8f
+struct mesh_model_recv_ev {
+	uint16_t src;
+	uint16_t dst;
+	uint8_t payload_len;
+	uint8_t payload[];
+} __packed;
+
 void tester_init(void);
 void tester_rsp(uint8_t service, uint8_t opcode, uint8_t index, uint8_t status);
 void tester_send(uint8_t service, uint8_t opcode, uint8_t index, uint8_t *data,

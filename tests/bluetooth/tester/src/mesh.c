@@ -2647,6 +2647,29 @@ void net_recv_ev(uint8_t ttl, uint8_t ctl, uint16_t src, uint16_t dst, const voi
 		    buf.data, buf.len);
 }
 
+void model_recv_ev(uint16_t src, uint16_t dst, const void *payload,
+		   size_t payload_len)
+{
+	NET_BUF_SIMPLE_DEFINE(buf, UINT8_MAX);
+	struct mesh_model_recv_ev *ev;
+
+	LOG_DBG("src 0x%04x dst 0x%04x payload_len %zu", src, dst, payload_len);
+
+	if (payload_len > net_buf_simple_tailroom(&buf)) {
+		LOG_ERR("Payload size exceeds buffer size");
+		return;
+	}
+
+	ev = net_buf_simple_add(&buf, sizeof(*ev));
+	ev->src = sys_cpu_to_le16(src);
+	ev->dst = sys_cpu_to_le16(dst);
+	ev->payload_len = payload_len;
+	net_buf_simple_add_mem(&buf, payload, payload_len);
+
+	tester_send(BTP_SERVICE_ID_MESH, MESH_EV_MODEL_RECV, CONTROLLER_INDEX,
+		    buf.data, buf.len);
+}
+
 static void model_bound_cb(uint16_t addr, struct bt_mesh_model *model,
 			   uint16_t key_idx)
 {
@@ -2709,6 +2732,7 @@ static void incomp_timer_exp_cb(void)
 
 static struct bt_test_cb bt_test_cb = {
 	.mesh_net_recv = net_recv_ev,
+	.mesh_model_recv = model_recv_ev,
 	.mesh_model_bound = model_bound_cb,
 	.mesh_model_unbound = model_unbound_cb,
 	.mesh_prov_invalid_bearer = invalid_bearer_cb,
