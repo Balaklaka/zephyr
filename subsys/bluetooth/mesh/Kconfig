@@ -1136,6 +1136,121 @@ config BT_MESH_RPR_SRV_AD_DATA_MAX
 	  extended scanning.
 endmenu
 
+config BT_MESH_SAR_CFG
+	bool
+
+config BT_MESH_SAR_CFG_SRV
+	bool "Support for SAR Configuration Server Model"
+	select BT_MESH_SAR_CFG
+	help
+	  Enable support for the SAR configuration server model.
+
+config BT_MESH_SAR_CFG_CLI
+	bool "Support for SAR Configuration Client Model"
+	select BT_MESH_SAR_CFG
+	help
+	  Enable support for the SAR configuration client model.
+
+menu "Transport SAR configuration"
+	visible if BT_MESH_SAR_CFG
+
+config BT_MESH_SAR_TX_SEG_INT_STEP
+	hex "Default value of SAR Segment Interval Step state"
+	range 0x00 0x0F
+	default 0x01
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_UNICAST_RETRANS_COUNT
+	hex "Default value of SAR Unicast Retransmissions Count state"
+	range 0x00 0x0F
+	default 0x02
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_UNICAST_RETRANS_WITHOUT_PROG_COUNT
+	hex "Default value of SAR Unicast Retransmissions Without Progress Count state"
+	range 0x00 0x0F
+	default 0x03
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_UNICAST_RETRANS_INT_STEP
+	hex "Default value of SAR Unicast Retransmissions Interval Step state"
+	range 0x00 0x0F
+	default 0x07
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_UNICAST_RETRANS_INT_INC
+	hex "Default value of SAR Unicast Retransmissions Interval Increment state"
+	range 0x00 0x0F
+	default 0x01
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_MULTICAST_RETRANS_COUNT
+	hex "Default value of SAR Multicast Retransmissions Count state"
+	range 0x00 0x0F
+	default 0x02
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_TX_MULTICAST_RETRANS_INT
+	hex "Default value of SAR Multicast Retransmissions Interval state"
+	range 0x00 0x0F
+	default 0x03
+	help
+	  Set the value of a parameter of the SAR Transmitter state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_RX_SEG_THRESHOLD
+	hex "Default value of SAR Segments Threshold state"
+	range 0x00 0x1F
+	default 0x04
+	help
+	  Set the value of a parameter of the SAR Receiver state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_RX_ACK_DELAY_INC
+	hex "Default value of SAR Acknowledgment Delay Increment state"
+	range 0x00 0x07
+	default 0x02
+	help
+	  Set the value of a parameter of the SAR Receiver state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_RX_SEG_INT_STEP
+	hex "Default value of SAR Receiver Segment Interval Step state"
+	range 0x00 0x0F
+	default 0x01
+	help
+	  Set the value of a parameter of the SAR Receiver state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_RX_DISCARD_TIMEOUT
+	hex "Default value of SAR Discard Timeout state"
+	range 0x00 0x0F
+	default 0x01
+	help
+	  Set the value of a parameter of the SAR Receiver state.
+	  The default values are defined by the Mesh Profile Specification.
+
+config BT_MESH_SAR_RX_ACK_RETRANS_COUNT
+	hex "Default value of SAR Acknowledgment Retransmissions Count state"
+	range 0x00 0x03
+	default 0x01
+	help
+	  Set the value of a parameter of the SAR Receiver state.
+	  The default values are defined by the Mesh Profile Specification.
+endmenu
+
 config BT_MESH_LARGE_COMP_DATA_SRV
 	bool "Support for Large Composition Data Server Model"
 	help

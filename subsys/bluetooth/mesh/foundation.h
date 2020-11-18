@@ -91,6 +91,13 @@
 #define OP_VND_MOD_APP_GET                 BT_MESH_MODEL_OP_2(0x80, 0x4d)
 #define OP_VND_MOD_APP_LIST                BT_MESH_MODEL_OP_2(0x80, 0x4e)
 
+#define OP_SAR_CFG_TX_GET                  BT_MESH_MODEL_OP_2(0xB8, 0x03)
+#define OP_SAR_CFG_TX_SET                  BT_MESH_MODEL_OP_2(0xB8, 0x04)
+#define OP_SAR_CFG_TX_STATUS               BT_MESH_MODEL_OP_2(0xB8, 0x05)
+#define OP_SAR_CFG_RX_GET                  BT_MESH_MODEL_OP_2(0xB8, 0x06)
+#define OP_SAR_CFG_RX_SET                  BT_MESH_MODEL_OP_2(0xB8, 0x07)
+#define OP_SAR_CFG_RX_STATUS               BT_MESH_MODEL_OP_2(0xB8, 0x08)
+
 #define OP_LARGE_COMP_DATA_GET             BT_MESH_MODEL_OP_2(0xB8, 0x11)
 #define OP_LARGE_COMP_DATA_STATUS          BT_MESH_MODEL_OP_2(0xB8, 0x12)
 #define OP_MODELS_METADATA_GET             BT_MESH_MODEL_OP_2(0xB8, 0x13)

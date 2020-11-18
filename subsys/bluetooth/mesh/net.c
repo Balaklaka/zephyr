@@ -38,6 +38,7 @@
 #include "host/ecc.h"
 #include "prov.h"
 #include "cfg.h"
+#include "sar_cfg_internal.h"
 
 #define LOOPBACK_MAX_PDU_LEN (BT_MESH_NET_HDR_LEN + 16)
 
@@ -86,6 +87,8 @@ static uint16_t msg_cache_next;
 /* Singleton network context (the implementation only supports one) */
 struct bt_mesh_net bt_mesh = {
 	.local_queue = SYS_SLIST_STATIC_INIT(&bt_mesh.local_queue),
+	.sar_tx = BT_MESH_SAR_TX_INIT,
+	.sar_rx = BT_MESH_SAR_RX_INIT,
 };
 
 /* Mesh Profile Specification 3.10.6
