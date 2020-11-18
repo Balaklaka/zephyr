@@ -772,7 +772,7 @@ static void model_send(uint8_t *data, uint16_t len)
 		.net_idx = net.net_idx,
 		.app_idx = BT_MESH_KEY_DEV,
 		.addr = sys_le16_to_cpu(cmd->dst),
-		.send_ttl = BT_MESH_TTL_DEFAULT,
+		.send_ttl = cmd->ttl,
 	};
 	struct bt_mesh_model *model = NULL;
 	int err, i;

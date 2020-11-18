@@ -993,6 +993,7 @@ struct mesh_lpn_set_cmd {
 
 #define MESH_MODEL_SEND			0x0f
 struct mesh_model_send_cmd {
+	uint8_t ttl;
 	uint16_t src;
 	uint16_t dst;
 	uint8_t payload_len;
