@@ -1911,9 +1911,9 @@ static int mod_app_bind(struct bt_mesh_model *model,
 		goto send_status;
 	}
 
-	/* Configuration Server only allows device key based access */
-	if (model == mod) {
-		BT_ERR("Client tried to bind AppKey to Configuration Model");
+	/* Some models only allow device key based access */
+	if (mod->flags & BT_MESH_MOD_DEVKEY_ONLY) {
+		BT_ERR("Client tried to bind AppKey to DevKey based model");
 		status = STATUS_CANNOT_BIND;
 		goto send_status;
 	}
@@ -2548,6 +2548,7 @@ static int cfg_srv_init(struct bt_mesh_model *model)
 	 * device-key is allowed to access this model.
 	 */
 	model->keys[0] = BT_MESH_KEY_DEV_LOCAL;
+	model->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	return 0;
 }

@@ -21,6 +21,7 @@
 #define LOG_MODULE_NAME bt_mesh_cfg_cli
 #include "common/log.h"
 
+#include "access.h"
 #include "net.h"
 #include "foundation.h"
 
@@ -1006,6 +1007,7 @@ static int cfg_cli_init(struct bt_mesh_model *model)
 	 * and remote keys are allowed to access this model.
 	 */
 	model->keys[0] = BT_MESH_KEY_DEV_ANY;
+	model->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	bt_mesh_msg_ack_ctx_init(&cli->ack_ctx);
 

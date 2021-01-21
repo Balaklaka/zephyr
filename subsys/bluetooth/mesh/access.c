@@ -27,14 +27,6 @@
 #include "foundation.h"
 #include "settings.h"
 
-/* bt_mesh_model.flags */
-enum {
-	BT_MESH_MOD_BIND_PENDING = BIT(0),
-	BT_MESH_MOD_SUB_PENDING = BIT(1),
-	BT_MESH_MOD_PUB_PENDING = BIT(2),
-	BT_MESH_MOD_EXTENDED = BIT(3),
-};
-
 /* Model publication information for persistent storage. */
 struct mod_pub_val {
 	uint16_t addr;
