@@ -130,6 +130,8 @@ struct bt_mesh_elem {
 #define BT_MESH_MODEL_ID_HEALTH_CLI                0x0003
 #define BT_MESH_MODEL_ID_REMOTE_PROV_SRV           0x0004
 #define BT_MESH_MODEL_ID_REMOTE_PROV_CLI           0x0005
+#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_SRV       0xbf56
+#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_CLI       0xbf57
 
 /* Models from the Mesh Model Specification */
 #define BT_MESH_MODEL_ID_GEN_ONOFF_SRV             0x1000
@@ -257,6 +259,30 @@ struct bt_mesh_model_op {
 }
 
 /**
+ *
+ *  @brief Composition data SIG model entry with callback functions and metadata.
+ *
+ *  @param _id        Model ID.
+ *  @param _op        Array of model opcode handlers.
+ *  @param _pub       Model publish parameters.
+ *  @param _user_data User data for the model.
+ *  @param _cb        Callback structure, or NULL to keep no callbacks.
+ *  @param _metadata  Metadata structure.
+ */
+#define BT_MESH_MODEL_METADATA_CB(_id, _op, _pub, _user_data, _cb, _metadata)                    \
+{                                                                            \
+	.id = (_id),                                                         \
+	.pub = _pub,                                                         \
+	.keys = BT_MESH_MODEL_KEYS_UNUSED,                                   \
+	.groups = BT_MESH_MODEL_GROUPS_UNASSIGNED,                           \
+	.op = _op,                                                           \
+	.cb = _cb,                                                           \
+	.user_data = _user_data,                                             \
+	.metadata = _metadata,                                               \
+}
+
+/** @def BT_MESH_MODEL_VND_CB
+ *
  *  @brief Composition data vendor model entry with callback functions.
  *
  *  @param _company   Company ID.
@@ -455,6 +481,41 @@ struct bt_mesh_model_pub {
 		.update = _update, \
 	}
 
+/** Models Metadata Entry struct
+ *
+ *  The struct should primarily be created using the
+ *  BT_MESH_MODELS_METADATA_ENTRY macro.
+ */
+struct bt_mesh_models_metadata_entry {
+	/* Length of the metadata */
+	const uint16_t len;
+
+	/* ID of the metadata */
+	const uint16_t id;
+
+	/* Pointer to raw data */
+	void const *data;
+};
+
+/** @def BT_MESH_MODELS_METADATA_ENTRY
+ *
+ *  Initialize a Models Metadata entry structure in a list.
+ *
+ *  @param _len Length of the metadata entry.
+ *  @param _id ID of the Models Metadata entry.
+ *  @param _data Pointer to a contiguous memory that contains the metadata.
+ */
+#define BT_MESH_MODELS_METADATA_ENTRY(_len, _id, _data)                         \
+	{                                                                      \
+		.len = (_len), .id = _id, .data = _data,                       \
+	}
+
+/** Helper to define an empty Models metadata array */
+#define BT_MESH_MODELS_METADATA_NONE ((struct bt_mesh_models_metadata_entry []){})
+
+/** End of the Models Metadata list. Must always be present. */
+#define BT_MESH_MODELS_METADATA_END { 0, 0, NULL }
+
 /** Model callback functions. */
 struct bt_mesh_model_cb {
 	/** @brief Set value handler of user data tied to the model.
@@ -555,6 +616,11 @@ struct bt_mesh_model {
 #ifdef CONFIG_BT_MESH_MODEL_EXTENSIONS
 	/* Pointer to the next model in a model extension list. */
 	struct bt_mesh_model *next;
+#endif
+
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+	/* Pointer to the first model metadata entry. */
+	struct bt_mesh_models_metadata_entry *metadata;
 #endif
 
 	/** Model-specific user data */

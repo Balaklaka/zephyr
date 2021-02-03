@@ -29,6 +29,8 @@
 #include "foundation.h"
 #include "settings.h"
 
+#define COMP_ELEM_SIZE(elem) (4 + (elem->model_count * 2U) + (elem->vnd_model_count * 4U))
+
 /* Model publication information for persistent storage. */
 struct mod_pub_val {
 	uint16_t addr;
@@ -38,6 +40,11 @@ struct mod_pub_val {
 	uint8_t  period;
 	uint8_t  period_div:4,
 		 cred:1;
+};
+
+struct comp_foreach_model_arg {
+	struct net_buf_simple *buf;
+	size_t *offset;
 };
 
 static const struct bt_mesh_comp *dev_comp;
@@ -67,6 +74,322 @@ void bt_mesh_model_foreach(void (*func)(struct bt_mesh_model *mod,
 			func(model, elem, true, i == 0, user_data);
 		}
 	}
+}
+
+static uint8_t *net_buf_simple_add_u8_offset(struct net_buf_simple *buf,
+					     uint8_t val, size_t *offset)
+{
+	if (*offset >= 1) {
+		*offset -= 1;
+		return NULL;
+	}
+
+	return net_buf_simple_add_u8(buf, val);
+}
+
+static void net_buf_simple_add_le16_offset(struct net_buf_simple *buf,
+					   uint16_t val, size_t *offset)
+{
+	if (*offset >= 2) {
+		*offset -= 2;
+		return;
+	} else if (*offset == 1) {
+		*offset -= 1;
+		net_buf_simple_add_u8(buf, (val >> 8));
+	} else {
+		net_buf_simple_add_le16(buf, val);
+	}
+}
+
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+static void net_buf_simple_add_mem_offset(struct net_buf_simple *buf,
+					  const void *mem, size_t len,
+					  size_t *offset)
+{
+	if (*offset >= len) {
+		*offset -= len;
+		return;
+	} else if (*offset > 0) {
+		net_buf_simple_add_mem(buf, ((uint8_t *)mem), (len - *offset));
+
+	} else {
+		net_buf_simple_add_mem(buf, mem, len);
+	}
+}
+
+static size_t metadata_model_size(struct bt_mesh_model *mod,
+				  struct bt_mesh_elem *elem, bool vnd)
+{
+	const struct bt_mesh_models_metadata_entry *entry;
+	size_t size = 0;
+
+	if (vnd) {
+		size += sizeof(mod->vnd.company);
+		size += sizeof(mod->vnd.id);
+	} else {
+		size += sizeof(mod->id);
+	}
+
+	size += sizeof(uint8_t);
+
+	for (entry = mod->metadata; entry->len; ++entry) {
+		size += sizeof(entry->len) + sizeof(entry->id) + entry->len;
+	}
+
+	return size;
+}
+
+size_t bt_mesh_metadata_page_0_size(void)
+{
+	const struct bt_mesh_comp *comp;
+	size_t size = 0;
+	int i, j;
+
+	comp = bt_mesh_comp_get();
+
+	for (i = 0; i < dev_comp->elem_count; i++) {
+		struct bt_mesh_elem *elem = &dev_comp->elem[i];
+
+		size += sizeof(elem->model_count) +
+			sizeof(elem->vnd_model_count);
+
+		for (j = 0; j < elem->model_count; j++) {
+			struct bt_mesh_model *model = &elem->models[j];
+
+			size += metadata_model_size(model, elem, false);
+		}
+
+		for (j = 0; j < elem->vnd_model_count; j++) {
+			struct bt_mesh_model *model = &elem->vnd_models[j];
+
+			size += metadata_model_size(model, elem, true);
+		}
+	}
+
+	return size;
+}
+
+static size_t metadata_count_entries(struct bt_mesh_model *model)
+{
+	const struct bt_mesh_models_metadata_entry *entry;
+	size_t count = 0;
+
+	for (entry = model->metadata; entry->data != NULL; ++entry) {
+		++count;
+	}
+
+	return count;
+}
+
+static int metadata_add_model(struct bt_mesh_model *mod,
+			       struct bt_mesh_elem *elem, bool vnd,
+			       bool primary, void *user_data)
+{
+	const struct bt_mesh_models_metadata_entry *entry;
+	struct comp_foreach_model_arg *arg = user_data;
+	struct net_buf_simple *buf = arg->buf;
+	size_t *offset = arg->offset;
+
+	if (!mod->metadata) {
+		return 0;
+	}
+
+	if ((net_buf_simple_tailroom(buf) - 4) <
+	    metadata_model_size(mod, elem, vnd)) {
+		BT_ERR("Too large metadata");
+		return -E2BIG;
+	}
+
+	if (vnd) {
+		net_buf_simple_add_le16_offset(buf, mod->vnd.company, offset);
+		net_buf_simple_add_le16_offset(buf, mod->vnd.id, offset);
+	} else {
+		net_buf_simple_add_le16_offset(buf, mod->id, offset);
+	}
+
+	net_buf_simple_add_u8_offset(buf, metadata_count_entries(mod), offset);
+
+	for (entry = mod->metadata; entry->data != NULL; ++entry) {
+		net_buf_simple_add_le16_offset(buf, entry->len, offset);
+		net_buf_simple_add_le16_offset(buf, entry->id, offset);
+		net_buf_simple_add_mem_offset(buf, entry->data, entry->len,
+					      offset);
+	}
+
+	return 0;
+}
+
+static size_t metadata_count_models(struct bt_mesh_elem *elem, bool vnd)
+{
+	size_t count = 0;
+	uint8_t model_count;
+	struct bt_mesh_model *models;
+	int i;
+
+	if (vnd) {
+		model_count = elem->vnd_model_count;
+		models = elem->vnd_models;
+	} else {
+		model_count = elem->model_count;
+		models = elem->models;
+	}
+
+	for (i = 0; i < model_count; i++) {
+		struct bt_mesh_model *model = &models[i];
+		if (model->metadata) {
+			++count;
+		}
+	}
+
+	return count;
+}
+
+int bt_mesh_metadata_get_page_0(struct net_buf_simple *buf, size_t offset)
+{
+	const struct bt_mesh_comp *comp;
+	struct comp_foreach_model_arg arg = {
+		.buf = buf,
+		.offset = &offset,
+	};
+	int i, j, err;
+
+	comp = bt_mesh_comp_get();
+
+	for (i = 0; i < comp->elem_count; i++) {
+		struct bt_mesh_elem *elem = &dev_comp->elem[i];
+
+		net_buf_simple_add_u8_offset(
+			buf, metadata_count_models(elem, false), &offset);
+		net_buf_simple_add_u8_offset(
+			buf, metadata_count_models(elem, true), &offset);
+
+		for (j = 0; j < elem->model_count; j++) {
+			struct bt_mesh_model *model = &elem->models[j];
+
+			err = metadata_add_model(model, elem, false, i == 0, &arg);
+			if (err) {
+				return err;
+			}
+		}
+
+		for (j = 0; j < elem->vnd_model_count; j++) {
+			struct bt_mesh_model *model = &elem->vnd_models[j];
+
+			err = metadata_add_model(model, elem, true, i == 0, &arg);
+			if (err) {
+				return err;
+			}
+		}
+	}
+
+	return 0;
+}
+#endif
+
+size_t bt_mesh_comp_page_0_size(void)
+{
+	const struct bt_mesh_comp *comp;
+	const struct bt_mesh_elem *elem;
+	size_t size = 10;
+	int i;
+
+	comp = bt_mesh_comp_get();
+
+	for (i = 0; i < comp->elem_count; i++) {
+		elem = &comp->elem[i];
+		size += COMP_ELEM_SIZE(elem);
+	}
+
+	return size;
+}
+
+static void comp_add_model(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
+			   bool vnd, bool primary, void *user_data)
+{
+	struct comp_foreach_model_arg *arg = user_data;
+
+	if (vnd) {
+		net_buf_simple_add_le16_offset(arg->buf, mod->vnd.company, arg->offset);
+		net_buf_simple_add_le16_offset(arg->buf, mod->vnd.id, arg->offset);
+	} else {
+		net_buf_simple_add_le16_offset(arg->buf, mod->id, arg->offset);
+	}
+}
+
+static int comp_add_elem(struct net_buf_simple *buf, struct bt_mesh_elem *elem,
+			 bool primary, size_t *offset)
+{
+	struct comp_foreach_model_arg arg = {
+		.buf = buf,
+		.offset = offset,
+	};
+	int i;
+
+	if (net_buf_simple_tailroom(buf) < COMP_ELEM_SIZE(elem)) {
+		BT_ERR("Too large device composition");
+		return -E2BIG;
+	}
+
+	net_buf_simple_add_le16_offset(buf, elem->loc, offset);
+
+	net_buf_simple_add_u8_offset(buf, elem->model_count, offset);
+	net_buf_simple_add_u8_offset(buf, elem->vnd_model_count, offset);
+
+	for (i = 0; i < elem->model_count; i++) {
+		struct bt_mesh_model *model = &elem->models[i];
+
+		comp_add_model(model, elem, false, primary, &arg);
+	}
+
+	for (i = 0; i < elem->vnd_model_count; i++) {
+		struct bt_mesh_model *model = &elem->vnd_models[i];
+
+		comp_add_model(model, elem, true, primary, &arg);
+	}
+
+	return 0;
+}
+
+int bt_mesh_comp_data_get_page_0(struct net_buf_simple *buf, size_t offset)
+{
+	uint16_t feat = 0U;
+	const struct bt_mesh_comp *comp;
+	int i;
+
+	comp = bt_mesh_comp_get();
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RELAY)) {
+		feat |= BT_MESH_FEAT_RELAY;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY)) {
+		feat |= BT_MESH_FEAT_PROXY;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_FRIEND)) {
+		feat |= BT_MESH_FEAT_FRIEND;
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_LOW_POWER)) {
+		feat |= BT_MESH_FEAT_LOW_POWER;
+	}
+
+	net_buf_simple_add_le16_offset(buf, comp->cid, &offset);
+	net_buf_simple_add_le16_offset(buf, comp->pid, &offset);
+	net_buf_simple_add_le16_offset(buf, comp->vid, &offset);
+	net_buf_simple_add_le16_offset(buf, CONFIG_BT_MESH_CRPL, &offset);
+	net_buf_simple_add_le16_offset(buf, feat, &offset);
+
+	for (i = 0; i < comp->elem_count; i++) {
+		int err;
+
+		err = comp_add_elem(buf, &comp->elem[i], i == 0, &offset);
+		if (err) {
+			return err;
+		}
+	}
+
+	return 0;
 }
 
 int32_t bt_mesh_model_pub_period_get(struct bt_mesh_model *mod)
@@ -1247,7 +1570,7 @@ int bt_mesh_comp_store(void)
 	NET_BUF_SIMPLE_DEFINE(buf, BT_MESH_TX_SDU_MAX);
 	int err;
 
-	err = bt_mesh_comp_get_page_0(&buf);
+	err = bt_mesh_comp_data_get_page_0(&buf, 0);
 	if (err) {
 		BT_ERR("Failed to read composition data: %d", err);
 		return err;

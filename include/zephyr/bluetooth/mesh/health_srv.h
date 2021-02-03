@@ -170,6 +170,40 @@ struct bt_mesh_health_srv {
 	BT_MESH_MODEL_CB(BT_MESH_MODEL_ID_HEALTH_SRV, bt_mesh_health_srv_op,   \
 			 pub, srv, &bt_mesh_health_srv_cb)
 
+/** @def BT_MESH_MODEL_HEALTH_SRV_METADATA
+ *
+ *  Define a new health server model with metadata.
+ *
+ *  @param srv Pointer to a unique struct bt_mesh_health_srv.
+ *  @param pub Pointer to a unique struct bt_mesh_model_pub.
+ *  @param metadata Pointer to a Models Metadata structure.
+ *
+ *  @return New mesh model instance.
+ */
+#define BT_MESH_MODEL_HEALTH_SRV_METADATA(srv, pub, metadata)                  \
+	BT_MESH_MODEL_METADATA_CB(BT_MESH_MODEL_ID_HEALTH_SRV,                 \
+				  bt_mesh_health_srv_op, pub, srv,             \
+				  &bt_mesh_health_srv_cb, metadata)
+
+/** @def BT_MESH_HEALTH_TEST_INFO_METADATA
+ *
+ *  Health Test Information Metadata ID.
+ */
+#define BT_MESH_HEALTH_TEST_INFO_METADATA 0x0001
+
+/** @def BT_MESH_HEALTH_TEST_INFO
+ *
+ *  Define a Health Test Info Metadata array.
+ *
+ *  @param cid Company ID of the Health Test suite.
+ *  @param tests A comma separated list of tests.
+ *
+ *  @return A comma separated list of values that make Health Test Info Metadata
+ */
+#define BT_MESH_HEALTH_TEST_INFO(cid, tests...)                                \
+	(cid & 0xff), (cid >> 8), sizeof((uint8_t[]){ tests }), tests
+
+
 /** @brief Notify the stack that the fault array state of the given element has
  *  changed.
  *
