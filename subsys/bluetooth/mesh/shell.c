@@ -31,6 +31,8 @@
 #include "dfu_slot.h"
 
 #define CID_NVAL   0xffff
+#define COMPANY_ID_LF 0x05F1
+#define COMPANY_ID_NORDIC_SEMI 0x05F9
 
 #if defined(CONFIG_BT_MESH_PROVISIONER)
 static enum {
@@ -3805,8 +3807,63 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
-#if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
+static int cmd_large_comp_data_get(const struct shell *shell, size_t argc,
+				   char *argv[])
+{
+	NET_BUF_SIMPLE_DEFINE(comp, 64);
+	uint8_t page;
+	uint16_t offset;
+	int err;
 
+	net_buf_simple_init(&comp, 0);
+
+	page = strtoul(argv[1], NULL, 0);
+	offset = strtoul(argv[2], NULL, 0);
+
+	err = bt_mesh_large_comp_data_get(net.net_idx, net.dst, page, offset,
+					  &comp);
+	if (err) {
+		shell_print(
+			shell,
+			"Failed to send Large Composition Data Get (err=%d)",
+			err);
+		return err;
+	}
+
+	shell_print(shell, "Large Composition Data Get len=%d", comp.len);
+
+	return 0;
+}
+
+static int cmd_models_metadata_get(const struct shell *shell, size_t argc,
+				   char *argv[])
+{
+	NET_BUF_SIMPLE_DEFINE(metadata, 64);
+	uint8_t page;
+	uint16_t offset;
+	int err;
+
+	net_buf_simple_init(&metadata, 0);
+
+	page = strtoul(argv[1], NULL, 0);
+	offset = strtoul(argv[2], NULL, 0);
+
+	err = bt_mesh_models_metadata_get(net.net_idx, net.dst, page, offset,
+					  &metadata);
+	if (err) {
+		shell_print(
+			shell,
+			"Failed to send Models Metadata Get (err=%d)",
+			err);
+		return err;
+	}
+
+	shell_print(shell, "Models Metadata Get len=%d", metadata.len);
+
+	return 0;
+}
+
+#if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
 static int cmd_dfu_blob_flash_stream_set(const struct shell *shell, size_t argc, char *argv[])
 {
 	uint8_t area_id;
@@ -5091,6 +5148,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(cdb-app-key-del, NULL, "<AppKeyIdx>", cmd_cdb_app_key_del,
 		      2, 0),
 #endif
+	SHELL_CMD_ARG(large-comp-data-get, NULL, NULL, cmd_large_comp_data_get,
+		      3, 0),
+	SHELL_CMD_ARG(models-metadata-get, NULL, NULL, cmd_models_metadata_get,
+		      3, 0),
 
 #if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
 	SHELL_CMD_ARG(blob-flash-stream-set, NULL, "<area id> [<offset>]",
