@@ -3463,6 +3463,45 @@ static int cmd_del_fault(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+
+#ifdef CONFIG_BT_MESH_OP_AGG_CLI
+static int cmd_op_agg_seq_start(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint16_t elem_addr;
+	int err;
+
+	elem_addr = strtoul(argv[1], NULL, 0);
+	net.dst = elem_addr;
+	shell_print(sh, "mesh dst set to 0x%04x", elem_addr);
+
+	err = bt_mesh_op_agg_cli_seq_start(net.net_idx, net.app_idx, net.dst, elem_addr);
+	if (err) {
+		shell_error(sh, "Failed to configure Opcodes Aggregator Context (err %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_op_agg_seq_send(const struct shell *sh, size_t argc, char *argv[])
+{
+	int err;
+
+	err = bt_mesh_op_agg_cli_seq_send();
+	if (err) {
+		shell_error(sh, "Failed to send Opcodes Aggregator Sequence message (err %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_op_agg_seq_abort(const struct shell *sh, size_t argc, char *argv[])
+{
+	bt_mesh_op_agg_cli_seq_abort();
+
+	return 0;
+}
+#endif
+
 #if defined(CONFIG_BT_MESH_CDB)
 static int cmd_cdb_create(const struct shell *shell, size_t argc,
 			  char *argv[])
@@ -5536,6 +5575,12 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(priv-gatt-proxy-set, NULL, "<state>", cmd_priv_gatt_proxy_set, 2, 0),
 	SHELL_CMD_ARG(priv-node-id-get, NULL, "<net_idx>", cmd_priv_node_id_get, 2, 0),
 	SHELL_CMD_ARG(priv-node-id-set, NULL, "<net_idx> <state>", cmd_priv_node_id_set, 3, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_OP_AGG_CLI)
+	SHELL_CMD_ARG(op-agg-seq-start, NULL, "<elem_addr>", cmd_op_agg_seq_start, 2, 0),
+	SHELL_CMD_ARG(op-agg-seq-send, NULL, NULL, cmd_op_agg_seq_send, 1, 0),
+	SHELL_CMD_ARG(op-agg-seq-abort, NULL, NULL, cmd_op_agg_seq_abort, 1, 0),
 #endif
 
 	SHELL_SUBCMD_SET_END
