@@ -13,6 +13,7 @@
 #include <zephyr/bluetooth/mesh/cfg.h>
 #include <zephyr/sys/byteorder.h>
 #include <app_keys.h>
+#include <sar_cfg_internal.h>
 
 #include <zephyr/logging/log.h>
 #define LOG_MODULE_NAME bttester_mesh
@@ -285,11 +286,15 @@ BT_MESH_HEALTH_PUB_DEFINE(health_pub, CUR_FAULTS_MAX);
 static struct bt_mesh_cfg_cli cfg_cli = {
 };
 
+static struct bt_mesh_sar_cfg_cli sar_cfg_cli;
+
 static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
 	BT_MESH_MODEL_HEALTH_CLI(&health_cli),
+	BT_MESH_MODEL_SAR_CFG_SRV,
+	BT_MESH_MODEL_SAR_CFG_CLI(&sar_cfg_cli),
 	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
 };
@@ -890,6 +895,101 @@ static void proxy_identity_enable(uint8_t *data, uint16_t len)
 	}
 
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_PROXY_IDENTITY, CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void sar_transmitter_get(uint8_t *data, uint16_t len)
+{
+	struct mesh_sar_transmitter_get_cmd *cmd = (void *)data;
+	struct bt_mesh_sar_tx rsp;
+	int err;
+
+	LOG_DBG("");
+
+	bt_mesh_sar_cfg_cli_timeout_set(5000);
+
+	err = bt_mesh_sar_cfg_cli_transmitter_get(
+		&sar_cfg_cli, net_key_idx, sys_le16_to_cpu(cmd->dst), &rsp);
+	if (err) {
+		LOG_ERR("err=%d", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_SAR_TRANSMITTER_GET,
+		   CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void sar_transmitter_set(uint8_t *data, uint16_t len)
+{
+	struct mesh_sar_transmitter_set_cmd *cmd = (void *)data;
+	struct bt_mesh_sar_tx set, rsp;
+	int err;
+
+	LOG_DBG("");
+
+	bt_mesh_sar_cfg_cli_timeout_set(5000);
+
+	set.seg_int_step = cmd->tx.seg_int_step;
+	set.unicast_retrans_count = cmd->tx.unicast_retrans_count;
+	set.unicast_retrans_int_inc = cmd->tx.unicast_retrans_int_inc;
+	set.unicast_retrans_int_step = cmd->tx.unicast_retrans_int_step;
+	set.unicast_retrans_without_prog_count =
+		cmd->tx.unicast_retrans_without_prog_count;
+	set.multicast_retrans_count = cmd->tx.multicast_retrans_count;
+	set.multicast_retrans_int = cmd->tx.multicast_retrans_int;
+
+	err = bt_mesh_sar_cfg_cli_transmitter_set(&sar_cfg_cli, net_key_idx,
+						  sys_le16_to_cpu(cmd->dst),
+						  &set, &rsp);
+	if (err) {
+		LOG_ERR("err=%d", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_SAR_TRANSMITTER_SET,
+		   CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void sar_receiver_get(uint8_t *data, uint16_t len)
+{
+	struct mesh_sar_receiver_get_cmd *cmd = (void *)data;
+	struct bt_mesh_sar_rx rsp;
+	int err;
+
+	LOG_DBG("");
+
+	err = bt_mesh_sar_cfg_cli_receiver_get(&sar_cfg_cli, net_key_idx,
+					       sys_le16_to_cpu(cmd->dst), &rsp);
+	if (err) {
+		LOG_ERR("err=%d", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_SAR_RECEIVER_GET, CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void sar_receiver_set(uint8_t *data, uint16_t len)
+{
+	struct mesh_sar_receiver_set_cmd *cmd = (void *)data;
+	struct bt_mesh_sar_rx set, rsp;
+	int err;
+
+	LOG_DBG("");
+
+	set.ack_delay_inc = cmd->rx.ack_delay_inc;
+	set.ack_retrans_count = cmd->rx.ack_retrans_count;
+	set.discard_timeout = cmd->rx.discard_timeout;
+	set.seg_thresh = cmd->rx.seg_thresh;
+	set.rx_seg_int_step = cmd->rx.rx_seg_int_step;
+
+	err = bt_mesh_sar_cfg_cli_receiver_set(&sar_cfg_cli, net_key_idx,
+					       sys_le16_to_cpu(cmd->dst), &set,
+					       &rsp);
+	if (err) {
+		LOG_ERR("err=%d", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_SAR_RECEIVER_SET, CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
 }
 
@@ -2671,6 +2771,18 @@ void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t l
 #endif /* CONFIG_BT_TESTING */
 	case MESH_PROXY_IDENTITY:
 		proxy_identity_enable(data, len);
+		break;
+	case MESH_SAR_TRANSMITTER_GET:
+		sar_transmitter_get(data, len);
+		break;
+	case MESH_SAR_TRANSMITTER_SET:
+		sar_transmitter_set(data, len);
+		break;
+	case MESH_SAR_RECEIVER_GET:
+		sar_receiver_get(data, len);
+		break;
+	case MESH_SAR_RECEIVER_SET:
+		sar_receiver_set(data, len);
 		break;
 	case MESH_LARGE_COMP_DATA_GET:
 		large_comp_data_get(data, len);

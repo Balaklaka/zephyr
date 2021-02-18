@@ -64,18 +64,18 @@ static void receiver_status(struct bt_mesh_model *model,
 	}
 }
 
-static void transmitter_get(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int transmitter_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
 {
 	BT_DBG("src 0x%04x", ctx->addr);
 
 	transmitter_status(model, ctx);
+
+	return 0;
 }
 
-static void transmitter_set(struct bt_mesh_model *model,
-			    struct bt_mesh_msg_ctx *ctx,
-			    struct net_buf_simple *buf)
+static int transmitter_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_sar_tx *tx = &bt_mesh.sar_tx;
 
@@ -83,20 +83,22 @@ static void transmitter_set(struct bt_mesh_model *model,
 
 	bt_mesh_sar_tx_decode(buf, tx);
 	transmitter_status(model, ctx);
+
+	return 0;
 }
 
-static void receiver_get(struct bt_mesh_model *model,
-			 struct bt_mesh_msg_ctx *ctx,
-			 struct net_buf_simple *buf)
+static int receiver_get(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			struct net_buf_simple *buf)
 {
 	BT_DBG("src 0x%04x", ctx->addr);
 
 	receiver_status(model, ctx);
+
+	return 0;
 }
 
-static void receiver_set(struct bt_mesh_model *model,
-			 struct bt_mesh_msg_ctx *ctx,
-			 struct net_buf_simple *buf)
+static int receiver_set(struct bt_mesh_model *model, struct bt_mesh_msg_ctx *ctx,
+			struct net_buf_simple *buf)
 {
 	struct bt_mesh_sar_rx *rx = &bt_mesh.sar_rx;
 
@@ -104,13 +106,15 @@ static void receiver_set(struct bt_mesh_model *model,
 
 	bt_mesh_sar_rx_decode(buf, rx);
 	receiver_status(model, ctx);
+
+	return 0;
 }
 
 const struct bt_mesh_model_op bt_mesh_sar_cfg_srv_op[] = {
-	{ OP_SAR_CFG_TX_GET, 0, transmitter_get },
-	{ OP_SAR_CFG_TX_SET, BT_MESH_SAR_TX_LEN, transmitter_set },
-	{ OP_SAR_CFG_RX_GET, 0, receiver_get },
-	{ OP_SAR_CFG_RX_SET, BT_MESH_SAR_RX_LEN, receiver_set },
+	{ OP_SAR_CFG_TX_GET, BT_MESH_LEN_EXACT(0), transmitter_get },
+	{ OP_SAR_CFG_TX_SET, BT_MESH_LEN_EXACT(BT_MESH_SAR_TX_LEN), transmitter_set },
+	{ OP_SAR_CFG_RX_GET, BT_MESH_LEN_EXACT(0), receiver_get },
+	{ OP_SAR_CFG_RX_SET, BT_MESH_LEN_EXACT(BT_MESH_SAR_RX_LEN), receiver_set },
 	BT_MESH_MODEL_OP_END,
 };
 

@@ -19,7 +19,7 @@
 
 static int32_t msg_timeout;
 
-static void transmitter_status(struct bt_mesh_model *model,
+static int transmitter_status(struct bt_mesh_model *model,
 			       struct bt_mesh_msg_ctx *ctx,
 			       struct net_buf_simple *buf)
 {
@@ -28,7 +28,7 @@ static void transmitter_status(struct bt_mesh_model *model,
 
 	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_SAR_CFG_TX_STATUS,
 				       ctx->addr, (void **)&rsp)) {
-		return;
+		return 0;
 	}
 
 	bt_mesh_sar_tx_decode(buf, rsp);
@@ -40,9 +40,11 @@ static void transmitter_status(struct bt_mesh_model *model,
 	       rsp->multicast_retrans_count, rsp->multicast_retrans_int);
 
 	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
+
+	return 0;
 }
 
-static void receiver_status(struct bt_mesh_model *model,
+static int receiver_status(struct bt_mesh_model *model,
 			    struct bt_mesh_msg_ctx *ctx,
 			    struct net_buf_simple *buf)
 {
@@ -55,7 +57,7 @@ static void receiver_status(struct bt_mesh_model *model,
 
 	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_SAR_CFG_RX_STATUS,
 				       ctx->addr, (void **)&rsp)) {
-		return;
+		return 0;
 	}
 
 	bt_mesh_sar_rx_decode(buf, rsp);
@@ -65,11 +67,13 @@ static void receiver_status(struct bt_mesh_model *model,
 	       rsp->ack_retrans_count);
 
 	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
+
+	return 0;
 }
 
 const struct bt_mesh_model_op _bt_mesh_sar_cfg_cli_op[] = {
-	{ OP_SAR_CFG_TX_STATUS, BT_MESH_SAR_TX_LEN, transmitter_status },
-	{ OP_SAR_CFG_RX_STATUS, BT_MESH_SAR_RX_LEN, receiver_status },
+	{ OP_SAR_CFG_TX_STATUS, BT_MESH_LEN_EXACT(BT_MESH_SAR_TX_LEN), transmitter_status },
+	{ OP_SAR_CFG_RX_STATUS, BT_MESH_LEN_EXACT(BT_MESH_SAR_RX_LEN), receiver_status },
 	BT_MESH_MODEL_OP_END,
 };
 

@@ -1355,6 +1355,62 @@ struct mesh_cfg_krp_set_cmd {
 	uint8_t transition;
 } __packed;
 
+struct sar_transmitter {
+	uint8_t seg_int_step;
+	uint8_t unicast_retrans_count;
+	uint8_t unicast_retrans_without_prog_count;
+	uint8_t unicast_retrans_int_step;
+	uint8_t unicast_retrans_int_inc;
+	uint8_t multicast_retrans_count;
+	uint8_t multicast_retrans_int;
+} __packed;
+
+struct sar_receiver {
+	uint8_t seg_thresh;
+	uint8_t ack_delay_inc;
+	uint8_t ack_retrans_count;
+	uint8_t discard_timeout;
+	uint8_t rx_seg_int_step;
+} __packed;
+
+#define MESH_SAR_TRANSMITTER_GET		0x4d
+struct mesh_sar_transmitter_get_cmd {
+	uint16_t dst;
+} __packed;
+
+struct mesh_sar_transmitter_get_rp {
+	struct sar_transmitter tx;
+} __packed;
+
+#define MESH_SAR_TRANSMITTER_SET		0x4e
+struct mesh_sar_transmitter_set_cmd {
+	uint16_t dst;
+	struct sar_transmitter tx;
+} __packed;
+
+struct mesh_sar_transmitter_set_rp {
+	struct sar_transmitter rx;
+} __packed;
+
+#define MESH_SAR_RECEIVER_GET		0x4f
+struct mesh_sar_receiver_get_cmd {
+	uint16_t dst;
+} __packed;
+
+struct mesh_sar_receiver_get_rp {
+	struct sar_receiver rx;
+} __packed;
+
+#define MESH_SAR_RECEIVER_SET		0x50
+struct mesh_sar_receiver_set_cmd {
+	uint16_t dst;
+	struct sar_receiver rx;
+} __packed;
+
+struct mesh_sar_receiver_set_rp {
+	struct sar_receiver rx;
+} __packed;
+
 #define MESH_LARGE_COMP_DATA_GET		0x51
 struct mesh_large_comp_data_get_cmd {
 	uint16_t net_idx;
