@@ -29,6 +29,7 @@
 #include "settings.h"
 #include "access.h"
 #include "dfu_slot.h"
+#include "sar_cfg_internal.h"
 
 #define CID_NVAL   0xffff
 #define COMPANY_ID_LF 0x05F1
@@ -228,6 +229,7 @@ struct bt_mesh_health_cli bt_mesh_shell_health_cli = {
 	.attention_status = health_attention_status,
 	.period_status = health_period_status,
 };
+
 #endif /* CONFIG_BT_MESH_HEALTH_CLI */
 
 #if defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV)
@@ -364,7 +366,7 @@ static struct bt_mesh_dfd_srv_cb dfd_srv_cb = {
 
 struct bt_mesh_dfd_srv bt_mesh_shell_dfd_srv = BT_MESH_DFD_SRV_INIT(&dfd_srv_cb);
 
-#else
+#else /* CONFIG_BT_MESH_DFD_SRV */
 
 #if defined(CONFIG_BT_MESH_DFU_CLI)
 
@@ -459,6 +461,7 @@ struct bt_mesh_blob_cli bt_mesh_shell_blob_cli = {
 
 #endif /* CONFIG_BT_MESH_BLOB_CLI */
 
+#endif /* !CONFIG_BT_MESH_DFD_SRV */
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)
 
@@ -607,10 +610,9 @@ static void rpr_scan_report(struct bt_mesh_rpr_cli *cli,
 struct bt_mesh_rpr_cli bt_mesh_shell_rpr_cli = {
 	.scan_report = rpr_scan_report,
 };
-#endif
-#endif /* CONFIG_BT_MESH_DFD_SRV */
 
-static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
+#endif /* CONFIG_BT_MESH_RPR_CLI */
+
 
 static void prov_complete(uint16_t net_idx, uint16_t addr)
 {
@@ -777,6 +779,8 @@ static void link_close(bt_mesh_prov_bearer_t bearer)
 }
 
 static uint8_t static_val[16];
+
+static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 
 struct bt_mesh_prov bt_mesh_shell_prov = {
 	.uuid = dev_uuid,
@@ -4974,6 +4978,108 @@ static int cmd_reprovision_remote(const struct shell *shell, size_t argc,
 
 #endif
 
+#if defined(CONFIG_BT_MESH_SAR_CFG_CLI)
+
+struct bt_mesh_sar_cfg_cli bt_mesh_shell_sar_cfg_cli;
+
+static int cmd_sar_tx_get(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_sar_tx rsp;
+	int err;
+
+	err = bt_mesh_sar_cfg_cli_transmitter_get(&bt_mesh_shell_sar_cfg_cli, net.net_idx,
+						  net.dst, &rsp);
+	if (err) {
+		shell_error(shell,
+			    "Failed to send SAR Transmitter Get (err %d)", err);
+		return 0;
+	}
+
+	shell_print(shell, "Transmitter Get: %u %u %u %u %u %u %u",
+		    rsp.seg_int_step, rsp.unicast_retrans_count,
+		    rsp.unicast_retrans_without_prog_count,
+		    rsp.unicast_retrans_int_step, rsp.unicast_retrans_int_inc,
+		    rsp.multicast_retrans_count, rsp.multicast_retrans_int);
+
+	return 0;
+}
+
+static int cmd_sar_tx_set(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_sar_tx set, rsp;
+	int err;
+
+	set.seg_int_step = strtoul(argv[1], NULL, 0);
+	set.unicast_retrans_count = strtoul(argv[2], NULL, 0);
+	set.unicast_retrans_without_prog_count = strtoul(argv[3], NULL, 0);
+	set.unicast_retrans_int_step = strtoul(argv[4], NULL, 0);
+	set.unicast_retrans_int_inc = strtoul(argv[5], NULL, 0);
+	set.multicast_retrans_count = strtoul(argv[6], NULL, 0);
+	set.multicast_retrans_int = strtoul(argv[7], NULL, 0);
+
+	err = bt_mesh_sar_cfg_cli_transmitter_set(&bt_mesh_shell_sar_cfg_cli, net.net_idx,
+						  net.dst, &set, &rsp);
+	if (err) {
+		shell_error(shell,
+			    "Failed to send SAR Transmitter Set (err %d)", err);
+		return 0;
+	}
+
+	shell_print(shell, "Transmitter Set: %u %u %u %u %u %u %u",
+		    rsp.seg_int_step, rsp.unicast_retrans_count,
+		    rsp.unicast_retrans_without_prog_count,
+		    rsp.unicast_retrans_int_step, rsp.unicast_retrans_int_inc,
+		    rsp.multicast_retrans_count, rsp.multicast_retrans_int);
+
+	return 0;
+}
+
+static int cmd_sar_rx_get(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_sar_rx rsp;
+	int err;
+
+	err = bt_mesh_sar_cfg_cli_receiver_get(&bt_mesh_shell_sar_cfg_cli, net.net_idx,
+					       net.dst, &rsp);
+	if (err) {
+		shell_error(shell, "Failed to send SAR Receiver Get (err %d)",
+			    err);
+		return 0;
+	}
+
+	shell_print(shell, "Receiver Get: %u %u %u %u %u", rsp.seg_thresh,
+		    rsp.ack_delay_inc, rsp.ack_retrans_count,
+		    rsp.discard_timeout, rsp.rx_seg_int_step);
+
+	return 0;
+}
+
+static int cmd_sar_rx_set(const struct shell *shell, size_t argc, char *argv[])
+{
+	struct bt_mesh_sar_rx set, rsp;
+	int err;
+
+	set.seg_thresh = strtoul(argv[1], NULL, 0);
+	set.ack_delay_inc = strtoul(argv[2], NULL, 0);
+	set.ack_retrans_count = strtoul(argv[3], NULL, 0);
+	set.discard_timeout = strtoul(argv[4], NULL, 0);
+	set.rx_seg_int_step = strtoul(argv[5], NULL, 0);
+
+	err = bt_mesh_sar_cfg_cli_receiver_set(&bt_mesh_shell_sar_cfg_cli, net.net_idx,
+					       net.dst, &set, &rsp);
+	if (err) {
+		shell_error(shell, "Failed to send SAR Receiver Set (err %d)",
+			    err);
+		return 0;
+	}
+
+	shell_print(shell, "Receiver Set: %u %u %u %u %u", rsp.seg_thresh,
+		    rsp.ack_delay_inc, rsp.ack_retrans_count,
+		    rsp.discard_timeout, rsp.rx_seg_int_step);
+
+	return 0;
+}
+#endif
 
 /* List of Mesh subcommands.
  *
@@ -5252,6 +5358,13 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      "<addr> [<comp changed: false, true>]",
 		      cmd_reprovision_remote, 2, 1),
 #endif
+#if defined(CONFIG_BT_MESH_SAR_CFG_CLI)
+	SHELL_CMD_ARG(sar-tx-get, NULL, NULL, cmd_sar_tx_get, 1, 0),
+	SHELL_CMD_ARG(sar-tx-set, NULL, "<7 transmitter state values>", cmd_sar_tx_set, 8, 0),
+	SHELL_CMD_ARG(sar-rx-get, NULL, NULL, cmd_sar_rx_get, 1, 0),
+	SHELL_CMD_ARG(sar-rx-set, NULL, "<5 receiver state values>", cmd_sar_rx_set, 6, 0),
+#endif
+
 	SHELL_SUBCMD_SET_END
 );
 

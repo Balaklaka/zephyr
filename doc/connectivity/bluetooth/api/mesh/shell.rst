@@ -1158,3 +1158,54 @@ The DFU Server model can be added to the Mesh Shell by enabling :option:`CONFIG_
 ----------------------
 
 	Cancel incoming DFU transfer.
+
+
+SAR Configuration Client
+======================
+
+The SAR Configuration client is an optional Mesh model that can be enabled through the :option:`CONFIG_BT_MESH_SAR_CFG_CLI` configuration option. The SAR Configuration Client model is used to support the functionality of configuring the behavior of the lower transport layer of a node that supports the SAR Configuration Server model.
+
+
+``mesh sar-tx-get``
+----------------------------
+
+	Send SAR Configuration Transmitter Get message.
+
+``mesh sar-tx-set <7 configuration values>``
+----------------------------
+
+	Send SAR Configuration Transmitter Set message.
+
+	* ``seg_int_step``: SAR Segment Interval Step state.
+
+	* ``unicast_retrans_count``: SAR Unicast Retransmissions Count state.
+
+	* ``unicast_retrans_without_prog_count``: SAR Unicast Retransmissions Without Progress Count state.
+
+	* ``unicast_retrans_int_step``: SAR Unicast Retransmissions Interval Step state.
+
+	* ``unicast_retrans_int_inc``: SAR Unicast Retransmissions Interval Increment state.
+
+	* ``multicast_retrans_count``: SAR Multicast Retransmissions Count state.
+
+	* ``multicast_retrans_int``: SAR Multicast Retransmissions Interval state.
+
+``mesh sar-rx-get``
+----------------------------
+
+	Send SAR Configuration Receiver Get message.
+
+``mesh sar-rx-set <5 configuration values>``
+----------------------------
+
+	Send SAR Configuration Receiver Set message.
+
+	* ``seg_thresh``: SAR Segments Threshold state.
+
+	* ``ack_delay_inc``: SAR Acknowledgment Delay Increment state.
+
+	* ``discard_timeout``: SAR Discard Timeout state.
+
+	* ``rx_seg_int_step``: SAR Receiver Segment Interval Step state.
+
+	* ``ack_retrans_count``: SAR Acknowledgment Retransmissions Count state.

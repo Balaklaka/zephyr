@@ -59,6 +59,9 @@ extern struct bt_mesh_dfd_srv bt_mesh_shell_dfd_srv;
 /** @brief External reference to Remote Provisioning Client */
 extern struct bt_mesh_rpr_cli bt_mesh_shell_rpr_cli;
 
+/** @brief External reference to SAR Configuration Client */
+extern struct bt_mesh_sar_cfg_cli bt_mesh_shell_sar_cfg_cli;
+
 /** @brief External reference to provisioning handler. */
 extern struct bt_mesh_prov bt_mesh_shell_prov;
 
