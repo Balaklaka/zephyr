@@ -22,6 +22,8 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME);
 
 #define CONTROLLER_INDEX 0
 #define CID_LOCAL 0x05F1
+#define COMPANY_ID_LF 0x05F1
+#define COMPANY_ID_NORDIC_SEMI 0x05F9
 
 /* Health server data */
 #define CUR_FAULTS_MAX 4
@@ -270,11 +272,28 @@ static struct bt_mesh_health_cli health_cli = {
 	.current_status = health_current_status,
 };
 
+const uint8_t health_tests[] = {
+	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_LF, 6, 0x01, 0x02, 0x03, 0x04, 0x34,
+				 0x15),
+	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_NORDIC_SEMI, 3, 0x01, 0x02, 0x03),
+};
+
+static struct bt_mesh_models_metadata_entry health_meta[] = {
+	{
+		.len = ARRAY_SIZE(health_tests),
+		.id = BT_MESH_HEALTH_TEST_INFO_METADATA,
+		.data = health_tests,
+	},
+	BT_MESH_MODELS_METADATA_END,
+};
 static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
-	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
+	BT_MESH_MODEL_HEALTH_SRV_METADATA(&health_srv, &health_pub,
+					  health_meta),
 	BT_MESH_MODEL_HEALTH_CLI(&health_cli),
+	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
+	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
 };
 
 static struct bt_mesh_model vnd_models[] = {
@@ -874,6 +893,47 @@ static void proxy_identity_enable(uint8_t *data, uint16_t len)
 
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_PROXY_IDENTITY, CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void large_comp_data_get(uint8_t *data, uint16_t len)
+{
+	struct mesh_large_comp_data_get_cmd *cmd = (void *) data;
+	NET_BUF_SIMPLE_DEFINE(comp, BT_MESH_TX_SDU_MAX);
+	int err;
+
+	err = bt_mesh_large_comp_data_get(sys_le16_to_cpu(cmd->net_idx),
+				    sys_le16_to_cpu(cmd->addr), cmd->page,
+				    sys_le16_to_cpu(cmd->offset), &comp);
+	if (err) {
+		LOG_ERR("Large Composition Data Get failed (err %d)", err);
+
+		tester_rsp(BTP_SERVICE_ID_MESH, MESH_LARGE_COMP_DATA_GET,
+			   CONTROLLER_INDEX, BTP_STATUS_FAILED);
+	}
+
+	tester_send(BTP_SERVICE_ID_MESH, MESH_LARGE_COMP_DATA_GET,
+		    CONTROLLER_INDEX, comp.data, comp.len);
+}
+
+static void models_metadata_get(uint8_t *data, uint16_t len)
+{
+	struct mesh_models_metadata_get_cmd *cmd = (void *) data;
+	NET_BUF_SIMPLE_DEFINE(metadata, BT_MESH_TX_SDU_MAX);
+	int err;
+
+	err = bt_mesh_models_metadata_get(sys_le16_to_cpu(cmd->net_idx),
+					  sys_le16_to_cpu(cmd->addr), cmd->page,
+					  sys_le16_to_cpu(cmd->offset), &metadata);
+
+	if (err) {
+		LOG_ERR("Models Metadata Get failed (err %d)", err);
+
+		tester_rsp(BTP_SERVICE_ID_MESH, MESH_MODELS_METADATA_GET,
+			   CONTROLLER_INDEX, BTP_STATUS_FAILED);
+	}
+
+	tester_send(BTP_SERVICE_ID_MESH, MESH_MODELS_METADATA_GET,
+		    CONTROLLER_INDEX, metadata.data, metadata.len);
 }
 
 static void composition_data_get(uint8_t *data, uint16_t len)
@@ -2613,6 +2673,12 @@ void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t l
 #endif /* CONFIG_BT_TESTING */
 	case MESH_PROXY_IDENTITY:
 		proxy_identity_enable(data, len);
+		break;
+	case MESH_LARGE_COMP_DATA_GET:
+		large_comp_data_get(data, len);
+		break;
+	case MESH_MODELS_METADATA_GET:
+		models_metadata_get(data, len);
 		break;
 	default:
 		tester_rsp(BTP_SERVICE_ID_MESH, opcode, index,

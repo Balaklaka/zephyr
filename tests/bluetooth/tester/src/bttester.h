@@ -1355,6 +1355,22 @@ struct mesh_cfg_krp_set_cmd {
 	uint8_t transition;
 } __packed;
 
+#define MESH_LARGE_COMP_DATA_GET		0x51
+struct mesh_large_comp_data_get_cmd {
+	uint16_t net_idx;
+	uint16_t addr;
+	uint8_t page;
+	uint16_t offset;
+} __packed;
+
+#define MESH_MODELS_METADATA_GET		0x52
+struct mesh_models_metadata_get_cmd {
+	uint16_t net_idx;
+	uint16_t addr;
+	uint8_t page;
+	uint16_t offset;
+} __packed;
+
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
 struct mesh_out_number_action_ev {
