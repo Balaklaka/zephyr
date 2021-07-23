@@ -981,3 +981,180 @@ The Configuration database is an optional mesh subsystem that can be enabled thr
 	Delete an application key from the Configuration database.
 
 	* ``AppKeyIdx``: Key index of the application key to delete.
+
+BLOB Client model
+=================
+
+The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_CLI`, and disabling the :option:`CONFIG_BT_MESH_DFU_CLI` configuration option.
+
+``mesh blob-target <addr>``
+----------------------------
+
+	Add a target node for the next BLOB transfer.
+
+	* ``addr``: Unicast address of the target node's BLOB Server model.
+
+
+``mesh blob-bounds [<group>]``
+------------------------------
+
+	Get the total boundary parameters of all target nodes.
+
+	* ``group``: Optional group address to use when communicating with the target nodes. If omitted, the BLOB Client will address each target individually.
+
+
+``mesh blob-tx <id> <size> <block size log> <chunk size> [<group> [<mode: push, pull>]]``
+-----------------------------------------------------------------------------------------
+
+	Perform a BLOB transfer to the target nodes. The BLOB Client will send a dummy BLOB to all target nodes, then post a message when the transfer is completed. Note that all target nodes must first be configured to receive the transfer using the ``mesh blob-rx`` command.
+
+	* ``id``: 64 bit BLOB transfer ID.
+	* ``size``: Size of the BLOB in bytes.
+	* ``block size log`` Logarithmic representation of the BLOB's block size. The final block size will be ``1 << block size log`` bytes.
+	* ``chunk size``: Chunk size in bytes.
+	* ``group``: Optional group address to use when communicating with the target nodes. If omitted or set to 0, the BLOB Client will address each target individually.
+	* ``mode``: BLOB transfer mode to use. Must be one of ``push`` or ``pull``. If omitted, ``push`` will be used by default.
+
+
+``mesh blob-tx-cancel``
+------------------
+
+	Cancel an ongoing BLOB transfer.
+
+
+BLOB Server model
+=================
+
+The :ref:`bluetooth_mesh_blob_srv` can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_SRV`. The BLOB Server model is capable of receiving any BLOB data, but the implementation in the Mesh Shell will discard the incoming data.
+
+
+``mesh blob-rx <id> [<timeout base>]``
+----------------
+
+	Prepare to receive a BLOB transfer.
+
+	* ``id``: 64 bit BLOB transfer ID to receive.
+	* ``timeout base``: Optional additional time to wait for client messages, in 10 second increments.
+
+
+``mesh blob-rx-cancel``
+-----------------------
+
+	Cancel an ongoing BLOB transfer.
+
+
+DFU Client model
+================
+
+The DFU Client model can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_CLI` and :option:`CONFIG_BT_MESH_DFU_CLI`. The DFU Client demonstrates the Firmware upgrade distributor role by transferring a dummy firmware upgrade to a set of DFU targets.
+
+
+``mesh dfu-slot-add <size> [<fwid> [<metadata> [<uri>]]]``
+--------------------------------------------------------------------
+
+	Add a virtual DFU image slot that can be transferred as a DFU image. The image slot will be assigned an image slot index, which is printed as a response, and can be used to reference the slot in other commands.
+
+	* ``size``: DFU image slot size in bytes.
+	* ``fwid``: Optional firmware ID, formatted as a hexstring.
+	* ``metadata``: Optional firmware metadata, formatted as a hexstring.
+	* ``uri``: Optional URI for the firmware.
+
+
+``mesh dfu-slot-del <slot idx>``
+--------------------------------
+
+	Delete the DFU image slot at the given index.
+
+	* ``slot idx``: Index of the slot to delete.
+
+
+``mesh dfu-slot-get <slot-idx>``
+--------------------------------
+
+	Get all available information about a DFU image slot.
+
+	* ``slot idx``: Index of the slot to get.
+
+
+``mesh dfu-target <addr> <img idx>``
+------------------------------------
+
+	Add a DFU target node.
+
+	* ``addr``: Unicast address of the target node.
+	* ``img idx``: Image index to address on the target node.
+
+
+``mesh dfu-target-state``
+-------------------------
+
+	Check the DFU target state of the device at the configured destination address.
+
+
+``mesh dfu-target-imgs [<max count>]``
+--------------------------------------
+
+	Get a list of DFU images on the device at the configured destination address.
+
+	* ``max count``: Optional maximum number of images to return. If omitted, there's no limit on the number of returned images.
+
+
+``mesh dfu-target-check <slot idx> <target img idx>``
+-----------------------------------------------------
+
+	Check whether the device at the configured destination address will accept a DFU transfer from the given DFU image slot to the target's DFU image at the given index, and what the effect would be.
+
+	* ``slot idx``: Index of the local DFU image slot to check.
+	* ``target img idx``: Index of the target's DFU image to check.
+
+
+``mesh dfu-send <slot idx> [<group>]``
+--------------------------------------
+
+	Start a DFU transfer to all added targets.
+
+	* ``slot idx``: Index of the locat DFU image slot to send.
+	* ``group``: Optional group address to use when communicating with the target nodes. If omitted, the DFU Client will address each target individually.
+
+
+``mesh dfu-apply``
+------------------
+
+	Apply the most recent DFU transfer on all target nodes. Can only be called after a DFU transfer is completed.
+
+
+``mesh dfu-confirm``
+--------------------
+
+	Confirm that the most recent DFU transfer was successfully applied on all target nodes. Can only be called after a DFU transfer is completed and applied.
+
+
+``mesh dfu-progress``
+---------------------
+
+	Check the progress of the current transfer.
+
+
+DFU Server model
+================
+
+The DFU Server model can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_SRV` and :option:`CONFIG_BT_MESH_DFU_SRV`. The DFU Server demonstrates the Firmware upgrade target role by accepting any firmware upgrade. The Mesh Shell DFU Server will discard the incoming firmware data, but otherwise behave as a proper DFU target node.
+
+
+``mesh dfu-applied``
+--------------------
+
+	Mark the most recent DFU transfer as applied. Can only be called after a DFU transfer is completed, and the Distributor has requested that the transfer is applied.
+
+	As the Mesh SShell DFU Server doesn't actually apply the incoming firmware image, this command can be used to emulate an applied status, to notify the Distributor that the transfer was successful.
+
+
+``mesh dfu-progress``
+---------------------
+
+	Check the progress of the current transfer.
+
+``mesh dfu-rx-cancel``
+----------------------
+
+	Cancel incoming DFU transfer.

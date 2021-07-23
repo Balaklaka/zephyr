@@ -4171,6 +4171,12 @@ static int cmd_dfu_applied(const struct shell *shell, size_t argc, char *argv[])
 	bt_mesh_dfu_srv_applied(&bt_mesh_shell_dfu_srv);
 	return 0;
 }
+
+static int cmd_dfu_rx_cancel(const struct shell *shell, size_t argc, char *argv[])
+{
+	bt_mesh_dfu_srv_cancel(&bt_mesh_shell_dfu_srv);
+	return 0;
+}
 #endif
 
 #if defined(CONFIG_BT_MESH_DFU_CLI) || defined(CONFIG_BT_MESH_DFU_SRV)
@@ -4408,6 +4414,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)
 	SHELL_CMD_ARG(dfu-applied, NULL, NULL, cmd_dfu_applied, 1, 0),
+	SHELL_CMD_ARG(dfu-rx-cancel, NULL, NULL, cmd_dfu_rx_cancel, 1, 0),
 #endif
 
 #if defined(CONFIG_BT_MESH_BLOB_SRV)
