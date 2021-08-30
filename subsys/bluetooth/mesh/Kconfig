@@ -89,7 +89,6 @@ config BT_MESH_ECDH_P256_HMAC_SHA256_AES_CCM
 config BT_MESH_OOB_AUTH_REQUIRED
 	bool "OOB authentication mandates to use HMAC SHA256"
 	depends on BT_MESH_ECDH_P256_HMAC_SHA256_AES_CCM
-	default y
 
 if BT_MESH_CDB
 
