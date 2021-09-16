@@ -238,6 +238,8 @@ int bt_mesh_dfu_slot_del_all(void)
 		slot_invalidate(s);
 	}
 
+	sys_slist_init(&list);
+
 	return 0;
 }
 
