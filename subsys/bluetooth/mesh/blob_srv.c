@@ -18,8 +18,9 @@
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_RX_SDU_MAX)
 #define MTU_SIZE_MAX (BT_MESH_RX_SDU_MAX - BT_MESH_MIC_SHORT)
 
+#define SERVER_TIMEOUT_SECS(srv) (10 * (1 + (srv)->state.timeout_base))
 #define PULL_BLOB_REQ_COUNT 16
-#define PULL_ATTEMPTS 6
+#define PULL_ATTEMPTS(srv) ceiling_fraction(SERVER_TIMEOUT_SECS(srv), (BLOB_POLL_TIME_MAX_SECS + 1))
 #define REPORT_TIMER_TIMEOUT K_SECONDS(BLOB_POLL_TIME_MAX_SECS + 1)
 
 BUILD_ASSERT(BLOB_BLOCK_SIZE_LOG_MIN <= BLOB_BLOCK_SIZE_LOG_MAX,
@@ -103,11 +104,9 @@ static void io_close(struct bt_mesh_blob_srv *srv)
 
 static void reset_timer(struct bt_mesh_blob_srv *srv)
 {
-	if (srv->state.xfer.mode != BT_MESH_BLOB_XFER_MODE_PULL) {
-		k_delayed_work_submit(
-			&srv->rx_timeout,
-			K_SECONDS(10 * (1 + srv->state.timeout_base)));
-	}
+	k_delayed_work_submit(
+		&srv->rx_timeout,
+		K_SECONDS(SERVER_TIMEOUT_SECS(srv)));
 }
 
 static void buf_chunk_index_add(struct net_buf_simple *buf, uint16_t chunk)
@@ -170,7 +169,10 @@ static void block_report(struct bt_mesh_blob_srv *srv)
 
 	if (!srv->pull.counter--) {
 		srv->pull.counter = 0;
-		suspend(srv);
+
+		/* No need to do anything, the transfer will be suspended by
+		 * rx_timeout timer.
+		 */
 		return;
 	}
 
@@ -278,7 +280,7 @@ static void lpn_poll_visit(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 		return;
 	}
 
-	srv->pull.counter = PULL_ATTEMPTS;
+	srv->pull.counter = PULL_ATTEMPTS(srv);
 	block_report(srv);
 }
 
@@ -672,7 +674,7 @@ static int handle_block_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 
 	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		/* Wait for the client to send the first chunk */
-		srv->pull.counter = PULL_ATTEMPTS;
+		srv->pull.counter = PULL_ATTEMPTS(srv);
 		k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
 	}
 
@@ -724,7 +726,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	reset_timer(srv);
 	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		srv->pull.counter = PULL_ATTEMPTS;
+		srv->pull.counter = PULL_ATTEMPTS(srv);
 		k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
 	}
 
