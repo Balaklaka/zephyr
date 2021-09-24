@@ -855,7 +855,7 @@ int bt_mesh_dfu_cli_cancel(struct bt_mesh_dfu_cli *cli,
 		return req_wait(cli, K_MSEC(timeout));
 	}
 
-	if (!bt_mesh_dfu_cli_is_busy(cli)) {
+	if (cli->xfer.state == STATE_IDLE) {
 		return -EALREADY;
 	}
 
