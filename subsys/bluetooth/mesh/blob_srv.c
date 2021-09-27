@@ -689,7 +689,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 {
 	struct bt_mesh_blob_srv *srv = mod->user_data;
 	struct bt_mesh_blob_chunk chunk;
-	size_t expected_size;
+	size_t expected_size = 0;
 	uint16_t idx;
 	int i, err;
 
@@ -707,7 +707,9 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	if (idx == srv->block.chunk_count - 1) {
 		expected_size = srv->block.size % srv->block.chunk_size;
-	} else {
+	}
+
+	if (expected_size == 0) {
 		expected_size = srv->block.chunk_size;
 	}
 
