@@ -81,6 +81,7 @@ static void blob_cli_reset(struct bt_mesh_blob_cli *cli)
 	k_delayed_work_cancel(&cli->tx.retry);
 	cli->xfer = NULL;
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
+	cli->tx.ctx = NULL;
 }
 
 static struct bt_mesh_blob_target *target_get(struct bt_mesh_blob_cli *cli,
