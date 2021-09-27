@@ -93,9 +93,6 @@ enum bt_mesh_dfd_upload_phase {
 	/** The Store Firmware procedure is being executed. */
 	BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE,
 
-	/** The Store Firmware OOB procedure is being executed. */
-	BT_MESH_DFD_UPLOAD_PHASE_OOB_TRANSFER_ACTIVE,
-
 	/** The Store Firmware procedure or Store Firmware OOB procedure failed.
 	 */
 	BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ERROR,

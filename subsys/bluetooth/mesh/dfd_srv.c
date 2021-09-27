@@ -46,9 +46,7 @@ static bool is_busy(const struct bt_mesh_dfd_srv *srv)
 static bool upload_is_busy(const struct bt_mesh_dfd_srv *srv)
 {
 	return bt_mesh_blob_srv_is_busy(&srv->upload.blob) ||
-	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE ||
-	       srv->upload.phase ==
-		       BT_MESH_DFD_UPLOAD_PHASE_OOB_TRANSFER_ACTIVE;
+	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE;
 }
 
 static int slot_del(struct bt_mesh_dfd_srv *srv, const struct bt_mesh_dfu_slot *slot)
