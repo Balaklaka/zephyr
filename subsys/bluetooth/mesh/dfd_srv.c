@@ -306,19 +306,18 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	if (is_busy(srv)) {
-		if (srv->ctx.app_idx != app_idx ||
-		    srv->ctx.timeout_base != timeout_base ||
-		    srv->ctx.group != group || srv->ctx.ttl != ttl ||
-		    srv->dfu.xfer.blob.mode != mode || srv->apply != apply ||
-		    srv->slot_idx != slot_idx) {
-			BT_WARN("Busy distributing another image");
-			status_rsp(srv, ctx,
-				   BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
-		} else {
+	if (srv->ctx.app_idx == app_idx &&
+	    srv->ctx.timeout_base == timeout_base &&
+	    srv->ctx.group == group && srv->ctx.ttl == ttl &&
+	    srv->dfu.xfer.blob.mode == mode && srv->apply == apply &&
+	    srv->slot_idx == slot_idx) {
+		if (is_busy(srv) ||
+		    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
 			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+			return 0;
 		}
-
+	} else if (is_busy(srv)) {
+		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
 		return 0;
 	}
 
