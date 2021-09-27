@@ -4077,6 +4077,11 @@ static void blob_cli_ctx_prepare(uint16_t group)
 	sys_slist_init(&blob_cli_xfer.ctx.targets);
 
 	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
+		/* Reset target context. */
+		uint16_t addr = blob_cli_xfer.targets[i].addr;
+		memset(&blob_cli_xfer.targets[i].addr, 0, sizeof(struct bt_mesh_blob_target));
+		blob_cli_xfer.targets[i].addr = addr;
+
 		sys_slist_append(&blob_cli_xfer.ctx.targets,
 				 &blob_cli_xfer.targets[i].n);
 	}
