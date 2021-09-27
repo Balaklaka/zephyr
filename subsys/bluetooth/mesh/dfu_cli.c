@@ -461,10 +461,12 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
 	struct bt_mesh_dfu_target *target;
+	bool success = false;
 
 	TARGETS_FOR_EACH(cli, target) {
 		if (target->effect == BT_MESH_DFU_EFFECT_UNPROV) {
 			if (!target->blob.acked) {
+				success = true;
 				continue;
 			}
 
@@ -473,14 +475,20 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 		} else if (!target->blob.acked) {
 			BT_DBG("Target 0x%04x failed to respond", target->blob.addr);
 			target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
+		} else if (target->status == BT_MESH_DFU_SUCCESS) {
+			success = true;
 		}
 	}
 
-	cli->xfer.state = STATE_IDLE;
-	cli->xfer.flags = 0U;
+	if (success) {
+		cli->xfer.state = STATE_IDLE;
+		cli->xfer.flags = 0U;
 
-	if (cli->cb && cli->cb->confirmed) {
-		cli->cb->confirmed(cli);
+		if (cli->cb && cli->cb->confirmed) {
+			cli->cb->confirmed(cli);
+		}
+	} else {
+		dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
 	}
 }
 
