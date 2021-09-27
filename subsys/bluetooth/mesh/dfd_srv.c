@@ -420,6 +420,7 @@ static int handle_apply(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
+	srv->phase = BT_MESH_DFD_PHASE_APPLYING_UPDATE;
 	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
 
 	return 0;
