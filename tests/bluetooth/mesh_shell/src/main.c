@@ -23,6 +23,9 @@ static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 	BT_MESH_MODEL_HEALTH_SRV(&bt_mesh_shell_health_srv, &health_pub),
 	BT_MESH_MODEL_HEALTH_CLI(&bt_mesh_shell_health_cli),
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+	BT_MESH_MODEL_DFD_SRV(&bt_mesh_shell_dfd_srv),
+#else
 #if defined(CONFIG_BT_MESH_DFU_SRV)
 	BT_MESH_MODEL_DFU_SRV(&bt_mesh_shell_dfu_srv),
 #elif defined(CONFIG_BT_MESH_BLOB_SRV)
@@ -33,6 +36,7 @@ static struct bt_mesh_model root_models[] = {
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 	BT_MESH_MODEL_BLOB_CLI(&bt_mesh_shell_blob_cli),
 #endif
+#endif /* CONFIG_BT_MESH_DFD_SRV */
 };
 
 static struct bt_mesh_elem elements[] = {

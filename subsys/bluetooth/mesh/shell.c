@@ -209,6 +209,14 @@ static void health_period_status(struct bt_mesh_health_cli *cli, uint16_t addr,
 	shell_print_ctx("Health Fast Period Divisor Status from 0x%04x: %u", addr, period);
 }
 
+struct bt_mesh_health_cli bt_mesh_shell_health_cli = {
+	.current_status = health_current_status,
+	.fault_status = health_fault_status,
+	.attention_status = health_attention_status,
+	.period_status = health_period_status,
+};
+#endif /* CONFIG_BT_MESH_HEALTH_CLI */
+
 #if defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV)
 
 static uint8_t blob_rx_sum;
@@ -262,6 +270,80 @@ static const struct bt_mesh_blob_io blob_io = {
 };
 
 #endif /* defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV) */
+
+#if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
+
+static void slot_info_print(const struct shell *shell, const struct bt_mesh_dfu_slot *slot,
+			    const uint8_t *idx)
+{
+	char fwid[2 * CONFIG_BT_MESH_DFU_FWID_MAXLEN + 1];
+	char metadata[2 * CONFIG_BT_MESH_DFU_METADATA_MAXLEN + 1];
+	char uri[CONFIG_BT_MESH_DFU_URI_MAXLEN + 1];
+	size_t len;
+
+	len = bin2hex(slot->fwid, slot->fwid_len, fwid, sizeof(fwid));
+	fwid[len] = '\0';
+	len = bin2hex(slot->metadata, slot->metadata_len, metadata,
+		      sizeof(metadata));
+	metadata[len] = '\0';
+	memcpy(uri, slot->uri, slot->uri_len);
+	uri[slot->uri_len] = '\0';
+
+	if (idx != NULL) {
+		shell_print(shell, "Slot %u:", *idx);
+	} else {
+		shell_print(shell, "Slot:");
+	}
+	shell_print(shell, "\tSize:     %u bytes", slot->size);
+	shell_print(shell, "\tFWID:     %s", fwid);
+	shell_print(shell, "\tMetadata: %s", metadata);
+	shell_print(shell, "\tURI:      %s", uri);
+}
+
+#endif /* defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI) */
+
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+
+static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
+			const struct bt_mesh_dfu_slot *slot,
+			const struct bt_mesh_blob_io **io)
+{
+	shell_print(ctx_shell, "Uploading new firmware image to the distributor.");
+	slot_info_print(ctx_shell, slot, NULL);
+
+	*io = &blob_io;
+
+	return 0;
+}
+
+static void dfd_srv_del(struct bt_mesh_dfd_srv *srv,
+			const struct bt_mesh_dfu_slot *slot)
+{
+	shell_print(ctx_shell, "Deleting the firmware image from the distributor.");
+	slot_info_print(ctx_shell, slot, NULL);
+}
+
+static int dfd_srv_send(struct bt_mesh_dfd_srv *srv,
+			const struct bt_mesh_dfu_slot *slot,
+			const struct bt_mesh_blob_io **io)
+{
+	shell_print(ctx_shell, "Starting the firmware distribution.");
+	slot_info_print(ctx_shell, slot, NULL);
+
+	*io = &blob_io;
+
+	return 0;
+}
+
+static struct bt_mesh_dfd_srv_cb dfd_srv_cb = {
+	.recv = dfd_srv_recv,
+	.del = dfd_srv_del,
+	.send = dfd_srv_send,
+};
+
+struct bt_mesh_dfd_srv bt_mesh_shell_dfd_srv = BT_MESH_DFD_SRV_INIT(&dfd_srv_cb);
+
+#else
 
 #if defined(CONFIG_BT_MESH_DFU_CLI)
 
@@ -350,7 +432,7 @@ struct bt_mesh_blob_cli bt_mesh_shell_blob_cli = {
 	.cb = &blob_cli_handlers
 };
 
-#endif
+#endif /* CONFIG_BT_MESH_BLOB_CLI */
 
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)
@@ -458,14 +540,7 @@ struct bt_mesh_blob_srv bt_mesh_shell_blob_srv = {
 };
 
 #endif
-
-struct bt_mesh_health_cli bt_mesh_shell_health_cli = {
-	.current_status = health_current_status,
-	.fault_status = health_fault_status,
-	.attention_status = health_attention_status,
-	.period_status = health_period_status,
-};
-#endif /* CONFIG_BT_MESH_HEALTH_CLI */
+#endif /* CONFIG_BT_MESH_DFD_SRV */
 
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 
@@ -3637,13 +3712,7 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
-#if defined(CONFIG_BT_MESH_DFU_CLI)
-
-static struct {
-	struct bt_mesh_dfu_target targets[32];
-	size_t target_cnt;
-	struct bt_mesh_blob_cli_ctx ctx;
-} dfu_tx;
+#if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
 
 static int cmd_dfu_slot_add(const struct shell *shell, size_t argc,
 			    char *argv[])
@@ -3718,10 +3787,6 @@ static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
 {
 	const struct bt_mesh_dfu_slot *slot;
 	uint8_t idx;
-	char fwid[2 * CONFIG_BT_MESH_DFU_FWID_MAXLEN + 1];
-	char metadata[2 * CONFIG_BT_MESH_DFU_METADATA_MAXLEN + 1];
-	char uri[CONFIG_BT_MESH_DFU_URI_MAXLEN + 1];
-	size_t len;
 
 	idx = strtoul(argv[1], NULL, 0);
 	slot = bt_mesh_dfu_slot_at(idx);
@@ -3730,21 +3795,20 @@ static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
 		return 0;
 	}
 
-	len = bin2hex(slot->fwid, slot->fwid_len, fwid, sizeof(fwid));
-	fwid[len] = '\0';
-	len = bin2hex(slot->metadata, slot->metadata_len, metadata,
-		      sizeof(metadata));
-	metadata[len] = '\0';
-	memcpy(uri, slot->uri, slot->uri_len);
-	uri[slot->uri_len] = '\0';
-
-	shell_print(shell, "Slot %u:", idx);
-	shell_print(shell, "\tSize:     %u bytes", slot->size);
-	shell_print(shell, "\tFWID:     %s", fwid);
-	shell_print(shell, "\tMetadata: %s", metadata);
-	shell_print(shell, "\tURI:      %s", uri);
+	slot_info_print(shell, slot, &idx);
 	return 0;
 }
+
+#endif /* defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI) */
+
+#if !defined(CONFIG_BT_MESH_DFD_SRV)
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+
+static struct {
+	struct bt_mesh_dfu_target targets[32];
+	size_t target_cnt;
+	struct bt_mesh_blob_cli_ctx ctx;
+} dfu_tx;
 
 static int cmd_dfu_target(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -4111,7 +4175,7 @@ static int cmd_blob_tx_cancel(const struct shell *shell, size_t argc,
 	return 0;
 }
 
-#endif
+#endif /* CONFIG_BT_MESH_BLOB_CLI */
 
 #if defined(CONFIG_BT_MESH_BLOB_SRV)
 
@@ -4163,7 +4227,7 @@ static int cmd_blob_rx_cancel(const struct shell *shell, size_t argc,
 
 	return 0;
 }
-#endif
+#endif /* CONFIG_BT_MESH_BLOB_SRV */
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)
 static int cmd_dfu_applied(const struct shell *shell, size_t argc, char *argv[])
@@ -4189,7 +4253,8 @@ static int cmd_dfu_progress(const struct shell *shell, size_t argc,
 	shell_print(shell, "\tServer: %u %%",
 		    bt_mesh_dfu_srv_progress(&bt_mesh_shell_dfu_srv));
 #endif
-#if defined(CONFIG_BT_MESH_DFU_CLI)
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+#elif defined(CONFIG_BT_MESH_DFU_CLI)
 	shell_print(shell, "\tClient: %u %%",
 		    bt_mesh_dfu_cli_progress(&bt_mesh_shell_dfu_cli));
 #endif
@@ -4197,6 +4262,7 @@ static int cmd_dfu_progress(const struct shell *shell, size_t argc,
 	return 0;
 }
 #endif
+#endif /* !defined(CONFIG_BT_MESH_DFD_SRV) */
 
 /* List of Mesh subcommands.
  *
@@ -4383,13 +4449,17 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      2, 0),
 #endif
 
-#if defined(CONFIG_BT_MESH_DFU_CLI)
-	/* DFU Client Model Operations */
+#if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
 	SHELL_CMD_ARG(dfu-slot-add, NULL,
 		      "<size> [<fwid> [<metadata> [<uri>]]]",
 		      cmd_dfu_slot_add, 2, 3),
 	SHELL_CMD_ARG(dfu-slot-del, NULL, "<slot idx>", cmd_dfu_slot_del, 2, 0),
 	SHELL_CMD_ARG(dfu-slot-get, NULL, "<slot idx>", cmd_dfu_slot_get, 2, 0),
+#endif
+
+#if !defined(CONFIG_BT_MESH_DFD_SRV)
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	/* DFU Client Model Operations */
 	SHELL_CMD_ARG(dfu-target, NULL, "<addr> <img idx>", cmd_dfu_target, 3,
 		      0),
 	SHELL_CMD_ARG(dfu-target-state, NULL, NULL, cmd_dfu_target_state, 1, 0),
@@ -4425,6 +4495,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 #if defined(CONFIG_BT_MESH_DFU_CLI) || defined(CONFIG_BT_MESH_DFU_SRV)
 	SHELL_CMD_ARG(dfu-progress, NULL, NULL, cmd_dfu_progress, 1, 0),
 #endif
+#endif /* !defined(CONFIG_BT_MESH_DFD_SRV) */
 
 	SHELL_SUBCMD_SET_END
 );
