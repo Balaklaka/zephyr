@@ -860,7 +860,7 @@ int bt_mesh_dfu_cli_cancel(struct bt_mesh_dfu_cli *cli,
 	}
 
 	cli->xfer.state = STATE_CANCEL;
-	bt_mesh_blob_cli_cancel(&cli->blob);
+	blob_cli_broadcast_abort(&cli->blob);
 	cancel(cli);
 	return 0;
 }

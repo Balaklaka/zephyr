@@ -125,3 +125,9 @@ void blob_cli_broadcast_rsp(struct bt_mesh_blob_cli *cli,
  *  @param cli BLOB Client instance.
  */
 void blob_cli_broadcast_tx_complete(struct bt_mesh_blob_cli *cli);
+
+/** @brief Aborts any ongoing BLOB client operations.
+ *
+ * @param cli BLOB Client instance.
+ */
+void blob_cli_broadcast_abort(struct bt_mesh_blob_cli *cli);

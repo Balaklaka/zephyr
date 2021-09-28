@@ -20,7 +20,6 @@
 
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_TX_SDU_MAX)
 
-
 #define RETRY_TIME_PULL K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
 
 #define UNICAST_MODE(cli)                                                      \
@@ -82,6 +81,7 @@ static void blob_cli_reset(struct bt_mesh_blob_cli *cli)
 	cli->xfer = NULL;
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
 	cli->tx.ctx = NULL;
+	cli->tx.sending = 0;
 }
 
 static struct bt_mesh_blob_target *target_get(struct bt_mesh_blob_cli *cli,
@@ -379,7 +379,7 @@ static void retry_timeout(struct k_work *work)
 		return;
 	}
 
-	if (!cli->tx.ctx->acked || !next_target(cli)) {
+	if (!cli->tx.ctx->acked || !next_target(cli) || cli->tx.cancelled) {
 		broadcast_complete(cli);
 		return;
 	}
@@ -432,6 +432,19 @@ void blob_cli_broadcast_rsp(struct bt_mesh_blob_cli *cli,
 	if (!--cli->tx.pending && !cli->tx.sending) {
 		broadcast_complete(cli);
 	}
+}
+
+void blob_cli_broadcast_abort(struct bt_mesh_blob_cli *cli)
+{
+	if (!cli->tx.ctx) {
+		return;
+	}
+
+	if ((cli)->state >= BT_MESH_BLOB_CLI_STATE_START) {
+		io_close(cli);
+	}
+
+	blob_cli_reset(cli);
 }
 
 static void send_start(uint16_t duration, int err, void *cb_data);
@@ -609,6 +622,8 @@ static void bounds_check(struct bt_mesh_blob_cli *cli)
 static void bounds_collected(struct bt_mesh_blob_cli *cli)
 {
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
+
+	blob_cli_reset(cli);
 
 	while ((1UL << cli->bounds->max_block_size_log) >
 	       (cli->bounds->chunk_size * cli->bounds->max_chunks)) {
@@ -1176,6 +1191,12 @@ void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)
 	}
 
 	BT_DBG("");
+
+	if (cli->state == BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK) {
+		blob_cli_reset(cli);
+		return;
+	}
+
 	cli->tx.cancelled = 1U;
 	cli->state = BT_MESH_BLOB_CLI_STATE_CANCEL;
 }
