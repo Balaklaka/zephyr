@@ -364,6 +364,7 @@ static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			 struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
+	enum bt_mesh_dfd_phase prev_phase;
 	int err;
 
 	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
@@ -381,6 +382,7 @@ static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	/* Phase TRANSFER_ACTIVE, TRANSFER_SUCCESS, APPLYING_UPDATE: */
 
+	prev_phase = srv->phase;
 	srv->phase = BT_MESH_DFD_PHASE_CANCELING_UPDATE;
 	err = bt_mesh_dfu_cli_cancel(&srv->dfu, NULL);
 	if (err) {
@@ -389,6 +391,11 @@ static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	}
 
 	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+
+	if (prev_phase == BT_MESH_DFD_PHASE_APPLYING_UPDATE) {
+		srv->phase = BT_MESH_DFD_PHASE_IDLE;
+		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	}
 
 	return 0;
 }
@@ -751,6 +758,15 @@ static void dfu_ended(struct bt_mesh_dfu_cli *cli,
 	int err;
 
 	BT_DBG("%u", reason);
+
+	if (srv->phase == BT_MESH_DFD_PHASE_IDLE) {
+		return;
+	}
+
+	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
+		srv->phase = BT_MESH_DFD_PHASE_IDLE;
+		return;
+	}
 
 	if (reason != BT_MESH_DFU_SUCCESS) {
 		srv->phase = BT_MESH_DFD_PHASE_FAILED;
