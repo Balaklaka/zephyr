@@ -3782,6 +3782,22 @@ static int cmd_dfu_slot_del(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static int cmd_dfu_slot_del_all(const struct shell *shell, size_t argc,
+			        char *argv[])
+{
+	int err;
+
+	err = bt_mesh_dfu_slot_del_all();
+	if (err) {
+		shell_print(shell, "Failed deleting all slots (err: %d)", err);
+		return 0;
+	}
+
+	shell_print(shell, "All slots deleted.");
+	return 0;
+}
+
+
 static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
 			    char *argv[])
 {
@@ -4454,6 +4470,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      "<size> [<fwid> [<metadata> [<uri>]]]",
 		      cmd_dfu_slot_add, 2, 3),
 	SHELL_CMD_ARG(dfu-slot-del, NULL, "<slot idx>", cmd_dfu_slot_del, 2, 0),
+	SHELL_CMD_ARG(dfu-slot-del-all, NULL, NULL, cmd_dfu_slot_del_all, 1, 0),
 	SHELL_CMD_ARG(dfu-slot-get, NULL, "<slot idx>", cmd_dfu_slot_get, 2, 0),
 #endif
 
