@@ -42,6 +42,7 @@ enum {
 enum {
 	STATE_IDLE,
 	STATE_TRANSFER,
+	STATE_REFRESH,
 	STATE_VERIFIED,
 	STATE_APPLY,
 	STATE_APPLIED,
@@ -102,6 +103,8 @@ static void dfu_applied(struct bt_mesh_dfu_cli *cli)
 {
 	BT_DBG("");
 
+	cli->xfer.state = STATE_APPLIED;
+
 	if (cli->cb && cli->cb->applied) {
 		cli->cb->applied(cli);
 	}
@@ -146,6 +149,7 @@ static int req_wait(struct bt_mesh_dfu_cli *cli, k_timeout_t timeout)
 /*******************************************************************************
  * Blob client
  ******************************************************************************/
+static void refresh(struct bt_mesh_dfu_cli *cli);
 
 static void blob_bounds(struct bt_mesh_blob_cli *b,
 			const struct bt_mesh_blob_cli_bounds *bounds)
@@ -188,8 +192,7 @@ static void blob_end(struct bt_mesh_blob_cli *b,
 	cli->req.img_cb = NULL;
 
 	if (success) {
-		cli->xfer.state = STATE_VERIFIED;
-		dfu_complete(cli);
+		refresh(cli);
 		return;
 	}
 
@@ -282,6 +285,17 @@ static void send_update_start(struct bt_mesh_blob_cli *b, uint16_t dst)
 	bt_mesh_model_send(cli->mod, &ctx, &buf, &send_cb, cli);
 }
 
+static void send_update_get(struct bt_mesh_blob_cli *b, uint16_t dst)
+{
+	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
+	struct bt_mesh_msg_ctx ctx = MSG_CTX(cli, dst);
+
+	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_DFU_OP_UPDATE_GET, 0);
+	bt_mesh_model_msg_init(&buf, BT_MESH_DFU_OP_UPDATE_GET);
+
+	bt_mesh_model_send(cli->mod, &ctx, &buf, &send_cb, cli);
+}
+
 static void send_update_cancel(struct bt_mesh_blob_cli *b, uint16_t dst)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
@@ -344,6 +358,38 @@ static void transfer(struct bt_mesh_blob_cli *b)
 		BT_ERR("Failed starting blob xfer: %d", err);
 		dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
 	}
+}
+
+static void refreshed(struct bt_mesh_blob_cli *b)
+{
+	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
+	struct bt_mesh_dfu_target *target;
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (target->status == BT_MESH_BLOB_SUCCESS) {
+			cli->xfer.state = STATE_VERIFIED;
+			dfu_complete(cli);
+			return;
+		}
+	}
+
+	dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+}
+
+static void refresh(struct bt_mesh_dfu_cli *cli)
+{
+	static const struct blob_cli_broadcast_ctx tx = {
+		.send = send_update_get,
+		.next = refreshed,
+		.acked = true
+	};
+
+	BT_DBG("");
+
+	cli->xfer.state = STATE_REFRESH;
+	cli->op = BT_MESH_DFU_OP_UPDATE_STATUS;
+
+	blob_cli_broadcast(&cli->blob, &tx);
 }
 
 static void apply(struct bt_mesh_dfu_cli *cli)
@@ -547,13 +593,12 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return -EINVAL;
 	}
 
-	if (cli->xfer.state == STATE_APPLY) {
-		if (phase == BT_MESH_DFU_PHASE_VERIFY ||
-		    phase == BT_MESH_DFU_PHASE_VERIFY_OK) {
+	if (cli->xfer.state == STATE_REFRESH) {
+		if (phase == BT_MESH_DFU_PHASE_VERIFY) {
 			BT_DBG("Still pending...");
 			return 0;
 		}
-
+	} else if (cli->xfer.state == STATE_APPLY) {
 		if (phase != BT_MESH_DFU_PHASE_APPLYING &&
 		    phase != BT_MESH_DFU_PHASE_IDLE) {
 			BT_WARN("Target 0x%04x in phase %u after apply",
@@ -851,6 +896,7 @@ uint8_t bt_mesh_dfu_cli_progress(struct bt_mesh_dfu_cli *cli)
 bool bt_mesh_dfu_cli_is_busy(struct bt_mesh_dfu_cli *cli)
 {
 	return (cli->xfer.state == STATE_TRANSFER ||
+		cli->xfer.state == STATE_REFRESH ||
 		cli->xfer.state == STATE_APPLY ||
 		cli->xfer.state == STATE_CONFIRM) &&
 	       !(cli->xfer.flags & FLAG_FAILED);
