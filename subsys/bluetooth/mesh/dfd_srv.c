@@ -313,15 +313,18 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	    srv->slot_idx == slot_idx) {
 		if (is_busy(srv) ||
 		    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
+			BT_WARN("Already completed or in progress");
 			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
 			return 0;
 		}
 	} else if (is_busy(srv)) {
+		BT_WARN("Busy with distribution");
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
 		return 0;
 	}
 
 	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
+		BT_WARN("Canceling distribution");
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
 		return 0;
 	}
@@ -344,6 +347,9 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	srv->ctx.group = group;
 	srv->ctx.ttl = ttl;
 	srv->apply = apply;
+
+	BT_DBG("Distribution Start: slot: %d, appidx: %d, tb: %d, addr: %04X, ttl: %d, apply: %d",
+	       slot_idx, app_idx, timeout_base, group, ttl, apply);
 
 	err = bt_mesh_dfu_cli_send(&srv->dfu, slot, &srv->ctx, NULL, srv->io,
 				   mode);
@@ -491,6 +497,9 @@ static int handle_upload_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 	meta = net_buf_simple_pull_mem(buf, meta_len);
 	fwid_len = buf->len;
 	fwid = net_buf_simple_pull_mem(buf, fwid_len);
+
+	BT_DBG("Upload Start: size: %d, fwid: %s, metadata: %s", size, bt_hex(fwid, fwid_len),
+	       bt_hex(meta, meta_len));
 
 	if (size > CONFIG_BT_MESH_DFD_SRV_SLOT_MAX_SIZE ||
 	    fwid_len > CONFIG_BT_MESH_DFU_FWID_MAXLEN ||
@@ -757,7 +766,7 @@ static void dfu_ended(struct bt_mesh_dfu_cli *cli,
 		CONTAINER_OF(cli, struct bt_mesh_dfd_srv, dfu);
 	int err;
 
-	BT_DBG("%u", reason);
+	BT_DBG("reason: %u, phase: %u, apply: %u", reason, srv->phase, srv->apply);
 
 	if (srv->phase == BT_MESH_DFD_PHASE_IDLE) {
 		return;

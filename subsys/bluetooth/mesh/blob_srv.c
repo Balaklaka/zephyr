@@ -363,7 +363,7 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 		format = BT_MESH_BLOB_CHUNKS_MISSING_SOME;
 	}
 
-	BT_DBG("Missing: %u/%u", missing, srv->block.chunk_count);
+	BT_DBG("Status: %u, missing: %u/%u", status, missing, srv->block.chunk_count);
 
 	net_buf_simple_add_u8(&buf, (status & BIT_MASK(4)) | (format << 6));
 	net_buf_simple_add_le16(&buf, srv->block.number);
@@ -475,7 +475,7 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 
 	if (((1U << block_size_log) < CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN) ||
 	    ((1U << block_size_log) > CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MAX)) {
-		BT_WARN("Invalid block size");
+		BT_WARN("Invalid block size: %u", block_size_log);
 		status = BT_MESH_BLOB_ERR_INVALID_BLOCK_SIZE;
 		cancel(srv);
 		goto rsp;
@@ -632,6 +632,10 @@ static int handle_block_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	if (!chunk_size || chunk_size > max_chunk_size(srv) ||
 	    (ceiling_fraction((1 << srv->state.block_size_log), chunk_size) >
 	     max_chunk_count(srv))) {
+		BT_WARN("Invalid chunk size: (chunk size: %u, max: %u, ceil: %u, count: %u)",
+			chunk_size, max_chunk_size(srv),
+			ceiling_fraction((1 << srv->state.block_size_log), chunk_size),
+			max_chunk_count(srv));
 		status = BT_MESH_BLOB_ERR_INVALID_CHUNK_SIZE;
 		goto rsp;
 	}
@@ -716,7 +720,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	}
 
 	if (chunk.size != expected_size) {
-		BT_ERR("Unexpected size: expected %u", expected_size);
+		BT_ERR("Unexpected size: %u != %u", expected_size, chunk.size);
 		return -EINVAL;
 	}
 

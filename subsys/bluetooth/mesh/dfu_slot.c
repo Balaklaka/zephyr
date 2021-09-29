@@ -125,7 +125,8 @@ bt_mesh_dfu_slot_add(size_t size, const uint8_t *fwid,
 	if (size == 0 || fwid_len > CONFIG_BT_MESH_DFU_FWID_MAXLEN ||
 	    metadata_len > CONFIG_BT_MESH_DFU_METADATA_MAXLEN ||
 	    uri_len > CONFIG_BT_MESH_DFU_URI_MAXLEN) {
-		BT_WARN("Param too large");
+		BT_WARN("Param too large: (size: %d, fwid: %d, metadata: %d, uri: %d)",
+			size, fwid_len, metadata_len, uri_len);
 		return NULL;
 	}
 

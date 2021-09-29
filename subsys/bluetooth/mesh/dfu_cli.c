@@ -434,6 +434,8 @@ static enum bt_mesh_dfu_iter target_img_cb(struct bt_mesh_dfu_cli *cli,
 		       idx);
 		target->phase = BT_MESH_DFU_PHASE_IDLE;
 		blob_cli_broadcast_rsp(&cli->blob, &target->blob);
+	} else {
+		BT_WARN("Target 0x%04x not found", ctx->addr);
 	}
 
 	return BT_MESH_DFU_ITER_STOP;
@@ -566,7 +568,7 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return -ENOENT;
 	}
 
-	BT_DBG("%u phase: %u", status, phase);
+	BT_DBG("%u phase: %u, cur state: %u", status, phase, cli->xfer.state);
 
 	target->phase = phase;
 
@@ -681,7 +683,7 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 			return -EINVAL;
 		}
 
-		BT_DBG("\tImage %u", idx);
+		BT_DBG("\tImage %u\n\r\tfwid: %s", idx, bt_hex(img.fwid, img.fwid_len));
 
 		if (uri_len) {
 			size_t uri_buf_len =
@@ -727,7 +729,8 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	/* Confirm-procedure termination: */
 	target = target_get(cli, ctx->addr);
 	if (target) {
-		BT_WARN("Target 0x%04x failed to apply image", ctx->addr);
+		BT_WARN("Target 0x%04x failed to apply image: %s", ctx->addr,
+			bt_hex(cli->xfer.slot->fwid, cli->xfer.slot->fwid_len));
 		target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 		blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 	}

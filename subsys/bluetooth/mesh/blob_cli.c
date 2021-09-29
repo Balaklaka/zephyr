@@ -226,6 +226,8 @@ static void end(struct bt_mesh_blob_cli *cli, bool success)
 {
 	const struct bt_mesh_blob_xfer *xfer = cli->xfer;
 
+	BT_DBG("%u", success);
+
 	io_close(cli);
 	blob_cli_reset(cli);
 	if (cli->cb && cli->cb->end) {
@@ -917,6 +919,7 @@ static int handle_xfer_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	if (cli->state != BT_MESH_BLOB_CLI_STATE_START &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_XFER_CHECK &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_CANCEL) {
+		BT_WARN("Wrong state: %d", cli->state);
 		return -EBUSY;
 	}
 
@@ -936,6 +939,7 @@ static int handle_xfer_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	if (info.status != BT_MESH_BLOB_SUCCESS) {
 		target_drop(cli, target, info.status);
 	} else if (info.phase != expected_phase) {
+		BT_WARN("Wrong phase: %u != %u", expected_phase, info.phase);
 		return -EINVAL;
 	} else if (info.phase != BT_MESH_BLOB_XFER_PHASE_INACTIVE &&
 		   info.id != cli->xfer->id) {
