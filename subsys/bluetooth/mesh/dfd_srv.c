@@ -758,7 +758,7 @@ static void dfu_ended(struct bt_mesh_dfu_cli *cli,
 	}
 
 	if (!srv->apply) {
-		srv->phase = BT_MESH_DFD_PHASE_COMPLETED;
+		srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUCCESS;
 		return;
 	}
 
