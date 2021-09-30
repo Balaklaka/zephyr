@@ -115,7 +115,7 @@ struct bt_mesh_dfd_srv {
 	uint16_t slot_idx;
 	bool apply;
 	enum bt_mesh_dfd_phase phase;
-	struct bt_mesh_blob_cli_ctx ctx;
+	struct bt_mesh_blob_cli_inputs inputs;
 
 	struct {
 		enum bt_mesh_dfd_upload_phase phase;

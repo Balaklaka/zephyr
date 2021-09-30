@@ -15,7 +15,7 @@
 #include "common/log.h"
 
 #define TARGETS_FOR_EACH(cli, target)                                          \
-	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&(cli)->ctx->targets,      \
+	SYS_SLIST_FOR_EACH_CONTAINER((sys_slist_t *)&(cli)->inputs->targets,   \
 				     target, n)
 
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_TX_SDU_MAX)
@@ -23,12 +23,8 @@
 #define RETRY_TIME_PULL K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
 
 #define UNICAST_MODE(cli)                                                      \
-	((cli)->ctx->group == BT_MESH_ADDR_UNASSIGNED ||                       \
+	((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED ||                    \
 	 (cli)->tx.ctx->force_unicast)
-
-BUILD_ASSERT(BLOB_BLOCK_SIZE_LOG_MIN <= BLOB_BLOCK_SIZE_LOG_MAX,
-	     "The must be at least one number between the min and "
-	     "max block size that is the power of two.");
 
 struct xfer_info {
 	enum bt_mesh_blob_status status;
@@ -47,16 +43,6 @@ struct block_status {
 	struct bt_mesh_blob_block block;
 };
 
-const struct bt_mesh_blob_cli_bounds bt_mesh_blob_cli_boundaries = {
-	.max_block_size_log = BLOB_BLOCK_SIZE_LOG_MAX,
-	.min_block_size_log = BLOB_BLOCK_SIZE_LOG_MIN,
-	.max_chunks = CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX,
-	.chunk_size = CHUNK_SIZE_MAX,
-	.max_size = CONFIG_BT_MESH_BLOB_SIZE_MAX,
-	.mtu_size = BT_MESH_TX_SDU_MAX,
-	.modes = BT_MESH_BLOB_XFER_MODE_ALL,
-};
-
 static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli);
 static void transfer_cancel(struct bt_mesh_blob_cli *cli);
 
@@ -67,8 +53,8 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		time = RETRY_TIME_PULL;
 	} else {
-		time = K_MSEC((10 * MSEC_PER_SEC * (cli->ctx->timeout_base + 2) +
-			       100 * cli->ctx->ttl) /
+		time = K_MSEC((10 * MSEC_PER_SEC * (cli->inputs->timeout_base + 2) +
+			       100 * cli->inputs->ttl) /
 			      CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES);
 	}
 
@@ -168,15 +154,16 @@ static uint16_t next_missing_chunk(struct bt_mesh_blob_cli *cli, uint16_t idx)
 	return idx;
 }
 
-static inline size_t chunk_size(const struct bt_mesh_blob_block *block,
+static inline size_t chunk_size(const struct bt_mesh_blob_xfer *xfer,
+				const struct bt_mesh_blob_block *block,
 				uint16_t chunk_idx)
 {
 	if ((chunk_idx == block->chunk_count - 1) &&
-	    (block->size % block->chunk_size)) {
-		return block->size % block->chunk_size;
+	    (block->size % xfer->chunk_size)) {
+		return block->size % xfer->chunk_size;
 	}
 
-	return block->chunk_size;
+	return xfer->chunk_size;
 }
 
 static int chunk_idx_decode(struct net_buf_simple *buf)
@@ -216,11 +203,11 @@ static int chunk_idx_decode(struct net_buf_simple *buf)
 static void block_set(struct bt_mesh_blob_cli *cli, uint16_t block_idx)
 {
 	cli->block.number = block_idx;
-	cli->block.offset = block_idx * (1UL << cli->block_size_log);
-	cli->block.size = blob_block_size(cli->xfer->size, cli->block_size_log,
+	cli->block.offset = block_idx * (1UL << cli->xfer->block_size_log);
+	cli->block.size = blob_block_size(cli->xfer->size, cli->xfer->block_size_log,
 					  block_idx);
 	cli->block.chunk_count =
-		ceiling_fraction(cli->block.size, cli->block.chunk_size);
+		ceiling_fraction(cli->block.size, cli->xfer->chunk_size);
 
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
 		blob_chunk_missing_set_all(&cli->block);
@@ -248,31 +235,31 @@ static void end(struct bt_mesh_blob_cli *cli, bool success)
 	}
 }
 
-static enum bt_mesh_blob_status
-bounds_apply(struct bt_mesh_blob_cli_bounds *b,
-	     const struct bt_mesh_blob_cli_bounds *in)
+static enum bt_mesh_blob_status caps_adjust(struct bt_mesh_blob_cli *cli,
+					    const struct bt_mesh_blob_cli_caps *in)
 {
-	if (!(in->modes & b->modes)) {
+	if (!(in->modes & cli->caps.modes)) {
 		return BT_MESH_BLOB_ERR_UNSUPPORTED_MODE;
 	}
 
-	if ((in->min_block_size_log > b->max_block_size_log) ||
-	    (in->max_block_size_log < b->min_block_size_log)) {
+	if ((in->min_block_size_log > cli->caps.max_block_size_log) ||
+	    (in->max_block_size_log < cli->caps.min_block_size_log)) {
 		return BT_MESH_BLOB_ERR_INVALID_BLOCK_SIZE;
 	}
 
-	b->min_block_size_log =
-		MAX(b->min_block_size_log, in->min_block_size_log);
-	b->max_block_size_log =
-		MIN(b->max_block_size_log, in->max_block_size_log);
-	b->max_chunks = MIN(b->max_chunks, in->max_chunks);
-	b->mtu_size = MIN(b->mtu_size, in->mtu_size);
-	b->chunk_size = MIN(b->chunk_size, in->chunk_size);
-	b->modes &= in->modes;
-	b->max_size = MIN(b->max_size, in->max_size);
+	cli->caps.min_block_size_log =
+		MAX(cli->caps.min_block_size_log, in->min_block_size_log);
+	cli->caps.max_block_size_log =
+		MIN(cli->caps.max_block_size_log, in->max_block_size_log);
+	cli->caps.max_chunks = MIN(cli->caps.max_chunks, in->max_chunks);
+	cli->caps.mtu_size = MIN(cli->caps.mtu_size, in->mtu_size);
+	cli->caps.max_chunk_size = MIN(cli->caps.max_chunk_size, in->max_chunk_size);
+	cli->caps.modes &= in->modes;
+	cli->caps.max_size = MIN(cli->caps.max_size, in->max_size);
 
 	return BT_MESH_BLOB_SUCCESS;
 }
+
 /*******************************************************************************
  * TX State machine
  *
@@ -290,7 +277,7 @@ static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli)
 		cli->tx.target = SYS_SLIST_PEEK_NEXT_CONTAINER(cli->tx.target, n);
 	} else {
 		cli->tx.target = SYS_SLIST_PEEK_HEAD_CONTAINER(
-			(sys_slist_t *)&cli->ctx->targets, cli->tx.target, n);
+			(sys_slist_t *)&cli->inputs->targets, cli->tx.target, n);
 	}
 
 	while (cli->tx.target &&
@@ -308,7 +295,7 @@ static void send(struct bt_mesh_blob_cli *cli)
 	if (UNICAST_MODE(cli)) {
 		cli->tx.ctx->send(cli, cli->tx.target->addr);
 	} else {
-		cli->tx.ctx->send(cli, cli->ctx->group);
+		cli->tx.ctx->send(cli, cli->inputs->group);
 	}
 }
 
@@ -473,9 +460,9 @@ static int tx(struct bt_mesh_blob_cli *cli, uint16_t addr,
 		.end = send_end,
 	};
 	struct bt_mesh_msg_ctx ctx = {
-		.app_idx = cli->ctx->app_idx,
+		.app_idx = cli->inputs->app_idx,
 		.addr = addr,
-		.send_ttl = cli->ctx->ttl,
+		.send_ttl = cli->inputs->ttl,
 	};
 	int err;
 
@@ -527,7 +514,7 @@ static void xfer_start_tx(struct bt_mesh_blob_cli *cli, uint16_t dst)
 	net_buf_simple_add_u8(&buf, cli->xfer->mode << 6);
 	net_buf_simple_add_le64(&buf, cli->xfer->id);
 	net_buf_simple_add_le32(&buf, cli->xfer->size);
-	net_buf_simple_add_u8(&buf, cli->block_size_log);
+	net_buf_simple_add_u8(&buf, cli->xfer->block_size_log);
 	net_buf_simple_add_le16(&buf, BT_MESH_TX_SDU_MAX);
 
 	tx(cli, dst, &buf);
@@ -555,7 +542,7 @@ static void block_start_tx(struct bt_mesh_blob_cli *cli, uint16_t dst)
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_BLOB_OP_BLOCK_START, 4);
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_BLOCK_START);
 	net_buf_simple_add_le16(&buf, cli->block.number);
-	net_buf_simple_add_le16(&buf, cli->block.chunk_size);
+	net_buf_simple_add_le16(&buf, cli->xfer->chunk_size);
 
 	tx(cli, dst, &buf);
 }
@@ -569,8 +556,8 @@ static void chunk_tx(struct bt_mesh_blob_cli *cli, uint16_t dst)
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_CHUNK);
 	net_buf_simple_add_le16(&buf, cli->chunk_idx);
 
-	chunk.size = chunk_size(&cli->block, cli->chunk_idx);
-	chunk.offset = cli->block.chunk_size * cli->chunk_idx;
+	chunk.size = chunk_size(cli->xfer, &cli->block, cli->chunk_idx);
+	chunk.offset = cli->xfer->chunk_size * cli->chunk_idx;
 	chunk.data = net_buf_simple_add(&buf, chunk.size);
 
 	err = cli->io->rd(cli->io, cli->xfer, &cli->block, &chunk);
@@ -613,7 +600,7 @@ static void block_get_tx(struct bt_mesh_blob_cli *cli, uint16_t dst)
  * all nodes have received the message, it moves on to the next state.
  *
  ******************************************************************************/
-static void bounds_collected(struct bt_mesh_blob_cli *cli);
+static void caps_collected(struct bt_mesh_blob_cli *cli);
 static void block_start(struct bt_mesh_blob_cli *cli);
 static void chunk_send(struct bt_mesh_blob_cli *cli);
 static void block_check(struct bt_mesh_blob_cli *cli);
@@ -622,32 +609,41 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli);
 static void confirm_transfer(struct bt_mesh_blob_cli *cli);
 static void transfer_complete(struct bt_mesh_blob_cli *cli);
 
-static void bounds_check(struct bt_mesh_blob_cli *cli)
+static void caps_get(struct bt_mesh_blob_cli *cli)
 {
 	static const struct blob_cli_broadcast_ctx ctx = {
 		.send = info_get_tx,
-		.next = bounds_collected,
+		.next = caps_collected,
 		.acked = true,
 	};
 
-	cli->state = BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK;
+	cli->state = BT_MESH_BLOB_CLI_STATE_CAPS_GET;
 	blob_cli_broadcast(cli, &ctx);
 }
 
-static void bounds_collected(struct bt_mesh_blob_cli *cli)
+static void caps_collected(struct bt_mesh_blob_cli *cli)
 {
+	struct bt_mesh_blob_target *target;
+	bool success = false;
+
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
 
 	cli_state_reset(cli);
 
-	while ((1UL << cli->bounds->max_block_size_log) >
-	       (cli->bounds->chunk_size * cli->bounds->max_chunks)) {
-		cli->bounds->max_block_size_log--;
+	TARGETS_FOR_EACH(cli, target) {
+		if (target->status == BT_MESH_BLOB_SUCCESS) {
+			success = true;
+			break;
+		}
 	}
 
-	if (cli->cb && cli->cb->bounds) {
-		cli->cb->bounds(cli, cli->bounds);
+	while (success &&
+	       (1UL << cli->caps.max_block_size_log) >
+	       (cli->caps.max_chunk_size * cli->caps.max_chunks)) {
+		cli->caps.max_block_size_log--;
 	}
+
+	cli->cb->caps(cli, success ? &cli->caps : NULL);
 }
 
 static int xfer_start(struct bt_mesh_blob_cli *cli)
@@ -719,7 +715,7 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 	}
 
 	BT_DBG("%u / %u size: %u", cli->chunk_idx + 1, cli->block.chunk_count,
-	       chunk_size(&cli->block, cli->chunk_idx));
+	       chunk_size(cli->xfer, &cli->block, cli->chunk_idx));
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_SEND;
 	blob_cli_broadcast(cli, &ctx);
@@ -1078,43 +1074,42 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 			      struct net_buf_simple *buf)
 {
 	struct bt_mesh_blob_cli *cli = mod->user_data;
-	struct bt_mesh_blob_cli_bounds bounds;
+	struct bt_mesh_blob_cli_caps caps;
 	enum bt_mesh_blob_status status;
 	struct bt_mesh_blob_target *target;
 
-	if (cli->state != BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK) {
+	if (cli->state != BT_MESH_BLOB_CLI_STATE_CAPS_GET) {
 		return -EBUSY;
 	}
 
-	bounds.min_block_size_log = net_buf_simple_pull_u8(buf);
-	bounds.max_block_size_log = net_buf_simple_pull_u8(buf);
-	bounds.max_chunks = net_buf_simple_pull_le16(buf);
-	bounds.chunk_size = net_buf_simple_pull_le16(buf);
-	bounds.max_size = net_buf_simple_pull_le32(buf);
-	bounds.mtu_size = net_buf_simple_pull_le16(buf);
-	bounds.modes = net_buf_simple_pull_u8(buf);
+	caps.min_block_size_log = net_buf_simple_pull_u8(buf);
+	caps.max_block_size_log = net_buf_simple_pull_u8(buf);
+	caps.max_chunks = net_buf_simple_pull_le16(buf);
+	caps.max_chunk_size = net_buf_simple_pull_le16(buf);
+	caps.max_size = net_buf_simple_pull_le32(buf);
+	caps.mtu_size = net_buf_simple_pull_le16(buf);
+	caps.modes = net_buf_simple_pull_u8(buf);
 
-	if (bounds.min_block_size_log < 0x06 ||
-	    bounds.max_block_size_log > 0x20 ||
-	    bounds.max_block_size_log < bounds.min_block_size_log ||
-	    bounds.max_chunks == 0 || bounds.chunk_size < 8 ||
-	    bounds.max_size == 0 || bounds.mtu_size < 0x14) {
+	if (caps.min_block_size_log < 0x06 ||
+	    caps.max_block_size_log > 0x20 ||
+	    caps.max_block_size_log < caps.min_block_size_log ||
+	    caps.max_chunks == 0 || caps.max_chunk_size < 8 ||
+	    caps.max_size == 0 || caps.mtu_size < 0x14) {
 		return -EINVAL;
 	}
 
 	BT_DBG("0x%04x\n\tblock size: %u - %u\n\tchunks: %u\n\tchunk size: %u\n"
 	       "\tblob size: %u\n\tmtu size: %u\n\tmodes: %x",
-	       ctx->addr, bounds.min_block_size_log, bounds.max_block_size_log,
-	       bounds.max_chunks, bounds.chunk_size, bounds.max_size,
-	       bounds.mtu_size, bounds.modes);
-
+	       ctx->addr, caps.min_block_size_log, caps.max_block_size_log,
+	       caps.max_chunks, caps.max_chunk_size, caps.max_size,
+	       caps.mtu_size, caps.modes);
 
 	target = target_get(cli, ctx->addr);
 	if (!target) {
 		return -ENOENT;
 	}
 
-	status = bounds_apply(cli->bounds, &bounds);
+	status = caps_adjust(cli, &caps);
 	if (status != BT_MESH_BLOB_SUCCESS) {
 		target_drop(cli, target, status);
 	}
@@ -1156,37 +1151,37 @@ const struct bt_mesh_model_cb _bt_mesh_blob_cli_cb = {
 	.reset = blob_cli_reset,
 };
 
-int bt_mesh_blob_cli_bounds_check(struct bt_mesh_blob_cli *cli,
-				  const struct bt_mesh_blob_cli_ctx *ctx,
-				  struct bt_mesh_blob_cli_bounds *bounds)
+
+int bt_mesh_blob_cli_caps_get(struct bt_mesh_blob_cli *cli,
+			      const struct bt_mesh_blob_cli_inputs *inputs)
 {
 	if (bt_mesh_blob_cli_is_busy(cli)) {
 		return -EBUSY;
 	}
 
-	if (bounds_apply(bounds, &bt_mesh_blob_cli_boundaries) !=
-	    BT_MESH_BLOB_SUCCESS) {
-		BT_ERR("Bounds incompatible with client capabilities");
-		return -EINVAL;
-	}
+	cli->inputs = inputs;
 
-	cli->ctx = ctx;
-	cli->bounds = bounds;
+	cli->caps.min_block_size_log = 0x06;
+	cli->caps.max_block_size_log = 0x20;
+	cli->caps.max_chunks = CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX;
+	cli->caps.max_chunk_size = CHUNK_SIZE_MAX;
+	cli->caps.max_size = 0xffffffff;
+	cli->caps.mtu_size = 0xffff;
+	cli->caps.modes = BT_MESH_BLOB_XFER_MODE_ALL;
 
 	if (!targets_reset(cli)) {
 		BT_ERR("No valid targets");
 		return -ENODEV;
 	}
 
-	bounds_check(cli);
+	caps_get(cli);
 
 	return 0;
 }
 
 int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
-			  const struct bt_mesh_blob_cli_ctx *ctx,
+			  const struct bt_mesh_blob_cli_inputs *inputs,
 			  const struct bt_mesh_blob_xfer *xfer,
-			  const struct bt_mesh_blob_cli_bounds *bounds,
 			  const struct bt_mesh_blob_io *io)
 {
 	if (bt_mesh_blob_cli_is_busy(cli)) {
@@ -1194,23 +1189,18 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 		return -EBUSY;
 	}
 
-	if (!cli || !ctx || !xfer || !io) {
+	if (!(xfer->mode & BT_MESH_BLOB_XFER_MODE_ALL) ||
+	    xfer->block_size_log < 0x06 || xfer->block_size_log > 0x20 ||
+	    xfer->chunk_size < 8 || xfer->chunk_size > CHUNK_SIZE_MAX) {
+		BT_ERR("Incompatible transfer parameters");
 		return -EINVAL;
 	}
 
-	if (bounds) {
-		cli->block_size_log = bounds->max_block_size_log;
-		cli->block.chunk_size = bounds->chunk_size;
-	} else {
-		cli->block_size_log = BLOB_BLOCK_SIZE_LOG_MAX;
-		cli->block.chunk_size = CHUNK_SIZE_MAX;
-	}
-
-	cli->io = io;
-	cli->ctx = ctx;
 	cli->xfer = xfer;
+	cli->inputs = inputs;
+	cli->io = io;
 	cli->block_count = ceiling_fraction(cli->xfer->size,
-					    (1U << cli->block_size_log));
+					    (1U << cli->xfer->block_size_log));
 	if (!targets_reset(cli)) {
 		BT_ERR("No valid targets");
 		return -ENODEV;
@@ -1218,7 +1208,7 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 
 	BT_DBG("\n\tblock size: %u\n\tchunk size: %u\n"
 	       "\tblob size: %u\n\tmode: %x",
-	       (1 << cli->block_size_log), cli->block.chunk_size,
+	       (1 << cli->xfer->block_size_log), cli->xfer->chunk_size,
 	       cli->xfer->size, cli->xfer->mode);
 
 	block_set(cli, 0);
@@ -1235,7 +1225,7 @@ void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)
 
 	BT_DBG("");
 
-	if (cli->state == BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK) {
+	if (cli->state == BT_MESH_BLOB_CLI_STATE_CAPS_GET) {
 		cli_state_reset(cli);
 		return;
 	}

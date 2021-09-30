@@ -17,12 +17,12 @@
 
 #define TARGETS_FOR_EACH(cli, target)                                          \
 	SYS_SLIST_FOR_EACH_CONTAINER(                                          \
-		(sys_slist_t *)&((cli)->blob.ctx)->targets, target, blob.n)
+		(sys_slist_t *)&((cli)->blob.inputs)->targets, target, blob.n)
 
 #define MSG_CTX(cli, dst)                                                      \
 	{                                                                      \
-		.app_idx = (cli)->blob.ctx->app_idx, .addr = dst,              \
-		.send_ttl = (cli)->blob.ctx->ttl,                              \
+		.app_idx = (cli)->blob.inputs->app_idx, .addr = dst,           \
+		.send_ttl = (cli)->blob.inputs->ttl,                           \
 	}
 
 #define DFU_CLI(blob_cli) CONTAINER_OF(blob_cli, struct bt_mesh_dfu_cli, blob)
@@ -164,14 +164,21 @@ static bool targets_active(struct bt_mesh_dfu_cli *cli)
  ******************************************************************************/
 static void refresh(struct bt_mesh_dfu_cli *cli);
 
-static void blob_bounds(struct bt_mesh_blob_cli *b,
-			const struct bt_mesh_blob_cli_bounds *bounds)
+static void blob_caps(struct bt_mesh_blob_cli *b,
+		      const struct bt_mesh_blob_cli_caps *caps)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
 	int err;
 
-	err = bt_mesh_blob_cli_send(b, b->ctx, &cli->xfer.blob,
-				    &cli->xfer.bounds, cli->xfer.io);
+	if (!caps) {
+		dfu_failed(cli, BT_MESH_DFU_ERR_RESOURCES);
+		return;
+	}
+
+	cli->xfer.blob.block_size_log = caps->max_block_size_log;
+	cli->xfer.blob.chunk_size = caps->max_chunk_size;
+
+	err = bt_mesh_blob_cli_send(b, b->inputs, &cli->xfer.blob, cli->xfer.io);
 	if (err) {
 		BT_ERR("Starting BLOB xfer failed: %d", err);
 		dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
@@ -225,7 +232,7 @@ static void blob_end(struct bt_mesh_blob_cli *b,
 }
 
 const struct bt_mesh_blob_cli_cb _bt_mesh_dfu_cli_blob_handlers = {
-	.bounds = blob_bounds,
+	.caps = blob_caps,
 	.lost_target = blob_lost_target,
 	.end = blob_end,
 };
@@ -288,8 +295,8 @@ static void send_update_start(struct bt_mesh_blob_cli *b, uint16_t dst)
 				 12 + CONFIG_BT_MESH_DFU_METADATA_MAXLEN);
 	bt_mesh_model_msg_init(&buf, BT_MESH_DFU_OP_UPDATE_START);
 
-	net_buf_simple_add_u8(&buf, cli->blob.ctx->ttl);
-	net_buf_simple_add_le16(&buf, cli->blob.ctx->timeout_base);
+	net_buf_simple_add_u8(&buf, cli->blob.inputs->ttl);
+	net_buf_simple_add_le16(&buf, cli->blob.inputs->timeout_base);
 	net_buf_simple_add_le64(&buf, cli->xfer.blob.id);
 	net_buf_simple_add_u8(&buf, target->img_idx);
 	net_buf_simple_add_mem(&buf, cli->xfer.slot->metadata,
@@ -369,9 +376,7 @@ static void transfer(struct bt_mesh_blob_cli *b)
 		return;
 	}
 
-	err = bt_mesh_blob_cli_bounds_check(&cli->blob,
-					    cli->blob.ctx,
-					    &cli->xfer.bounds);
+	err = bt_mesh_blob_cli_caps_get(&cli->blob, cli->blob.inputs);
 	if (err) {
 		BT_ERR("Failed starting blob xfer: %d", err);
 		dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
@@ -474,7 +479,7 @@ static void confirm(struct bt_mesh_dfu_cli *cli)
 
 	cli->op = BT_MESH_DFU_OP_UPDATE_INFO_STATUS;
 	cli->req.img_cb = target_img_cb;
-	cli->req.ttl = cli->blob.ctx->ttl;
+	cli->req.ttl = cli->blob.inputs->ttl;
 
 	blob_cli_broadcast(&cli->blob, &tx);
 }
@@ -838,8 +843,7 @@ const struct bt_mesh_model_cb _bt_mesh_dfu_cli_cb = {
 
 int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 			 const struct bt_mesh_dfu_slot *slot,
-			 const struct bt_mesh_blob_cli_ctx *ctx,
-			 const struct bt_mesh_blob_cli_bounds *bounds,
+			 const struct bt_mesh_blob_cli_inputs *inputs,
 			 const struct bt_mesh_blob_io *io,
 			 enum bt_mesh_blob_xfer_mode mode)
 {
@@ -849,14 +853,14 @@ int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 		return -EBUSY;
 	}
 
-	cli->xfer.bounds = bounds ? *bounds : bt_mesh_blob_cli_boundaries;
 	cli->xfer.blob.mode = mode;
 	cli->xfer.blob.size = slot->size;
+	sys_rand_get(&cli->xfer.blob.id, sizeof(cli->xfer.blob.id));
+
 	cli->xfer.io = io;
-	cli->blob.ctx = ctx;
+	cli->blob.inputs = inputs;
 	cli->xfer.slot = slot;
 	cli->xfer.flags = 0U;
-	sys_rand_get(&cli->xfer.blob.id, sizeof(cli->xfer.blob.id));
 
 	/* Phase will be set based on target status messages: */
 	TARGETS_FOR_EACH(cli, target) {

@@ -136,7 +136,7 @@ static int handle_receivers_delete_all(struct bt_mesh_model *mod, struct bt_mesh
 		return 0;
 	}
 
-	sys_slist_init(&srv->ctx.targets);
+	sys_slist_init(&srv->inputs.targets);
 	srv->target_cnt = 0;
 
 	receivers_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
@@ -238,10 +238,10 @@ static void status_rsp(struct bt_mesh_dfd_srv *srv, struct bt_mesh_msg_ctx *ctx,
 		return;
 	}
 
-	net_buf_simple_add_le16(&rsp, srv->ctx.group);
-	net_buf_simple_add_le16(&rsp, srv->ctx.app_idx);
-	net_buf_simple_add_u8(&rsp, srv->ctx.ttl);
-	net_buf_simple_add_le16(&rsp, srv->ctx.timeout_base);
+	net_buf_simple_add_le16(&rsp, srv->inputs.group);
+	net_buf_simple_add_le16(&rsp, srv->inputs.app_idx);
+	net_buf_simple_add_u8(&rsp, srv->inputs.ttl);
+	net_buf_simple_add_le16(&rsp, srv->inputs.timeout_base);
 	net_buf_simple_add_u8(&rsp, ((srv->dfu.xfer.blob.mode & BIT_MASK(2)) |
 				     ((srv->apply & BIT_MASK(1)) << 2)));
 	net_buf_simple_add_le16(&rsp, srv->slot_idx);
@@ -306,9 +306,9 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	if (srv->ctx.app_idx == app_idx &&
-	    srv->ctx.timeout_base == timeout_base &&
-	    srv->ctx.group == group && srv->ctx.ttl == ttl &&
+	if (srv->inputs.app_idx == app_idx &&
+	    srv->inputs.timeout_base == timeout_base &&
+	    srv->inputs.group == group && srv->inputs.ttl == ttl &&
 	    srv->dfu.xfer.blob.mode == mode && srv->apply == apply &&
 	    srv->slot_idx == slot_idx) {
 		if (is_busy(srv) ||
@@ -336,23 +336,22 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	sys_slist_init(&srv->ctx.targets);
+	sys_slist_init(&srv->inputs.targets);
 	for (i = 0; i < srv->target_cnt; i++) {
-		sys_slist_append(&srv->ctx.targets, &srv->targets[i].blob.n);
+		sys_slist_append(&srv->inputs.targets, &srv->targets[i].blob.n);
 	}
 
 	srv->slot_idx = slot_idx;
-	srv->ctx.app_idx = app_idx;
-	srv->ctx.timeout_base = timeout_base;
-	srv->ctx.group = group;
-	srv->ctx.ttl = ttl;
+	srv->inputs.app_idx = app_idx;
+	srv->inputs.timeout_base = timeout_base;
+	srv->inputs.group = group;
+	srv->inputs.ttl = ttl;
 	srv->apply = apply;
 
 	BT_DBG("Distribution Start: slot: %d, appidx: %d, tb: %d, addr: %04X, ttl: %d, apply: %d",
 	       slot_idx, app_idx, timeout_base, group, ttl, apply);
 
-	err = bt_mesh_dfu_cli_send(&srv->dfu, slot, &srv->ctx, NULL, srv->io,
-				   mode);
+	err = bt_mesh_dfu_cli_send(&srv->dfu, slot, &srv->inputs, srv->io, mode);
 	if (err) {
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
 		return 0;
@@ -896,7 +895,7 @@ static void dfd_srv_reset(struct bt_mesh_model *mod)
 	srv->phase = BT_MESH_DFD_PHASE_IDLE;
 	srv->upload.phase = BT_MESH_DFD_UPLOAD_PHASE_IDLE;
 
-	sys_slist_init(&srv->ctx.targets);
+	sys_slist_init(&srv->inputs.targets);
 	srv->target_cnt = 0;
 
 	bt_mesh_dfu_slot_foreach(slot_del_cb, srv);

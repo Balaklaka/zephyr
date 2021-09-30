@@ -917,27 +917,6 @@ config BT_MESH_BLOB_SRV_PULL_REQ_COUNT
 	  If the BLOB server is instantiated on a Low Power node, the pull
 	  request count will be trimmed to not overflow the friend queue.
 
-endif # BT_MESH_BLOB_SRV
-
-menuconfig BT_MESH_BLOB_CLI
-	bool "Support for BLOB Client model"
-	help
-	  Enable the Binary Large Object (BLOB) Client model.
-
-if BT_MESH_BLOB_CLI
-
-config BT_MESH_BLOB_CLI_BLOCK_RETRIES
-	int "Number of retries per block"
-	default 5
-	help
-	  Controls the number of times the client will attempt to resend missing
-	  chunks to the BLOB receivers for every block.
-
-endif
-
-menu "BLOB models common configuration"
-	visible if BT_MESH_BLOB_SRV || BT_MESH_BLOB_CLI
-
 config BT_MESH_BLOB_SIZE_MAX
 	int "Largest BLOB size in bytes"
 	default 524288
@@ -965,6 +944,27 @@ config BT_MESH_BLOB_BLOCK_SIZE_MAX
 	  size min and block size max. If no such number exists, a compile
 	  time warning will be issued.
 
+endif # BT_MESH_BLOB_SRV
+
+menuconfig BT_MESH_BLOB_CLI
+	bool "Support for BLOB Client model"
+	help
+	  Enable the Binary Large Object (BLOB) Client model.
+
+if BT_MESH_BLOB_CLI
+
+config BT_MESH_BLOB_CLI_BLOCK_RETRIES
+	int "Number of retries per block"
+	default 5
+	help
+	  Controls the number of times the client will attempt to resend missing
+	  chunks to the BLOB receivers for every block.
+
+endif
+
+menu "BLOB models common configuration"
+	visible if BT_MESH_BLOB_SRV || BT_MESH_BLOB_CLI
+
 config BT_MESH_BLOB_CHUNK_COUNT_MAX
 	int "Maximum chunk count per block"
 	default 256
@@ -973,6 +973,7 @@ config BT_MESH_BLOB_CHUNK_COUNT_MAX
 	  A BLOB transfer contains several blocks. Each block is made up of
 	  several chunks. This option controls the maximum chunk count per
 	  block.
+
 endmenu
 
 config BT_MESH_BLOB_IO_FLASH

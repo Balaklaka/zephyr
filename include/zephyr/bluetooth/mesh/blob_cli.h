@@ -49,8 +49,8 @@ struct bt_mesh_blob_target {
 		acked:1;              /* Message has been acknowledged. */
 };
 
-/** BLOB Client transfer context. */
-struct bt_mesh_blob_cli_ctx {
+/** BLOB Client transfer inputs. */
+struct bt_mesh_blob_cli_inputs {
 	/** Linked list of targets. Each node should point to @ref
 	 *  bt_mesh_blob_target::n.
 	 */
@@ -65,7 +65,7 @@ struct bt_mesh_blob_cli_ctx {
 	 */
 	uint16_t group;
 
-	/** Time to live value for the bounds check. */
+	/** Time to live value of BLOB transfer messages. */
 	uint8_t ttl;
 
 	/** Additional response time for the targets, in 10 second increments.
@@ -84,8 +84,8 @@ struct bt_mesh_blob_cli_ctx {
 	uint16_t timeout_base;
 };
 
-/** Transfer parameter boundaries */
-struct bt_mesh_blob_cli_bounds {
+/** Transfer capabilities of a target node. */
+struct bt_mesh_blob_cli_caps {
 	/** Max BLOB size */
 	size_t max_size;
 
@@ -99,7 +99,7 @@ struct bt_mesh_blob_cli_bounds {
 	uint16_t max_chunks;
 
 	/** Max chunk size. */
-	uint16_t chunk_size;
+	uint16_t max_chunk_size;
 
 	/** Max MTU size. */
 	uint16_t mtu_size;
@@ -112,8 +112,8 @@ struct bt_mesh_blob_cli_bounds {
 enum bt_mesh_blob_cli_state {
 	/** No transfer is active. */
 	BT_MESH_BLOB_CLI_STATE_NONE,
-	/** Checking transfer parameter boundaries. */
-	BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK,
+	/** Retrieving transfer capabilities. */
+	BT_MESH_BLOB_CLI_STATE_CAPS_GET,
 	/** Sending transfer start. */
 	BT_MESH_BLOB_CLI_STATE_START,
 	/** Sending block start. */
@@ -133,18 +133,19 @@ enum bt_mesh_blob_cli_state {
  *  All handlers are optional.
  */
 struct bt_mesh_blob_cli_cb {
-	/** @brief Boundary check completion callback.
+	/** @brief Capabilities retrieval completion callback.
 	 *
-	 *  Called when the boundary check procedure completes, indicating that
+	 *  Called when the capabilities retrieval procedure completes, indicating that
 	 *  a common set of acceptable transfer parameters have been established
 	 *  for the given list of target nodes. All compatible targets have
 	 *  status code @ref BT_MESH_BLOB_SUCCESS.
 	 *
 	 *  @param cli     BLOB Client instance.
-	 *  @param bounds  Safe transfer parameter boundaries.
+	 *  @param caps    Safe transfer capabilities if the transfer capabilities
+	    of at least one target has satisfied the client, or NULL otherwise.
 	 */
-	void (*bounds)(struct bt_mesh_blob_cli *cli,
-		       const struct bt_mesh_blob_cli_bounds *bounds);
+	void (*caps)(struct bt_mesh_blob_cli *cli,
+		     const struct bt_mesh_blob_cli_caps *caps);
 
 	/** @brief Target loss callback.
 	 *
@@ -180,7 +181,6 @@ struct bt_mesh_blob_cli {
 
 	/* Runtime state */
 	struct bt_mesh_model *mod;
-	const struct bt_mesh_blob_xfer *xfer;
 
 	struct {
 		struct bt_mesh_blob_target *target;
@@ -195,43 +195,37 @@ struct bt_mesh_blob_cli {
 	} tx;
 
 	const struct bt_mesh_blob_io *io;
-	const struct bt_mesh_blob_cli_ctx *ctx;
+	const struct bt_mesh_blob_cli_inputs *inputs;
+	const struct bt_mesh_blob_xfer *xfer;
 	uint16_t block_count;
 	uint16_t chunk_idx;
 	uint16_t mtu_size;
-	uint8_t block_size_log;
 	enum bt_mesh_blob_cli_state state;
 	struct bt_mesh_blob_block block;
-	struct bt_mesh_blob_cli_bounds *bounds;
+	struct bt_mesh_blob_cli_caps caps;
 };
 
-/** The BLOB Client's own transfer parameter boundaries. */
-extern const struct bt_mesh_blob_cli_bounds bt_mesh_blob_cli_boundaries;
-
-/** @brief Check transfer parameter boundaries for a list of targets.
+/** @brief Retrieve transfer capabilities for a list of targets.
  *
  *  Queries the availability and capabilities of all target nodes, producing a
- *  cumulative set of parameter boundaries for the target nodes, and returning
- *  it through the @ref bt_mesh_blob_cli_cb::bounds callback.
+ *  cumulative set of transfer capabilities for the target nodes, and returning
+ *  it through the @ref bt_mesh_blob_cli_cb::caps callback.
  *
- *  The boundary check may take several seconds, depending on the number of
- *  targets and mesh network performance. The end of the boundary check is
- *  indicated through the @ref bt_mesh_blob_cli_cb::bounds callback.
+ *  Retrieving the capabilities may take several seconds, depending on the
+ *  number of targets and mesh network performance. The end of the procedure
+ *  is indicated through the @ref bt_mesh_blob_cli_cb::caps callback.
  *
- *  The boundary check is not required, but strongly recommended as a
+ *  This procedure is not required, but strongly recommended as a
  *  preparation for a transfer to maximize performance and the chances of
  *  success.
  *
  *  @param cli     BLOB Client instance.
- *  @param ctx     Statically allocated BLOB context.
- *  @param bounds  Initial boundary parameters. The memory must be available
- *                 until the end of the procedure.
+ *  @param inputs  Statically allocated BLOB Client transfer inputs.
  *
  *  @return 0 on success, or (negative) error code otherwise.
  */
-int bt_mesh_blob_cli_bounds_check(struct bt_mesh_blob_cli *cli,
-				  const struct bt_mesh_blob_cli_ctx *ctx,
-				  struct bt_mesh_blob_cli_bounds *bounds);
+int bt_mesh_blob_cli_caps_get(struct bt_mesh_blob_cli *cli,
+			      const struct bt_mesh_blob_cli_inputs *inputs);
 
 /** @brief Perform a BLOB transfer.
  *
@@ -248,18 +242,15 @@ int bt_mesh_blob_cli_bounds_check(struct bt_mesh_blob_cli *cli,
  *  A client only supports one transfer at the time.
  *
  *  @param cli    BLOB Client instance.
- *  @param ctx    Statically allocated BLOB context.
+ *  @param inputs Statically allocated BLOB Client transfer inputs.
  *  @param xfer   Statically allocated transfer parameters.
- *  @param bounds Transfer boundaries, or NULL to use the highest boundaries
- *                supported by the client.
  *  @param io     BLOB stream to read the transfer from.
  *
  *  @return 0 on success, or (negative) error code otherwise.
  */
 int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
-			  const struct bt_mesh_blob_cli_ctx *ctx,
+			  const struct bt_mesh_blob_cli_inputs *inputs,
 			  const struct bt_mesh_blob_xfer *xfer,
-			  const struct bt_mesh_blob_cli_bounds *bounds,
 			  const struct bt_mesh_blob_io *io);
 
 /** @brief Cancel an ongoing transfer.
@@ -281,7 +272,7 @@ uint8_t bt_mesh_blob_cli_progress(struct bt_mesh_blob_cli *cli);
  *  @param cli BLOB Client instance.
  *
  *  @return true if the BLOB Client is currently participating in a transfer or
- *          bounds check and false otherwise.
+ *          retrieving the capabilities and false otherwise.
  */
 bool bt_mesh_blob_cli_is_busy(struct bt_mesh_blob_cli *cli);
 

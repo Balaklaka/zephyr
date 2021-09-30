@@ -23,6 +23,14 @@ extern "C" {
 
 struct bt_mesh_blob_srv;
 
+/** @def BT_MESH_BLOB_BLOCKS_MAX
+ *
+ *  @brief Max number of blocks in a single transfer.
+ */
+#define BT_MESH_BLOB_BLOCKS_MAX                                                \
+	(ceiling_fraction(CONFIG_BT_MESH_BLOB_SIZE_MAX,                        \
+			  CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN))
+
 /** @def BT_MESH_MODEL_BLOB_SRV
  *
  *  @brief BLOB Server model composition data entry.
@@ -134,7 +142,6 @@ struct bt_mesh_blob_srv {
 		uint16_t app_idx;
 		uint16_t timeout_base;
 		uint16_t mtu_size;
-		uint8_t block_size_log;
 		uint8_t ttl;
 
 		/* Bitfield of pending blocks */

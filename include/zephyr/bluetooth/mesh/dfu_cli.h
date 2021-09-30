@@ -187,7 +187,6 @@ struct bt_mesh_dfu_cli {
 
 	struct {
 		const struct bt_mesh_dfu_slot *slot;
-		struct bt_mesh_blob_cli_bounds bounds;
 		const struct bt_mesh_blob_io *io;
 		struct bt_mesh_blob_xfer blob;
 		uint8_t state;
@@ -211,14 +210,12 @@ struct bt_mesh_dfu_cli {
  *  targets in @c ctx. The transfer runs in the background, and its end is
  *  signalled through the @ref bt_mesh_dfu_cli_cb::ended callback.
  *
- *  @note The BLOB Client context's @c targets list must point to a list of @ref
+ *  @note The BLOB Client transfer inputs @c targets list must point to a list of @ref
  *  bt_mesh_dfu_target nodes.
  *
  *  @param cli    DFU Client model instance.
  *  @param slot   DFU image slot to transfer.
- *  @param ctx    BLOB Client context.
- *  @param bounds BLOB transfer parameter boundaries, or NULL to use compile
- *                time configuration boundaries.
+ *  @param inputs BLOB Client transfer inputs.
  *  @param io     BLOB stream to read BLOB from.
  *  @param mode   Transfer mode (push or pull).
  *
@@ -226,8 +223,7 @@ struct bt_mesh_dfu_cli {
  */
 int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 			 const struct bt_mesh_dfu_slot *slot,
-			 const struct bt_mesh_blob_cli_ctx *ctx,
-			 const struct bt_mesh_blob_cli_bounds *bounds,
+			 const struct bt_mesh_blob_cli_inputs *inputs,
 			 const struct bt_mesh_blob_io *io,
 			 enum bt_mesh_blob_xfer_mode mode);
 

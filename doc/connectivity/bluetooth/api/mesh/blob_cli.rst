@@ -30,7 +30,7 @@ The BLOB Client is instantiated on an element with a set of event handler callba
 Transfer context
 ================
 
-Both the boundary check and the BLOB transfer uses an instance of a :cpp:type:`bt_mesh_blob_cli_ctx` to determine how to perform the transfer. The BLOB Client Context structure must at least be initialized with a list of targets, an application key and a TTL value before it is used in a procedure:
+Both the transfer capabilities retrieval procedure and the BLOB transfer uses an instance of a :cpp:type:`bt_mesh_blob_cli_inputs` to determine how to perform the transfer. The BLOB Client Inputs structure must at least be initialized with a list of targets, an application key and a TTL value before it is used in a procedure:
 
 .. code-block:: c
 
@@ -39,15 +39,15 @@ Both the boundary check and the BLOB transfer uses an instance of a :cpp:type:`b
            { .addr = 0x0002 },
            { .addr = 0x0003 },
    };
-   static struct bt_mesh_blob_cli_ctx ctx = {
+   static struct bt_mesh_blob_cli_inputs inputs = {
            .app_idx = MY_APP_IDX,
            .ttl = BT_MESH_TTL_DEFAULT,
    };
 
-   sys_slist_init(&ctx.targets);
-   sys_slist_append(&ctx.targets, &targets[0].n);
-   sys_slist_append(&ctx.targets, &targets[1].n);
-   sys_slist_append(&ctx.targets, &targets[2].n);
+   sys_slist_init(&inputs.targets);
+   sys_slist_append(&inputs.targets, &targets[0].n);
+   sys_slist_append(&inputs.targets, &targets[1].n);
+   sys_slist_append(&inputs.targets, &targets[2].n);
 
 Note that all BLOB Servers in the transfer must be bound to the chosen application key.
 
@@ -66,19 +66,19 @@ If a target node fails to respond to an acknowledged message within the BLOB Cli
 
 Note that the BLOB Client will only move forwards with the transfer if all target nodes have responded or the Client timed out. If just one of the target nodes is made permanently unavailable, the transfer will be blocked until the BLOB Client times out. Increasing the wait time will increase this delay.
 
-Boundary check
-==============
+Transfer capabilities retrieval
+===============================
 
-It is generally recommended to perform a boundary check before starting a transfer. The boundary check populates the provided boundary parameter structure with the most liberal set of parameters that allows all target nodes to participate in the transfer. Any targets that fail to respond or responds with incompatible transfer parameters will be dropped.
+It is generally recommended to retrieve transfer capabilities before starting a transfer. The procedure populates the transfer capabilities from all targets with the most liberal set of parameters that allows all target nodes to participate in the transfer. Any targets that fail to respond or responds with incompatible transfer parameters will be dropped.
 
 Target nodes are prioritized according to their order in the target list. If a target node is found to be incompatible with any of the nodes before it, for instance by reporting a non-overlapping block size range, it will be dropped. Lost targets will be reported through the :cpp:member:`lost_target <bt_mesh_blob_cli_cb::lost_target>` callback.
 
-The end of the boundary check is signalled through the :cpp:member:`bounds <bt_mesh_blob_cli_cb::bounds>` callback, and the resulting bounds can be fed directly into the :cpp:func:`bt_mesh_blob_cli_send` function when starting the transfer.
+The end of the procedure is signalled through the :cpp:member:`caps <bt_mesh_blob_cli_cb::caps>` callback, and the resulting capabilities can be used to determine the block and chunk sizes required for the BLOB transfer.
 
 BLOB Transfer
 =============
 
-The BLOB Transfer is started by calling :cpp:func:`bt_mesh_blob_cli_send` function, which (in addition to the aforementioned transfer context) requires a set of transfer parameters and a BLOB stream instance. The transfer parameters include the 64 bit BLOB ID, the BLOB size and transfer mode. The BLOB ID is application defined, but must match the BLOB ID the BLOB Servers have been started with.
+The BLOB Transfer is started by calling :cpp:func:`bt_mesh_blob_cli_send` function, which (in addition to the aforementioned transfer inputs) requires a set of transfer parameters and a BLOB stream instance. The transfer parameters include the 64 bit BLOB ID, the BLOB size, the transfer mode, the block size in logarithmic representation and the chunk size. The BLOB ID is application defined, but must match the BLOB ID the BLOB Servers have been started with.
 
 The transfer will run until it either completes successfully for at least one target node, or is cancelled. The end of the transfer is communicated to the application through the :cpp:member:`end <bt_mesh_blob_cli_cb::end>` callback. Lost targets will be reported through the :cpp:member:`lost_target <bt_mesh_blob_cli_cb::lost_target>` callback.
 

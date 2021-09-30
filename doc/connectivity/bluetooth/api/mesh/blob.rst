@@ -7,7 +7,7 @@ The Binary Large Object (BLOB) models provide functionality for sending large bi
 
 The BLOB models support transfers of continuous binary objects of up to 4 GB (2\ :sup:`32` bytes). The BLOB transfer protocol has built-in recovery procedures for packet losses, and sets up checkpoints to ensure that all targets have received all the data before moving on. Data transfer order is not guaranteed.
 
-BLOB Transfers are constrained by the transfer speed and reliability of the underlying Mesh network. Under ideal conditions, the BLOBs are transferred at a rate of up to 1 kbps, allowing a 100 kB BLOB to be transferred in 10-15 minutes. However, network conditions, boundary parameters and other limiting factors can easily degrade the data rate by several orders of magnitude. Tuning the parameters of the transfer according to the application and network configuration, as well as scheduling it to periods with low network traffic will offer significant improvements on the speed and reliability of the protocol, but acheiving transfer rates close to the ideal rate is unlikely in actual deployments.
+BLOB Transfers are constrained by the transfer speed and reliability of the underlying Mesh network. Under ideal conditions, the BLOBs can be transferred at a rate of up to 1 kbps, allowing a 100 kB BLOB to be transferred in 10-15 minutes. However, network conditions, transfer capabilities and other limiting factors can easily degrade the data rate by several orders of magnitude. Tuning the parameters of the transfer according to the application and network configuration, as well as scheduling it to periods with low network traffic will offer significant improvements on the speed and reliability of the protocol, but achieving transfer rates close to the ideal rate is unlikely in actual deployments.
 
 There are two BLOB models:
 
@@ -73,17 +73,19 @@ The application may implement their own BLOB stream, or use the implementations 
    blob_io_flash
 
 
-Parameter boundaries
-====================
+Transfer capabilities
+=====================
 
-Each BLOB Client and Server may have different boundaries for the transfer parameters. The capabilities of each device is controlled through common configuration options for both BLOB Server and BLOB Client:
+Each BLOB Server may have different transfer capabilities. The transfer capabilities of each device is controlled through the following configuration options:
 
 * :option:`CONFIG_BT_MESH_BLOB_SIZE_MAX`
 * :option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN`
 * :option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MAX`
 * :option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX`
 
-To ensure that the transfer can be received by as many Servers as possible, the BLOB Client can check the parameter boundaries of each BLOB Server before starting the transfer. The Client will transfer the BLOB with the highest possible block and chunk size.
+The :option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX` option is also used by the BLOB Client and affects memory consumption by the BLOB Client model structure.
+
+To ensure that the transfer can be received by as many Servers as possible, the BLOB Client can retrieve the capabilities of each BLOB Server before starting the transfer. The Client will transfer the BLOB with the highest possible block and chunk size.
 
 
 Transfer modes

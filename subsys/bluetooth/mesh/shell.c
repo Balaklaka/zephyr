@@ -375,11 +375,10 @@ struct bt_mesh_dfu_cli bt_mesh_shell_dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb)
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 
 static struct {
-	struct bt_mesh_blob_cli_ctx ctx;
+	struct bt_mesh_blob_cli_inputs inputs;
 	struct bt_mesh_blob_target targets[32];
 	uint8_t target_count;
 	struct bt_mesh_blob_xfer xfer;
-	struct bt_mesh_blob_cli_bounds bounds;
 } blob_cli_xfer;
 
 static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
@@ -390,8 +389,8 @@ static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
 		    target->addr, reason);
 }
 
-static void blob_cli_bounds(struct bt_mesh_blob_cli *cli,
-			    const struct bt_mesh_blob_cli_bounds *bounds)
+static void blob_cli_caps(struct bt_mesh_blob_cli *cli,
+			  const struct bt_mesh_blob_cli_caps *caps)
 {
 	static const char * const modes[] = {
 		"none",
@@ -400,16 +399,21 @@ static void blob_cli_bounds(struct bt_mesh_blob_cli *cli,
 		"all",
 	};
 
-	shell_print(ctx_shell, "Mesh BLOB: bounds:");
-	shell_print(ctx_shell, "\tMax BLOB size: %u bytes", bounds->max_size);
+	if (!caps) {
+		shell_print(ctx_shell, "None of the targets can be used for BLOB transfer");
+		return;
+	}
+
+	shell_print(ctx_shell, "Mesh BLOB: capabilities:");
+	shell_print(ctx_shell, "\tMax BLOB size: %u bytes", caps->max_size);
 	shell_print(ctx_shell, "\tBlock size: %u-%u (%u-%u bytes)",
-		    bounds->min_block_size_log, bounds->max_block_size_log,
-		    1 << bounds->min_block_size_log,
-		    1 << bounds->max_block_size_log);
-	shell_print(ctx_shell, "\tMax chunks: %u", bounds->max_chunks);
-	shell_print(ctx_shell, "\tChunk size: %u", bounds->chunk_size);
-	shell_print(ctx_shell, "\tMTU size: %u", bounds->mtu_size);
-	shell_print(ctx_shell, "\tModes: %s", modes[bounds->modes]);
+		    caps->min_block_size_log, caps->max_block_size_log,
+		    1 << caps->min_block_size_log,
+		    1 << caps->max_block_size_log);
+	shell_print(ctx_shell, "\tMax chunks: %u", caps->max_chunks);
+	shell_print(ctx_shell, "\tChunk size: %u", caps->max_chunk_size);
+	shell_print(ctx_shell, "\tMTU size: %u", caps->mtu_size);
+	shell_print(ctx_shell, "\tModes: %s", modes[caps->modes]);
 }
 
 static void blob_cli_end(struct bt_mesh_blob_cli *cli,
@@ -424,7 +428,7 @@ static void blob_cli_end(struct bt_mesh_blob_cli *cli,
 
 static const struct bt_mesh_blob_cli_cb blob_cli_handlers = {
 	.lost_target = blob_cli_lost_target,
-	.bounds = blob_cli_bounds,
+	.caps = blob_cli_caps,
 	.end = blob_cli_end,
 };
 
@@ -3823,12 +3827,12 @@ static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
 static struct {
 	struct bt_mesh_dfu_target targets[32];
 	size_t target_cnt;
-	struct bt_mesh_blob_cli_ctx ctx;
+	struct bt_mesh_blob_cli_inputs inputs;
 } dfu_tx;
 
 static void dfu_tx_prepare(void)
 {
-	sys_slist_init(&dfu_tx.ctx.targets);
+	sys_slist_init(&dfu_tx.inputs.targets);
 
 	for (size_t i = 0; i < dfu_tx.target_cnt; i++) {
 		/* Reset target context. */
@@ -3836,7 +3840,7 @@ static void dfu_tx_prepare(void)
 		memset(&dfu_tx.targets[i].blob, 0, sizeof(struct bt_mesh_blob_target));
 		dfu_tx.targets[i].blob.addr = addr;
 
-		sys_slist_append(&dfu_tx.ctx.targets, &dfu_tx.targets[i].blob.n);
+		sys_slist_append(&dfu_tx.inputs.targets, &dfu_tx.targets[i].blob.n);
 	}
 }
 
@@ -3862,7 +3866,7 @@ static int cmd_dfu_target(const struct shell *shell, size_t argc, char *argv[])
 
 	dfu_tx.targets[dfu_tx.target_cnt].blob.addr = addr;
 	dfu_tx.targets[dfu_tx.target_cnt].img_idx = img_idx;
-	sys_slist_append(&dfu_tx.ctx.targets, &dfu_tx.targets[dfu_tx.target_cnt].blob.n);
+	sys_slist_append(&dfu_tx.inputs.targets, &dfu_tx.targets[dfu_tx.target_cnt].blob.n);
 	dfu_tx.target_cnt++;
 
 	shell_print(shell, "Added target 0x%04x", addr);
@@ -4022,11 +4026,11 @@ static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
 	shell_print(shell, "Starting DFU from slot %u (%u targets)", slot_idx,
 		    dfu_tx.target_cnt);
 
-	dfu_tx.ctx.group = group;
-	dfu_tx.ctx.app_idx = net.app_idx;
-	dfu_tx.ctx.ttl = BT_MESH_TTL_DEFAULT;
+	dfu_tx.inputs.group = group;
+	dfu_tx.inputs.app_idx = net.app_idx;
+	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 
-	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.ctx, NULL, &blob_io,
+	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.inputs, &blob_io,
 				   BT_MESH_BLOB_XFER_MODE_PUSH);
 	if (err) {
 		shell_print(shell, "Failed (err: %d)", err);
@@ -4092,14 +4096,14 @@ static int cmd_dfu_confirm(const struct shell *shell, size_t argc, char *argv[])
 
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 
-static void blob_cli_ctx_prepare(uint16_t group)
+static void blob_cli_inputs_prepare(uint16_t group)
 {
 	int i;
 
-	blob_cli_xfer.ctx.ttl = BT_MESH_TTL_DEFAULT;
-	blob_cli_xfer.ctx.group = group;
-	blob_cli_xfer.ctx.app_idx = net.app_idx;
-	sys_slist_init(&blob_cli_xfer.ctx.targets);
+	blob_cli_xfer.inputs.ttl = BT_MESH_TTL_DEFAULT;
+	blob_cli_xfer.inputs.group = group;
+	blob_cli_xfer.inputs.app_idx = net.app_idx;
+	sys_slist_init(&blob_cli_xfer.inputs.targets);
 
 	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
 		/* Reset target context. */
@@ -4107,21 +4111,20 @@ static void blob_cli_ctx_prepare(uint16_t group)
 		memset(&blob_cli_xfer.targets[i].addr, 0, sizeof(struct bt_mesh_blob_target));
 		blob_cli_xfer.targets[i].addr = addr;
 
-		sys_slist_append(&blob_cli_xfer.ctx.targets,
+		sys_slist_append(&blob_cli_xfer.inputs.targets,
 				 &blob_cli_xfer.targets[i].n);
 	}
 }
 
 static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
 {
-	struct bt_mesh_blob_cli_bounds bounds = bt_mesh_blob_cli_boundaries;
 	uint16_t group;
 	int err;
 
 	blob_cli_xfer.xfer.id = strtoul(argv[1], NULL, 0);
 	blob_cli_xfer.xfer.size = strtoul(argv[2], NULL, 0);
-	bounds.max_block_size_log = strtoul(argv[3], NULL, 0);
-	bounds.chunk_size = strtoul(argv[4], NULL, 0);
+	blob_cli_xfer.xfer.block_size_log = strtoul(argv[3], NULL, 0);
+	blob_cli_xfer.xfer.chunk_size = strtoul(argv[4], NULL, 0);
 
 	if (argc >= 6) {
 		group = strtoul(argv[5], NULL, 0);
@@ -4143,7 +4146,7 @@ static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
 		return 0;
 	}
 
-	blob_cli_ctx_prepare(group);
+	blob_cli_inputs_prepare(group);
 
 	shell_print(shell,
 		    "Sending transfer 0x%x (mode: %s, %u bytes) to 0x%04x",
@@ -4153,8 +4156,8 @@ static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
 			    "pull",
 		    blob_cli_xfer.xfer.size, group);
 
-	err = bt_mesh_blob_cli_send(&bt_mesh_shell_blob_cli, &blob_cli_xfer.ctx,
-				    &blob_cli_xfer.xfer, &bounds, &blob_io);
+	err = bt_mesh_blob_cli_send(&bt_mesh_shell_blob_cli, &blob_cli_xfer.inputs,
+				    &blob_cli_xfer.xfer, &blob_io);
 	if (err) {
 		shell_print(shell, "BLOB transfer TX failed (err: %d)", err);
 	}
@@ -4182,12 +4185,12 @@ static int cmd_blob_target(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-static int cmd_blob_bounds(const struct shell *shell, size_t argc, char *argv[])
+static int cmd_blob_caps(const struct shell *shell, size_t argc, char *argv[])
 {
 	uint16_t group;
 	int err;
 
-	shell_print(shell, "Checking transfer parameter boundaries...");
+	shell_print(shell, "Retrieving transfer capabilities...");
 
 	if (argc > 1) {
 		group = strtoul(argv[1], NULL, 0);
@@ -4200,11 +4203,9 @@ static int cmd_blob_bounds(const struct shell *shell, size_t argc, char *argv[])
 		return 0;
 	}
 
-	blob_cli_ctx_prepare(group);
-	blob_cli_xfer.bounds = bt_mesh_blob_cli_boundaries;
+	blob_cli_inputs_prepare(group);
 
-	err = bt_mesh_blob_cli_bounds_check(&bt_mesh_shell_blob_cli, &blob_cli_xfer.ctx,
-					    &blob_cli_xfer.bounds);
+	err = bt_mesh_blob_cli_caps_get(&bt_mesh_shell_blob_cli, &blob_cli_xfer.inputs);
 	if (err) {
 		shell_print(shell, "Boundary check start failed (err: %d)",
 			    err);
@@ -4523,7 +4524,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 	/* BLOB Client Model Operations */
 	SHELL_CMD_ARG(blob-target, NULL, "<addr>", cmd_blob_target, 2, 0),
-	SHELL_CMD_ARG(blob-bounds, NULL, "[<group>]", cmd_blob_bounds, 1, 1),
+	SHELL_CMD_ARG(blob-caps, NULL, "[<group>]", cmd_blob_caps, 1, 1),
 	SHELL_CMD_ARG(blob-tx, NULL, "<id> <size> <block size log> "
 		      "<chunk size> [<group> [<mode: push, pull>]]",
 		      cmd_blob_tx, 5, 2),

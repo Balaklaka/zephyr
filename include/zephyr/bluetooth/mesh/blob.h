@@ -21,14 +21,6 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_BLOB_BLOCKS_MAX
- *
- *  @brief Max number of blocks in a single transfer.
- */
-#define BT_MESH_BLOB_BLOCKS_MAX                                                \
-	(ceiling_fraction(CONFIG_BT_MESH_BLOB_SIZE_MAX,                        \
-			  CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN))
-
 /** BLOB transfer mode */
 enum bt_mesh_blob_xfer_mode {
 	/** No valid transfer mode. */
@@ -108,8 +100,6 @@ struct bt_mesh_blob_block {
 	uint16_t number;
 	/** Number of chunks in block. */
 	uint16_t chunk_count;
-	/** Base chunk size. May be smaller for the last chunk. */
-	uint16_t chunk_size;
 	/** Bitmap of missing chunks. */
 	uint8_t missing[ceiling_fraction(CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX,
 					 8)];
@@ -133,6 +123,10 @@ struct bt_mesh_blob_xfer {
 	size_t size;
 	/** BLOB transfer mode. */
 	enum bt_mesh_blob_xfer_mode mode;
+	/* Logarithmic represenatation of the block size. */
+	uint8_t block_size_log;
+	/** Base chunk size. May be smaller for the last chunk. */
+	uint16_t chunk_size;
 };
 
 /** BLOB stream interaction mode */

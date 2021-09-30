@@ -33,7 +33,7 @@ static void suspend(struct bt_mesh_blob_srv *srv);
 static inline uint32_t block_count_get(const struct bt_mesh_blob_srv *srv)
 {
 	return ceiling_fraction(srv->state.xfer.size,
-				(1U << srv->state.block_size_log));
+				(1U << srv->state.xfer.block_size_log));
 }
 
 static inline uint32_t max_chunk_size(const struct bt_mesh_blob_srv *srv)
@@ -132,7 +132,7 @@ static int pull_req_max(const struct bt_mesh_blob_srv *srv)
 	/* No point in requesting more than the friend node can hold: */
 	if (bt_mesh_lpn_established()) {
 		uint32_t segments_per_chunk = ceiling_fraction(
-			BLOB_CHUNK_SDU_LEN(srv->block.chunk_size),
+			BLOB_CHUNK_SDU_LEN(srv->state.xfer.chunk_size),
 			BT_MESH_APP_SEG_SDU_MAX);
 
 		count = MIN(PULL_BLOB_REQ_COUNT,
@@ -210,7 +210,7 @@ static void cancel(struct bt_mesh_blob_srv *srv)
 	srv->state.xfer.mode = BT_MESH_BLOB_XFER_MODE_NONE;
 	srv->state.ttl = BT_MESH_TTL_DEFAULT;
 	srv->block.number = 0xffff;
-	srv->block.chunk_size = 0xffff;
+	srv->state.xfer.chunk_size = 0xffff;
 	k_delayed_work_cancel(&srv->rx_timeout);
 	k_delayed_work_cancel(&srv->pull.report);
 	io_close(srv);
@@ -320,7 +320,7 @@ static void xfer_status_rsp(struct bt_mesh_blob_srv *srv,
 	}
 
 	net_buf_simple_add_le32(&buf, srv->state.xfer.size);
-	net_buf_simple_add_u8(&buf, srv->state.block_size_log);
+	net_buf_simple_add_u8(&buf, srv->state.xfer.block_size_log);
 	net_buf_simple_add_le16(&buf, srv->state.mtu_size);
 	net_buf_simple_add_mem(&buf, srv->state.blocks,
 			       ceiling_fraction(block_count_get(srv), 8));
@@ -367,7 +367,7 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 
 	net_buf_simple_add_u8(&buf, (status & BIT_MASK(4)) | (format << 6));
 	net_buf_simple_add_le16(&buf, srv->block.number);
-	net_buf_simple_add_le16(&buf, srv->block.chunk_size);
+	net_buf_simple_add_le16(&buf, srv->state.xfer.chunk_size);
 
 	if (format == BT_MESH_BLOB_CHUNKS_MISSING_SOME) {
 		net_buf_simple_add_mem(&buf, srv->block.missing,
@@ -410,25 +410,27 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 {
 	struct bt_mesh_blob_srv *srv = mod->user_data;
 	enum bt_mesh_blob_status status;
-	struct bt_mesh_blob_xfer xfer;
+	enum bt_mesh_blob_xfer_mode mode;
+	uint64_t id;
+	size_t size;
 	uint8_t block_size_log;
 	uint32_t block_count;
 	uint16_t mtu_size;
 	int err;
 
-	xfer.mode = (net_buf_simple_pull_u8(buf) >> 6);
-	xfer.id = net_buf_simple_pull_le64(buf);
-	xfer.size = net_buf_simple_pull_le32(buf);
+	mode = (net_buf_simple_pull_u8(buf) >> 6);
+	id = net_buf_simple_pull_le64(buf);
+	size = net_buf_simple_pull_le32(buf);
 	block_size_log = net_buf_simple_pull_u8(buf);
 	mtu_size = net_buf_simple_pull_le16(buf);
 
 	BT_DBG("\n\tsize: %u block size: %u\n\tmtu_size: %u\n\tmode: %s",
-	       xfer.size, (1U << block_size_log), mtu_size,
-	       xfer.mode == BT_MESH_BLOB_XFER_MODE_PUSH ? "push" : "pull");
+	       size, (1U << block_size_log), mtu_size,
+	       mode == BT_MESH_BLOB_XFER_MODE_PUSH ? "push" : "pull");
 
-	if (xfer.mode != BT_MESH_BLOB_XFER_MODE_PULL &&
-	    xfer.mode != BT_MESH_BLOB_XFER_MODE_PUSH) {
-		BT_WARN("Invalid mode 0x%x", xfer.mode);
+	if (mode != BT_MESH_BLOB_XFER_MODE_PULL &&
+	    mode != BT_MESH_BLOB_XFER_MODE_PUSH) {
+		BT_WARN("Invalid mode 0x%x", mode);
 		return -EINVAL;
 	}
 
@@ -438,19 +440,19 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 		goto rsp;
 	}
 
-	if (srv->state.xfer.id != xfer.id) {
+	if (srv->state.xfer.id != id) {
 		status = BT_MESH_BLOB_ERR_WRONG_BLOB_ID;
 		BT_WARN("Invalid ID (was %s, expected %s)",
-			bt_hex(&xfer.id, sizeof(xfer.id)),
+			bt_hex(&id, sizeof(id)),
 			bt_hex(&srv->state.xfer.id,
 			       sizeof(srv->state.xfer.id)));
 		goto rsp;
 	}
 
 	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_START) {
-		if (srv->state.xfer.mode != xfer.mode ||
-		    srv->state.xfer.size != xfer.size ||
-		    srv->state.block_size_log != block_size_log ||
+		if (srv->state.xfer.mode != mode ||
+		    srv->state.xfer.size != size ||
+		    srv->state.xfer.block_size_log != block_size_log ||
 		    srv->state.mtu_size > mtu_size) {
 			status = BT_MESH_BLOB_ERR_WRONG_PHASE;
 			BT_WARN("Busy");
@@ -466,7 +468,7 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 		goto rsp;
 	}
 
-	if (xfer.size > CONFIG_BT_MESH_BLOB_SIZE_MAX) {
+	if (size > CONFIG_BT_MESH_BLOB_SIZE_MAX) {
 		BT_WARN("Too large");
 		status = BT_MESH_BLOB_ERR_BLOB_TOO_LARGE;
 		cancel(srv);
@@ -483,11 +485,13 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 
 	srv->state.cli = ctx->addr;
 	srv->state.app_idx = ctx->app_idx;
-	srv->state.block_size_log = block_size_log;
 	srv->state.mtu_size = MIN(mtu_size, MTU_SIZE_MAX);
-	srv->state.xfer = xfer;
+	srv->state.xfer.id = id;
+	srv->state.xfer.size = size;
+	srv->state.xfer.mode = mode;
+	srv->state.xfer.block_size_log = block_size_log;
+	srv->state.xfer.chunk_size = 0xffff;
 	srv->block.number = 0xffff;
-	srv->block.chunk_size = 0xffff;
 
 	block_count = block_count_get(srv);
 	if (block_count > BT_MESH_BLOB_BLOCKS_MAX) {
@@ -615,7 +619,7 @@ static int handle_block_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 
 	if (srv->phase == BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_CHUNK) {
 		if (block_number != srv->block.number ||
-		    chunk_size != srv->block.chunk_size) {
+		    chunk_size != srv->state.xfer.chunk_size) {
 			status = BT_MESH_BLOB_ERR_WRONG_PHASE;
 		} else {
 			status = BT_MESH_BLOB_SUCCESS;
@@ -630,22 +634,22 @@ static int handle_block_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	}
 
 	if (!chunk_size || chunk_size > max_chunk_size(srv) ||
-	    (ceiling_fraction((1 << srv->state.block_size_log), chunk_size) >
+	    (ceiling_fraction((1 << srv->state.xfer.block_size_log), chunk_size) >
 	     max_chunk_count(srv))) {
 		BT_WARN("Invalid chunk size: (chunk size: %u, max: %u, ceil: %u, count: %u)",
 			chunk_size, max_chunk_size(srv),
-			ceiling_fraction((1 << srv->state.block_size_log), chunk_size),
+			ceiling_fraction((1 << srv->state.xfer.block_size_log), chunk_size),
 			max_chunk_count(srv));
 		status = BT_MESH_BLOB_ERR_INVALID_CHUNK_SIZE;
 		goto rsp;
 	}
 
 	srv->block.size = blob_block_size(
-		srv->state.xfer.size, srv->state.block_size_log, block_number);
+		srv->state.xfer.size, srv->state.xfer.block_size_log, block_number);
 	srv->block.number = block_number;
 	srv->block.chunk_count = ceiling_fraction(srv->block.size, chunk_size);
-	srv->block.chunk_size = chunk_size;
-	srv->block.offset = block_number * (1UL << srv->state.block_size_log);
+	srv->state.xfer.chunk_size = chunk_size;
+	srv->block.offset = block_number * (1UL << srv->state.xfer.block_size_log);
 
 	if (srv->phase == BT_MESH_BLOB_XFER_PHASE_COMPLETE ||
 	    !atomic_test_bit(srv->state.blocks, block_number)) {
@@ -702,7 +706,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	idx = net_buf_simple_pull_le16(buf);
 	chunk.size = buf->len;
 	chunk.data = net_buf_simple_pull_mem(buf, chunk.size);
-	chunk.offset = idx * srv->block.chunk_size;
+	chunk.offset = idx * srv->state.xfer.chunk_size;
 
 	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_CHUNK ||
 	    idx >= srv->block.chunk_count) {
@@ -712,11 +716,11 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	}
 
 	if (idx == srv->block.chunk_count - 1) {
-		expected_size = srv->block.size % srv->block.chunk_size;
+		expected_size = srv->block.size % srv->state.xfer.chunk_size;
 	}
 
 	if (expected_size == 0) {
-		expected_size = srv->block.chunk_size;
+		expected_size = srv->state.xfer.chunk_size;
 	}
 
 	if (chunk.size != expected_size) {
@@ -817,7 +821,7 @@ static int blob_srv_init(struct bt_mesh_model *mod)
 	srv->mod = mod;
 	srv->state.ttl = BT_MESH_TTL_DEFAULT;
 	srv->block.number = 0xffff;
-	srv->block.chunk_size = 0xffff;
+	srv->state.xfer.chunk_size = 0xffff;
 	k_delayed_work_init(&srv->rx_timeout, timeout);
 	k_delayed_work_init(&srv->pull.report, report_timeout);
 
@@ -841,7 +845,7 @@ static int blob_srv_settings_set(struct bt_mesh_model *mod, const char *name,
 	}
 
 	srv->block.number = 0xffff;
-	srv->block.chunk_size = 0xffff;
+	srv->state.xfer.chunk_size = 0xffff;
 
 	if (block_count_get(srv) > BT_MESH_BLOB_BLOCKS_MAX) {
 		BT_WARN("Loaded block count too high (%u, max: %u)",
@@ -920,7 +924,7 @@ int bt_mesh_blob_srv_recv(struct bt_mesh_blob_srv *srv, uint64_t id,
 	srv->state.timeout_base = timeout_base;
 	srv->io = io;
 	srv->block.number = 0xffff;
-	srv->block.chunk_size = 0xffff;
+	srv->state.xfer.chunk_size = 0xffff;
 	phase_set(srv, BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_START);
 	store_state(srv);
 
