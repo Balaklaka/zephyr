@@ -146,6 +146,19 @@ static int req_wait(struct bt_mesh_dfu_cli *cli, k_timeout_t timeout)
 	return err;
 }
 
+static bool targets_active(struct bt_mesh_dfu_cli *cli)
+{
+	struct bt_mesh_dfu_target *target;
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (target->status == BT_MESH_DFU_SUCCESS) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 /*******************************************************************************
  * Blob client
  ******************************************************************************/
@@ -351,6 +364,11 @@ static void transfer(struct bt_mesh_blob_cli *b)
 
 	BT_DBG("");
 
+	if (!targets_active(cli)) {
+		dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+		return;
+	}
+
 	err = bt_mesh_blob_cli_bounds_check(&cli->blob,
 					    cli->blob.ctx,
 					    &cli->xfer.bounds);
@@ -363,17 +381,14 @@ static void transfer(struct bt_mesh_blob_cli *b)
 static void refreshed(struct bt_mesh_blob_cli *b)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
-	struct bt_mesh_dfu_target *target;
 
-	TARGETS_FOR_EACH(cli, target) {
-		if (target->status == BT_MESH_BLOB_SUCCESS) {
-			cli->xfer.state = STATE_VERIFIED;
-			dfu_complete(cli);
-			return;
-		}
+	if (!targets_active(cli)) {
+		dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+		return;
 	}
 
-	dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+	cli->xfer.state = STATE_VERIFIED;
+	dfu_complete(cli);
 }
 
 static void refresh(struct bt_mesh_dfu_cli *cli)
@@ -411,6 +426,11 @@ static void apply(struct bt_mesh_dfu_cli *cli)
 static void applied(struct bt_mesh_blob_cli *b)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
+
+	if (!targets_active(cli)) {
+		dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+		return;
+	}
 
 	dfu_applied(cli);
 }

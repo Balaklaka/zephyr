@@ -126,6 +126,19 @@ static uint32_t targets_reset(struct bt_mesh_blob_cli *cli)
 	return count;
 }
 
+static bool targets_active(struct bt_mesh_blob_cli *cli)
+{
+	struct bt_mesh_blob_target *target;
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (target->status == BT_MESH_BLOB_SUCCESS) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static int io_open(struct bt_mesh_blob_cli *cli)
 {
 	if (!cli->io->open) {
@@ -377,7 +390,7 @@ static void retry_timeout(struct k_work *work)
 			drop_remaining_targets(cli);
 		}
 
-		end(cli, false);
+		broadcast_complete(cli);
 		return;
 	}
 
@@ -408,7 +421,7 @@ void blob_cli_broadcast(struct bt_mesh_blob_cli *cli,
 	cli->tx.target = NULL;
 	if (!next_target(cli)) {
 		BT_ERR("No active targets");
-		end(cli, false);
+		broadcast_complete(cli);
 		return;
 	}
 
@@ -666,6 +679,11 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 	};
 	struct bt_mesh_blob_target *target;
 
+	if (!targets_active(cli)) {
+		end(cli, false);
+		return;
+	}
+
 	BT_DBG("%u (%u chunks, %u/%u)", cli->block.number,
 	       cli->block.chunk_count, cli->block.number + 1, cli->block_count);
 
@@ -694,6 +712,11 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 		.next = chunk_send_end,
 		.acked = false,
 	};
+
+	if (!targets_active(cli)) {
+		end(cli, false);
+		return;
+	}
 
 	BT_DBG("%u / %u size: %u", cli->chunk_idx + 1, cli->block.chunk_count,
 	       chunk_size(&cli->block, cli->chunk_idx));
@@ -772,6 +795,11 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 {
 	BT_DBG("");
 
+	if (!targets_active(cli)) {
+		end(cli, false);
+		return;
+	}
+
 	cli->chunk_idx = next_missing_chunk(cli, 0);
 	if (cli->chunk_idx < cli->block.chunk_count) {
 		chunk_send(cli);
@@ -832,7 +860,10 @@ static void transfer_cancel(struct bt_mesh_blob_cli *cli)
 
 static void transfer_complete(struct bt_mesh_blob_cli *cli)
 {
-	end(cli, cli->state == BT_MESH_BLOB_CLI_STATE_XFER_CHECK);
+	bool success = targets_active(cli) &&
+		       cli->state == BT_MESH_BLOB_CLI_STATE_XFER_CHECK;
+
+	end(cli, success);
 }
 
 /*******************************************************************************
