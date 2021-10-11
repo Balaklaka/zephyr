@@ -3826,6 +3826,20 @@ static struct {
 	struct bt_mesh_blob_cli_ctx ctx;
 } dfu_tx;
 
+static void dfu_tx_prepare(void)
+{
+	sys_slist_init(&dfu_tx.ctx.targets);
+
+	for (size_t i = 0; i < dfu_tx.target_cnt; i++) {
+		/* Reset target context. */
+		uint16_t addr = dfu_tx.targets[i].blob.addr;
+		memset(&dfu_tx.targets[i].blob, 0, sizeof(struct bt_mesh_blob_target));
+		dfu_tx.targets[i].blob.addr = addr;
+
+		sys_slist_append(&dfu_tx.ctx.targets, &dfu_tx.targets[i].blob.n);
+	}
+}
+
 static int cmd_dfu_target(const struct shell *shell, size_t argc, char *argv[])
 {
 	uint8_t img_idx;
@@ -3839,14 +3853,25 @@ static int cmd_dfu_target(const struct shell *shell, size_t argc, char *argv[])
 		return 0;
 	}
 
+	for (size_t i = 0; i < dfu_tx.target_cnt; i++) {
+		if (dfu_tx.targets[i].blob.addr == addr) {
+			shell_print(shell, "Target 0x%04x already exists", addr);
+			return 0;
+		}
+	}
 
 	dfu_tx.targets[dfu_tx.target_cnt].blob.addr = addr;
 	dfu_tx.targets[dfu_tx.target_cnt].img_idx = img_idx;
-	sys_slist_append(&dfu_tx.ctx.targets,
-			 &dfu_tx.targets[dfu_tx.target_cnt].blob.n);
+	sys_slist_append(&dfu_tx.ctx.targets, &dfu_tx.targets[dfu_tx.target_cnt].blob.n);
 	dfu_tx.target_cnt++;
 
 	shell_print(shell, "Added target 0x%04x", addr);
+	return 0;
+}
+
+static int cmd_dfu_targets_reset(const struct shell *shell, size_t argc, char *argv[])
+{
+	dfu_tx_prepare();
 	return 0;
 }
 
@@ -4484,6 +4509,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	/* DFU Client Model Operations */
 	SHELL_CMD_ARG(dfu-target, NULL, "<addr> <img idx>", cmd_dfu_target, 3,
 		      0),
+	SHELL_CMD_ARG(dfu-targets-reset, NULL, NULL, cmd_dfu_targets_reset, 1, 0),
 	SHELL_CMD_ARG(dfu-target-state, NULL, NULL, cmd_dfu_target_state, 1, 0),
 	SHELL_CMD_ARG(dfu-target-imgs, NULL, "[<max count>]",
 		      cmd_dfu_target_imgs, 1, 1),
