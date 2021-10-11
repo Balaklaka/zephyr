@@ -64,7 +64,7 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 {
 	k_timeout_t time;
 
-	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		time = RETRY_TIME_PULL;
 	} else {
 		time = K_MSEC((10 * MSEC_PER_SEC * (cli->ctx->timeout_base + 2) +
