@@ -121,7 +121,7 @@ static int wr_chunk(const struct bt_mesh_blob_io *io,
 	i += chunk->size;
 
 	memset(&buf[i], 0xff, ROUND_UP(i, WRITE_BLOCK_SIZE) - i);
-	i += ROUND_UP(i, WRITE_BLOCK_SIZE);
+	i = ROUND_UP(i, WRITE_BLOCK_SIZE);
 
 	return flash_area_write(flash->area,
 				ROUND_DOWN(area_offset, WRITE_BLOCK_SIZE),
