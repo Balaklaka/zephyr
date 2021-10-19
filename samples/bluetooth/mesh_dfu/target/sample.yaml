@@ -1,0 +1,7 @@
+sample:
+  name: Bluetooth Mesh DFU Target
+tests:
+  sample.bluetooth.mesh_dfu_target:
+    harness: bluetooth
+    platform_allow: qemu_cortex_m3 qemu_x86
+    tags: bluetooth

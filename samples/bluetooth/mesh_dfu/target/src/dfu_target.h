@@ -1,0 +1,29 @@
+/** @file
+ *  @brief Bluetooth Mesh DFU Target role handler
+ */
+
+/*
+ * Copyright (c) 2021 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+#ifndef DFU_TARGET_H__
+#define DFU_TARGET_H__
+
+#include <bluetooth/mesh.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern struct bt_mesh_dfu_srv dfu_srv;
+
+int dfu_target_init(void);
+void dfu_target_image_confirm(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* DFU_TARGET_H__ */
