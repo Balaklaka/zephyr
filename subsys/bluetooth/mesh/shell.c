@@ -4104,7 +4104,9 @@ static int cmd_dfu_cancel(const struct shell *shell, size_t argc, char *argv[])
 		shell_print(shell, "Cancelling DFU");
 	}
 
+#if defined(CONFIG_BT_MESH_DFU_SRV)
 	bt_mesh_dfu_srv_cancel(&bt_mesh_shell_dfu_srv);
+#endif
 
 	err = bt_mesh_dfu_cli_cancel(&bt_mesh_shell_dfu_cli, (argc == 2) ? &ctx : NULL);
 	if (err) {

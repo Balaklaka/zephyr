@@ -80,7 +80,7 @@ static void do_reboot(struct k_work *work)
 
 static int dfu_apply(struct bt_mesh_dfu_srv *srv, const struct bt_mesh_dfu_img *img)
 {
-	static struct k_work pending_reboot;
+	static struct k_work_delayable pending_reboot;
 
 	printk("Applying the new firmware\n");
 
@@ -92,8 +92,8 @@ static int dfu_apply(struct bt_mesh_dfu_srv *srv, const struct bt_mesh_dfu_img *
 		printk("Pending the mesh settings to cleared before rebooting...");
 
 		/* Let the mesh reset its settings before rebooting the device. */
-		k_work_init(&pending_reboot, do_reboot);
-		k_work_submit(&pending_reboot);
+		k_work_init_delayable(&pending_reboot, do_reboot);
+		k_work_schedule(&pending_reboot, K_MSEC(1));
 	} else {
 		/* No need to unprovision device. Reboot immediately. */
 		sys_reboot(SYS_REBOOT_WARM);
