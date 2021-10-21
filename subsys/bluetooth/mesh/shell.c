@@ -263,13 +263,21 @@ static int blob_chunk_rd(const struct bt_mesh_blob_io *io,
 	return 0;
 }
 
-static const struct bt_mesh_blob_io blob_io = {
+static const struct bt_mesh_blob_io dummy_blob_io = {
 	.open = blob_io_open,
 	.rd = blob_chunk_rd,
 	.wr = blob_chunk_wr,
 };
 
-#endif /* defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_BLOB_SRV) */
+static const struct bt_mesh_blob_io *blob_io;
+
+#endif
+
+#if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
+
+static struct bt_mesh_blob_io_flash blob_flash_stream;
+
+#endif
 
 #if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
 
@@ -311,7 +319,7 @@ static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
 	shell_print(ctx_shell, "Uploading new firmware image to the distributor.");
 	slot_info_print(ctx_shell, slot, NULL);
 
-	*io = &blob_io;
+	*io = blob_io;
 
 	return 0;
 }
@@ -330,7 +338,7 @@ static int dfd_srv_send(struct bt_mesh_dfd_srv *srv,
 	shell_print(ctx_shell, "Starting the firmware distribution.");
 	slot_info_print(ctx_shell, slot, NULL);
 
-	*io = &blob_io;
+	*io = blob_io;
 
 	return 0;
 }
@@ -465,7 +473,7 @@ static int dfu_start(struct bt_mesh_dfu_srv *srv,
 {
 	shell_print(ctx_shell, "DFU setup");
 
-	*io = &blob_io;
+	*io = blob_io;
 
 	return 0;
 }
@@ -812,6 +820,8 @@ static int cmd_init(const struct shell *sh, size_t argc, char *argv[])
 		boot_write_img_confirmed();
 	}
 #endif
+
+	blob_io = &dummy_blob_io;
 
 	return 0;
 }
@@ -3716,6 +3726,44 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
+#if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
+
+static int cmd_dfu_blob_flash_stream_set(const struct shell *shell, size_t argc, char *argv[])
+{
+	uint8_t area_id;
+	uint32_t offset = 0;
+	int err;
+
+	if (argc < 2) {
+		return -EINVAL;
+	}
+
+	area_id = strtoul(argv[1], NULL, 0);
+
+	if (argc >= 3) {
+		offset = strtoul(argv[2], NULL, 0);
+	}
+
+	err = bt_mesh_blob_io_flash_init(&blob_flash_stream, area_id, offset);
+	if (err) {
+		printk("Failed to init BLOB IO Flash module: %d\n", err);
+	}
+
+	blob_io = &blob_flash_stream.io;
+
+	shell_print(shell, "Flash stream is initialized with area %u, offset: %u", area_id, offset);
+
+	return 0;
+}
+
+static int cmd_dfu_blob_flash_stream_unset(const struct shell *shell, size_t argc, char *argv[])
+{
+	blob_io = &dummy_blob_io;
+	return 0;
+}
+
+#endif /* CONFIG_BT_MESH_BLOB_IO_FLASH */
+
 #if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
 
 static int cmd_dfu_slot_add(const struct shell *shell, size_t argc,
@@ -4030,7 +4078,7 @@ static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
 	dfu_tx.inputs.app_idx = net.app_idx;
 	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 
-	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.inputs, &blob_io,
+	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.inputs, blob_io,
 				   BT_MESH_BLOB_XFER_MODE_PUSH);
 	if (err) {
 		shell_print(shell, "Failed (err: %d)", err);
@@ -4157,7 +4205,7 @@ static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
 		    blob_cli_xfer.xfer.size, group);
 
 	err = bt_mesh_blob_cli_send(&bt_mesh_shell_blob_cli, &blob_cli_xfer.inputs,
-				    &blob_cli_xfer.xfer, &blob_io);
+				    &blob_cli_xfer.xfer, blob_io);
 	if (err) {
 		shell_print(shell, "BLOB transfer TX failed (err: %d)", err);
 	}
@@ -4247,7 +4295,7 @@ static int cmd_blob_rx(const struct shell *shell, size_t argc, char *argv[])
 	}
 
 	shell_print(shell, "Receive BLOB 0x%x", id);
-	err = bt_mesh_blob_srv_recv(srv, id, &blob_io, BT_MESH_TTL_MAX,
+	err = bt_mesh_blob_srv_recv(srv, id, blob_io, BT_MESH_TTL_MAX,
 				    timeout_base);
 	if (err) {
 		shell_print(shell, "BLOB RX setup failed (%d)", err);
@@ -4494,6 +4542,12 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      "[<AppKey>]", cmd_cdb_app_key_add, 3, 1),
 	SHELL_CMD_ARG(cdb-app-key-del, NULL, "<AppKeyIdx>", cmd_cdb_app_key_del,
 		      2, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
+	SHELL_CMD_ARG(blob-flash-stream-set, NULL, "<area id> [<offset>]",
+		      cmd_dfu_blob_flash_stream_set, 2, 1),
+	SHELL_CMD_ARG(blob-flash-stream-unset, NULL, NULL, cmd_dfu_blob_flash_stream_unset, 1, 0),
 #endif
 
 #if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
