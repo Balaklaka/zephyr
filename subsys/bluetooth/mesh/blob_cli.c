@@ -75,7 +75,7 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 	k_delayed_work_submit(&cli->tx.retry, time);
 }
 
-static void blob_cli_reset(struct bt_mesh_blob_cli *cli)
+static void cli_state_reset(struct bt_mesh_blob_cli *cli)
 {
 	k_delayed_work_cancel(&cli->tx.retry);
 	cli->xfer = NULL;
@@ -242,7 +242,7 @@ static void end(struct bt_mesh_blob_cli *cli, bool success)
 	BT_DBG("%u", success);
 
 	io_close(cli);
-	blob_cli_reset(cli);
+	cli_state_reset(cli);
 	if (cli->cb && cli->cb->end) {
 		cli->cb->end(cli, xfer, success);
 	}
@@ -459,7 +459,7 @@ void blob_cli_broadcast_abort(struct bt_mesh_blob_cli *cli)
 		io_close(cli);
 	}
 
-	blob_cli_reset(cli);
+	cli_state_reset(cli);
 }
 
 static void send_start(uint16_t duration, int err, void *cb_data);
@@ -638,7 +638,7 @@ static void bounds_collected(struct bt_mesh_blob_cli *cli)
 {
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
 
-	blob_cli_reset(cli);
+	cli_state_reset(cli);
 
 	while ((1UL << cli->bounds->max_block_size_log) >
 	       (cli->bounds->chunk_size * cli->bounds->max_chunks)) {
@@ -1144,8 +1144,16 @@ static int blob_cli_init(struct bt_mesh_model *mod)
 	return 0;
 }
 
+static void blob_cli_reset(struct bt_mesh_model *mod)
+{
+	struct bt_mesh_blob_cli *cli = mod->user_data;
+
+	cli_state_reset(cli);
+}
+
 const struct bt_mesh_model_cb _bt_mesh_blob_cli_cb = {
 	.init = blob_cli_init,
+	.reset = blob_cli_reset,
 };
 
 int bt_mesh_blob_cli_bounds_check(struct bt_mesh_blob_cli *cli,
@@ -1228,7 +1236,7 @@ void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)
 	BT_DBG("");
 
 	if (cli->state == BT_MESH_BLOB_CLI_STATE_BOUNDS_CHECK) {
-		blob_cli_reset(cli);
+		cli_state_reset(cli);
 		return;
 	}
 

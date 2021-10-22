@@ -815,8 +815,21 @@ static int dfu_cli_init(struct bt_mesh_model *mod)
 	return 0;
 }
 
+static void dfu_cli_reset(struct bt_mesh_model *mod)
+{
+	struct bt_mesh_dfu_cli *cli = mod->user_data;
+
+	cli->req.type = REQ_NONE;
+	cli->req.addr = BT_MESH_ADDR_UNASSIGNED;
+	cli->req.img_cnt = 0;
+	cli->req.img_cb = NULL;
+	cli->xfer.state = STATE_IDLE;
+	cli->xfer.flags = 0;
+}
+
 const struct bt_mesh_model_cb _bt_mesh_dfu_cli_cb = {
 	.init = dfu_cli_init,
+	.reset = dfu_cli_reset,
 };
 
 /*******************************************************************************

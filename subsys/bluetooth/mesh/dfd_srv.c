@@ -889,6 +889,21 @@ static int dfd_srv_init(struct bt_mesh_model *mod)
 	return 0;
 }
 
+static void dfd_srv_reset(struct bt_mesh_model *mod)
+{
+	struct bt_mesh_dfd_srv *srv = mod->user_data;
+
+	srv->phase = BT_MESH_DFD_PHASE_IDLE;
+	srv->upload.phase = BT_MESH_DFD_UPLOAD_PHASE_IDLE;
+
+	sys_slist_init(&srv->ctx.targets);
+	srv->target_cnt = 0;
+
+	bt_mesh_dfu_slot_foreach(slot_del_cb, srv);
+	bt_mesh_dfu_slot_del_all();
+}
+
 const struct bt_mesh_model_cb _bt_mesh_dfd_srv_cb = {
 	.init = dfd_srv_init,
+	.reset = dfd_srv_reset,
 };

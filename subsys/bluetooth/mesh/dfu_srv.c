@@ -395,9 +395,18 @@ static int dfu_srv_settings_set(struct bt_mesh_model *mod, const char *name,
 	return 0;
 }
 
+static void dfu_srv_reset(struct bt_mesh_model *mod)
+{
+	struct bt_mesh_dfu_srv *srv = mod->user_data;
+
+	srv->update.phase = BT_MESH_DFU_PHASE_IDLE;
+	erase_state(srv);
+}
+
 const struct bt_mesh_model_cb _bt_mesh_dfu_srv_cb = {
 	.init = dfu_srv_init,
 	.settings_set = dfu_srv_settings_set,
+	.reset = dfu_srv_reset,
 };
 
 static void blob_end(struct bt_mesh_blob_srv *b, uint64_t id, bool success)

@@ -885,10 +885,22 @@ static int blob_srv_start(struct bt_mesh_model *mod)
 	return 0;
 }
 
+static void blob_srv_reset(struct bt_mesh_model *mod)
+{
+	struct bt_mesh_blob_srv *srv = mod->user_data;
+
+	phase_set(srv, BT_MESH_BLOB_XFER_PHASE_INACTIVE);
+	srv->state.xfer.mode = BT_MESH_BLOB_XFER_MODE_NONE;
+	k_delayed_work_cancel(&srv->rx_timeout);
+	k_delayed_work_cancel(&srv->pull.report);
+	erase_state(srv);
+}
+
 const struct bt_mesh_model_cb _bt_mesh_blob_srv_cb = {
 	.init = blob_srv_init,
 	.settings_set = blob_srv_settings_set,
 	.start = blob_srv_start,
+	.reset = blob_srv_reset,
 };
 
 int bt_mesh_blob_srv_recv(struct bt_mesh_blob_srv *srv, uint64_t id,
