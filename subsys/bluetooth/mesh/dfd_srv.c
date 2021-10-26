@@ -264,8 +264,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
 	uint16_t app_idx, timeout_base, slot_idx, group;
-	const struct bt_mesh_dfu_slot *slot;
-	enum bt_mesh_blob_xfer_mode mode;
+	struct bt_mesh_dfu_cli_xfer xfer;
 	uint8_t byte, ttl;
 	bool apply;
 	int err, i;
@@ -274,7 +273,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	ttl = net_buf_simple_pull_u8(buf);
 	timeout_base = net_buf_simple_pull_le16(buf);
 	byte = net_buf_simple_pull_u8(buf);
-	mode = byte & BIT_MASK(2);
+	xfer.mode = byte & BIT_MASK(2);
 	apply = (byte >> 2U) & BIT_MASK(1);
 	slot_idx = net_buf_simple_pull_le16(buf);
 
@@ -300,8 +299,8 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	slot = bt_mesh_dfu_slot_at(slot_idx);
-	if (!slot || !bt_mesh_dfu_slot_is_valid(slot)) {
+	xfer.slot = bt_mesh_dfu_slot_at(slot_idx);
+	if (!xfer.slot || !bt_mesh_dfu_slot_is_valid(xfer.slot)) {
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_FW_NOT_FOUND);
 		return 0;
 	}
@@ -309,7 +308,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	if (srv->inputs.app_idx == app_idx &&
 	    srv->inputs.timeout_base == timeout_base &&
 	    srv->inputs.group == group && srv->inputs.ttl == ttl &&
-	    srv->dfu.xfer.blob.mode == mode && srv->apply == apply &&
+	    srv->dfu.xfer.blob.mode == xfer.mode && srv->apply == apply &&
 	    srv->slot_idx == slot_idx) {
 		if (is_busy(srv) ||
 		    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
@@ -330,7 +329,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	}
 
 	srv->io = NULL;
-	err = srv->cb->send(srv, slot, &srv->io);
+	err = srv->cb->send(srv, xfer.slot, &srv->io);
 	if (err || !srv->io) {
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
 		return 0;
@@ -351,7 +350,10 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	BT_DBG("Distribution Start: slot: %d, appidx: %d, tb: %d, addr: %04X, ttl: %d, apply: %d",
 	       slot_idx, app_idx, timeout_base, group, ttl, apply);
 
-	err = bt_mesh_dfu_cli_send(&srv->dfu, slot, &srv->inputs, srv->io, mode);
+	/* DFD Server will always retrieve targets' capabilities before distributing a firmware.*/
+	xfer.blob_params = NULL;
+
+	err = bt_mesh_dfu_cli_send(&srv->dfu, &srv->inputs, srv->io, &xfer);
 	if (err) {
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
 		return 0;

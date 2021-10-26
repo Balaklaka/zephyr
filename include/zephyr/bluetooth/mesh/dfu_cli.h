@@ -204,6 +204,26 @@ struct bt_mesh_dfu_cli {
 	} req;
 };
 
+/** BLOB parameters for DFU Client transfer */
+struct bt_mesh_dfu_cli_xfer_blob_params {
+	/* Logarithmic representation of the block size. */
+	uint8_t block_size_log;
+	/** Base chunk size. May be smaller for the last chunk. */
+	uint16_t chunk_size;
+};
+
+/** DFU Client transfer parameters */
+struct bt_mesh_dfu_cli_xfer {
+	/** DFU image slot to transfer */
+	const struct bt_mesh_dfu_slot *slot;
+	/**  Transfer mode (push or pull) */
+	enum bt_mesh_blob_xfer_mode mode;
+	/** BLOB parameters to be used for the transfer, or NULL to retrieve targets' capabilities
+	 * before sending a firmware.
+	 */
+	const struct bt_mesh_dfu_cli_xfer_blob_params *blob_params;
+};
+
 /** @brief Start distributing a DFU.
  *
  *  Starts distribution of the firmware in the given slot to the list of DFU
@@ -214,18 +234,16 @@ struct bt_mesh_dfu_cli {
  *  bt_mesh_dfu_target nodes.
  *
  *  @param cli    DFU Client model instance.
- *  @param slot   DFU image slot to transfer.
  *  @param inputs BLOB Client transfer inputs.
  *  @param io     BLOB stream to read BLOB from.
- *  @param mode   Transfer mode (push or pull).
+ *  @param xfer   DFU Client transfer parameters.
  *
  *  @return 0 on success, or (negative) error code otherwise.
  */
 int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
-			 const struct bt_mesh_dfu_slot *slot,
 			 const struct bt_mesh_blob_cli_inputs *inputs,
 			 const struct bt_mesh_blob_io *io,
-			 enum bt_mesh_blob_xfer_mode mode);
+			 const struct bt_mesh_dfu_cli_xfer *xfer);
 
 /** @brief Cancel a DFU transfer.
  *

@@ -37,6 +37,7 @@ enum req {
 enum {
 	FLAG_FAILED = BIT(0),
 	FLAG_CANCELLED = BIT(1),
+	FLAG_SKIP_CAPS_GET = BIT(2),
 };
 
 enum {
@@ -376,10 +377,18 @@ static void transfer(struct bt_mesh_blob_cli *b)
 		return;
 	}
 
-	err = bt_mesh_blob_cli_caps_get(&cli->blob, cli->blob.inputs);
-	if (err) {
-		BT_ERR("Failed starting blob xfer: %d", err);
-		dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
+	if (cli->xfer.flags & FLAG_SKIP_CAPS_GET) {
+		err = bt_mesh_blob_cli_send(b, b->inputs, &cli->xfer.blob, cli->xfer.io);
+		if (err) {
+			BT_ERR("Starting BLOB xfer failed: %d", err);
+			dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
+		}
+	} else {
+		err = bt_mesh_blob_cli_caps_get(&cli->blob, cli->blob.inputs);
+		if (err) {
+			BT_ERR("Failed starting blob xfer: %d", err);
+			dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
+		}
 	}
 }
 
@@ -842,10 +851,9 @@ const struct bt_mesh_model_cb _bt_mesh_dfu_cli_cb = {
  ******************************************************************************/
 
 int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
-			 const struct bt_mesh_dfu_slot *slot,
 			 const struct bt_mesh_blob_cli_inputs *inputs,
 			 const struct bt_mesh_blob_io *io,
-			 enum bt_mesh_blob_xfer_mode mode)
+			 const struct bt_mesh_dfu_cli_xfer *xfer)
 {
 	struct bt_mesh_dfu_target *target;
 
@@ -853,14 +861,20 @@ int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 		return -EBUSY;
 	}
 
-	cli->xfer.blob.mode = mode;
-	cli->xfer.blob.size = slot->size;
+	cli->xfer.blob.mode = xfer->mode;
+	cli->xfer.blob.size = xfer->slot->size;
 	sys_rand_get(&cli->xfer.blob.id, sizeof(cli->xfer.blob.id));
 
 	cli->xfer.io = io;
 	cli->blob.inputs = inputs;
-	cli->xfer.slot = slot;
+	cli->xfer.slot = xfer->slot;
 	cli->xfer.flags = 0U;
+
+	if (xfer->blob_params) {
+		cli->xfer.flags |= FLAG_SKIP_CAPS_GET;
+		cli->xfer.blob.block_size_log = xfer->blob_params.block_size_log;
+		cli->xfer.blob.chunk_size = xfer->blob_params.chunk_size;
+	}
 
 	/* Phase will be set based on target status messages: */
 	TARGETS_FOR_EACH(cli, target) {

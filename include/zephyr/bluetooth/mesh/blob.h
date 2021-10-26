@@ -123,7 +123,7 @@ struct bt_mesh_blob_xfer {
 	size_t size;
 	/** BLOB transfer mode. */
 	enum bt_mesh_blob_xfer_mode mode;
-	/* Logarithmic represenatation of the block size. */
+	/* Logarithmic representation of the block size. */
 	uint8_t block_size_log;
 	/** Base chunk size. May be smaller for the last chunk. */
 	uint16_t chunk_size;

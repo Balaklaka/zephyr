@@ -4048,7 +4048,8 @@ static int cmd_dfu_target_check(const struct shell *shell, size_t argc,
 
 static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
 {
-	const struct bt_mesh_dfu_slot *slot;
+	struct bt_mesh_dfu_cli_xfer_blob_params blob_params;
+	struct bt_mesh_dfu_cli_xfer xfer;
 	uint8_t slot_idx;
 	uint16_t group;
 	int err;
@@ -4060,13 +4061,27 @@ static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
 		group = BT_MESH_ADDR_UNASSIGNED;
 	}
 
+	if (argc > 3) {
+		xfer.mode = strtoul(argv[3], NULL, 0);
+	} else {
+		xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
+	}
+
+	if (argc > 5) {
+		blob_params.block_size_log = strtoul(argv[4], NULL, 0);
+		blob_params.chunk_size = strtoul(argv[5], NULL, 0);
+		xfer.blob_params = &blob_params;
+	} else {
+		xfer.blob_params = NULL;
+	}
+
 	if (!dfu_tx.target_cnt) {
 		shell_print(shell, "No targets.");
 		return 0;
 	}
 
-	slot = bt_mesh_dfu_slot_at(slot_idx);
-	if (!slot) {
+	xfer.slot = bt_mesh_dfu_slot_at(slot_idx);
+	if (!xfer.slot) {
 		shell_print(shell, "No image in slot %u", slot_idx);
 		return 0;
 	}
@@ -4078,8 +4093,7 @@ static int cmd_dfu_send(const struct shell *shell, size_t argc, char *argv[])
 	dfu_tx.inputs.app_idx = net.app_idx;
 	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 
-	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, slot, &dfu_tx.inputs, blob_io,
-				   BT_MESH_BLOB_XFER_MODE_PUSH);
+	err = bt_mesh_dfu_cli_send(&bt_mesh_shell_dfu_cli, &dfu_tx.inputs, blob_io, &xfer);
 	if (err) {
 		shell_print(shell, "Failed (err: %d)", err);
 		return 0;
@@ -4572,8 +4586,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      cmd_dfu_target_imgs, 1, 1),
 	SHELL_CMD_ARG(dfu-target-check, NULL, "<slot idx> <target img idx>",
 		      cmd_dfu_target_check, 3, 0),
-	SHELL_CMD_ARG(dfu-send, NULL, "<slot idx>  [<group>] "
-		      "[<mode: push, pull>]", cmd_dfu_send, 2, 2),
+	SHELL_CMD_ARG(dfu-send, NULL, "<slot idx>  [<group> "
+		      "[<mode: push, pull> [<block size log> <chunk size>]]]", cmd_dfu_send, 2, 4),
 	SHELL_CMD_ARG(dfu-cancel, NULL, "[<addr>]", cmd_dfu_cancel, 1, 1),
 	SHELL_CMD_ARG(dfu-apply, NULL, NULL, cmd_dfu_apply, 0, 0),
 	SHELL_CMD_ARG(dfu-confirm, NULL, NULL, cmd_dfu_confirm, 0, 0),
