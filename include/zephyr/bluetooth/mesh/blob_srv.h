@@ -27,9 +27,13 @@ struct bt_mesh_blob_srv;
  *
  *  @brief Max number of blocks in a single transfer.
  */
+#if defined(CONFIG_BT_MESH_BLOB_SRV)
 #define BT_MESH_BLOB_BLOCKS_MAX                                                \
 	(ceiling_fraction(CONFIG_BT_MESH_BLOB_SIZE_MAX,                        \
 			  CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN))
+#else
+#define BT_MESH_BLOB_BLOCKS_MAX 1
+#endif
 
 /** @def BT_MESH_MODEL_BLOB_SRV
  *
