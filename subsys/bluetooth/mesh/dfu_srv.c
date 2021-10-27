@@ -14,6 +14,16 @@
 
 #define UPDATE_IDX_NONE 0xff
 
+BUILD_ASSERT((DFU_UPDATE_START_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFU_OP_UPDATE_START) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
+	     "The Firmware Update Start message does not fit into the maximum incoming SDU size.");
+
+BUILD_ASSERT((DFU_UPDATE_INFO_STATUS_MSG_MINLEN +
+	      BT_MESH_MODEL_OP_LEN(BT_MESH_DFU_OP_UPDATE_INFO_STATUS) + BT_MESH_MIC_SHORT)
+	     <= BT_MESH_TX_SDU_MAX,
+	     "The Firmware Update Info Status message does not fit into the maximum outgoing SDU "
+	     "size.");
+
 static void store_state(struct bt_mesh_dfu_srv *srv)
 {
 	bt_mesh_model_data_store(srv->mod, false, NULL, &srv->update,
@@ -111,8 +121,19 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 	net_buf_simple_add_u8(&rsp, idx);
 
 	for (; idx < srv->img_count && limit > 0; ++idx) {
+		uint32_t entry_len;
+
 		if (!srv->imgs[idx].fwid) {
 			continue;
+		}
+
+		entry_len = 2 + srv->imgs[idx].fwid_len;
+		if (srv->imgs[idx].uri) {
+			entry_len += strlen(srv->imgs[idx].uri);
+		}
+
+		if (net_buf_simple_tailroom(&rsp) + BT_MESH_MIC_SHORT < entry_len) {
+			break;
 		}
 
 		net_buf_simple_add_u8(&rsp, srv->imgs[idx].fwid_len);
@@ -127,6 +148,8 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 		} else {
 			net_buf_simple_add_u8(&rsp, 0);
 		}
+
+		limit--;
 	}
 
 	bt_mesh_model_send(mod, ctx, &rsp, NULL, NULL);

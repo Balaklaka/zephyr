@@ -19,13 +19,26 @@
 #define MTU_SIZE_MAX (BT_MESH_RX_SDU_MAX - BT_MESH_MIC_SHORT)
 
 #define SERVER_TIMEOUT_SECS(srv) (10 * (1 + (srv)->state.timeout_base))
-#define PULL_BLOB_REQ_COUNT 16
 #define PULL_ATTEMPTS(srv) ceiling_fraction(SERVER_TIMEOUT_SECS(srv), (BLOB_POLL_TIME_MAX_SECS + 1))
 #define REPORT_TIMER_TIMEOUT K_SECONDS(BLOB_POLL_TIME_MAX_SECS + 1)
 
 BUILD_ASSERT(BLOB_BLOCK_SIZE_LOG_MIN <= BLOB_BLOCK_SIZE_LOG_MAX,
 	     "The must be at least one number between the min and "
 	     "max block size that is the power of two.");
+
+BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_TX_SDU_MAX,
+	     "The BLOB Transfer Status message does not fit into the maximum outgoing SDU size.");
+
+BUILD_ASSERT((BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN +
+	      BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_BLOCK_REPORT) + BT_MESH_MIC_SHORT)
+	     <= BT_MESH_TX_SDU_MAX,
+	     "The BLOB Partial Block Report message does not fit into the maximum outgoing SDU "
+	     "size.");
+
+BUILD_ASSERT((BLOB_BLOCK_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_BLOCK_STATUS) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_TX_SDU_MAX,
+	     "The BLOB Block Status message does not fit into the maximum outgoing SDU size.");
 
 static void cancel(struct bt_mesh_blob_srv *srv);
 static void suspend(struct bt_mesh_blob_srv *srv);
@@ -126,7 +139,7 @@ static void buf_chunk_index_add(struct net_buf_simple *buf, uint16_t chunk)
 
 static int pull_req_max(const struct bt_mesh_blob_srv *srv)
 {
-	int count = PULL_BLOB_REQ_COUNT;
+	int count = CONFIG_BT_MESH_BLOB_SRV_PULL_REQ_COUNT;
 
 #if defined(CONFIG_BT_MESH_LOW_POWER)
 	/* No point in requesting more than the friend node can hold: */
@@ -135,7 +148,7 @@ static int pull_req_max(const struct bt_mesh_blob_srv *srv)
 			BLOB_CHUNK_SDU_LEN(srv->state.xfer.chunk_size),
 			BT_MESH_APP_SEG_SDU_MAX);
 
-		count = MIN(PULL_BLOB_REQ_COUNT,
+		count = MIN(CONFIG_BT_MESH_BLOB_SRV_PULL_REQ_COUNT,
 			    bt_mesh.lpn.queue_size / segments_per_chunk);
 	}
 #endif
@@ -179,7 +192,7 @@ static void block_report(struct bt_mesh_blob_srv *srv)
 	BT_DBG("remaining: %u", srv->pull.counter);
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_BLOB_OP_BLOCK_REPORT,
-				 PULL_BLOB_REQ_COUNT * 3);
+				 BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN);
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_BLOCK_REPORT);
 
 	count = pull_req_max(srv);
@@ -302,7 +315,7 @@ static void xfer_status_rsp(struct bt_mesh_blob_srv *srv,
 			    enum bt_mesh_blob_status status)
 {
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_BLOB_OP_XFER_STATUS,
-				 17 + sizeof(srv->state.blocks));
+				 BLOB_XFER_STATUS_MSG_MAXLEN);
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_XFER_STATUS);
 
 	net_buf_simple_add_u8(&buf, ((status & BIT_MASK(4)) |
@@ -339,8 +352,7 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 	int i;
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_BLOB_OP_BLOCK_STATUS,
-				 5 + MAX(sizeof(srv->block.missing),
-					 PULL_BLOB_REQ_COUNT * 3));
+				 BLOB_BLOCK_STATUS_MSG_MAXLEN);
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_BLOCK_STATUS);
 
 	if (srv->phase == BT_MESH_BLOB_XFER_PHASE_INACTIVE ||

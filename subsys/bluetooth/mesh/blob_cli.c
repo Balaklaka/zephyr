@@ -26,6 +26,20 @@
 	((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED ||                    \
 	 (cli)->tx.ctx->force_unicast)
 
+BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
+	     "The BLOB Transfer Status message does not fit into the maximum incoming SDU size.");
+
+BUILD_ASSERT((BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN +
+	      BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_BLOCK_REPORT) + BT_MESH_MIC_SHORT)
+	     <= BT_MESH_RX_SDU_MAX,
+	     "The BLOB Partial Block Report message does not fit into the maximum incoming SDU "
+	     "size.");
+
+BUILD_ASSERT((BLOB_BLOCK_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_BLOCK_STATUS) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
+	     "The BLOB Block Status message does not fit into the maximum incoming SDU size.");
+
 struct xfer_info {
 	enum bt_mesh_blob_status status;
 	enum bt_mesh_blob_xfer_mode mode;
@@ -1201,6 +1215,14 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 	cli->io = io;
 	cli->block_count = ceiling_fraction(cli->xfer->size,
 					    (1U << cli->xfer->block_size_log));
+
+	block_set(cli, 0);
+
+	if (cli->block.chunk_count > CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX) {
+		BT_ERR("Too many chunks");
+		return -EINVAL;
+	}
+
 	if (!targets_reset(cli)) {
 		BT_ERR("No valid targets");
 		return -ENODEV;
@@ -1210,8 +1232,6 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 	       "\tblob size: %u\n\tmode: %x",
 	       (1 << cli->xfer->block_size_log), cli->xfer->chunk_size,
 	       cli->xfer->size, cli->xfer->mode);
-
-	block_set(cli, 0);
 
 	return xfer_start(cli);
 }

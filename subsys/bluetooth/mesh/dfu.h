@@ -17,6 +17,10 @@
 #define BT_MESH_DFU_OP_UPDATE_APPLY BT_MESH_MODEL_OP_2(0xb7, 0x1f)
 #define BT_MESH_DFU_OP_UPDATE_STATUS BT_MESH_MODEL_OP_2(0xb7, 0x2b)
 
+#define DFU_UPDATE_INFO_STATUS_MSG_MINLEN (4 + CONFIG_BT_MESH_DFU_FWID_MAXLEN + \
+					   CONFIG_BT_MESH_DFU_URI_MAXLEN)
+#define DFU_UPDATE_START_MSG_MAXLEN (12 + CONFIG_BT_MESH_DFU_METADATA_MAXLEN)
+
 static inline uint16_t dfu_metadata_checksum(struct net_buf_simple *buf)
 {
 	/* Simple Fletcher-16 checksum to ensure duplicate start messages don't

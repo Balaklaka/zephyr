@@ -50,6 +50,19 @@
 /* Log2 representation of the maximum block size */
 #define BLOB_BLOCK_SIZE_LOG_MAX BLOB_BLOCK_SIZE_LOG_FLOOR(CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MAX)
 
+#if defined(CONFIG_BT_MESH_BLOB_SRV)
+#define BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN ( \
+					MAX(sizeof(((struct bt_mesh_blob_block *)0)->missing), \
+					    CONFIG_BT_MESH_BLOB_SRV_PULL_REQ_COUNT * 3))
+#define BLOB_BLOCK_STATUS_MSG_MAXLEN (5 + \
+				      MAX(sizeof(((struct bt_mesh_blob_block *)0)->missing), \
+					  CONFIG_BT_MESH_BLOB_SRV_PULL_REQ_COUNT * 3))
+#else
+#define BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN sizeof(((struct bt_mesh_blob_srv *)0)->block.missing)
+#define BLOB_BLOCK_STATUS_MSG_MAXLEN (5 + sizeof(((struct bt_mesh_blob_srv *)0)->block.missing))
+#endif
+
+#define BLOB_XFER_STATUS_MSG_MAXLEN (17 + sizeof(((struct bt_mesh_blob_srv *)0)->state.blocks))
 
 enum bt_mesh_blob_chunks_missing {
 	BT_MESH_BLOB_CHUNKS_MISSING_ALL,

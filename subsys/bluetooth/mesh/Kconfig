@@ -511,6 +511,7 @@ config BT_MESH_SEG_BUFS
 
 config BT_MESH_RX_SEG_MAX
 	int "Maximum number of segments in incoming messages"
+	default 6 if BT_MESH_BLOB_SRV || BT_MESH_BLOB_CLI
 	default 3
 	range 1 32
 	depends on BT_MESH_RX_SEG_MSG_COUNT > 0
@@ -531,6 +532,7 @@ config BT_MESH_RX_SEG_MAX
 
 config BT_MESH_TX_SEG_MAX
 	int "Maximum number of segments in outgoing messages"
+	default 6 if BT_MESH_BLOB_SRV || BT_MESH_BLOB_CLI
 	default 3
 	range 1 32
 	depends on BT_MESH_TX_SEG_MSG_COUNT > 0

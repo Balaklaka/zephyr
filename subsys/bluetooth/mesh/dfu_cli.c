@@ -27,6 +27,16 @@
 
 #define DFU_CLI(blob_cli) CONTAINER_OF(blob_cli, struct bt_mesh_dfu_cli, blob)
 
+BUILD_ASSERT((DFU_UPDATE_START_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFU_OP_UPDATE_START) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_TX_SDU_MAX,
+	     "The Firmware Update Start message does not fit into the maximum outgoing SDU size.");
+
+BUILD_ASSERT((DFU_UPDATE_INFO_STATUS_MSG_MINLEN +
+	      BT_MESH_MODEL_OP_LEN(BT_MESH_DFU_OP_UPDATE_INFO_STATUS) + BT_MESH_MIC_SHORT)
+	     <= BT_MESH_RX_SDU_MAX,
+	     "The Firmware Update Info Status message does not fit into the maximum incoming SDU "
+	     "size.");
+
 enum req {
 	REQ_NONE,
 	REQ_METADATA,
@@ -293,7 +303,7 @@ static void send_update_start(struct bt_mesh_blob_cli *b, uint16_t dst)
 	struct bt_mesh_dfu_target *target = target_get(cli, dst);
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_DFU_OP_UPDATE_START,
-				 12 + CONFIG_BT_MESH_DFU_METADATA_MAXLEN);
+				 DFU_UPDATE_START_MSG_MAXLEN);
 	bt_mesh_model_msg_init(&buf, BT_MESH_DFU_OP_UPDATE_START);
 
 	net_buf_simple_add_u8(&buf, cli->blob.inputs->ttl);
@@ -872,8 +882,8 @@ int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 
 	if (xfer->blob_params) {
 		cli->xfer.flags |= FLAG_SKIP_CAPS_GET;
-		cli->xfer.blob.block_size_log = xfer->blob_params.block_size_log;
-		cli->xfer.blob.chunk_size = xfer->blob_params.chunk_size;
+		cli->xfer.blob.block_size_log = xfer->blob_params->block_size_log;
+		cli->xfer.blob.chunk_size = xfer->blob_params->chunk_size;
 	}
 
 	/* Phase will be set based on target status messages: */

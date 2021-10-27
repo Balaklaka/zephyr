@@ -18,6 +18,35 @@
 
 #define ERASE_BLOCK_SIZE DT_PROP(DT_CHOSEN(zephyr_flash), erase_block_size)
 
+#define DFD_UPLOAD_STATUS_MSG_MAXLEN (5 + CONFIG_BT_MESH_DFU_FWID_MAXLEN)
+
+BUILD_ASSERT((DFD_UPLOAD_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFD_OP_UPLOAD_STATUS) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_TX_SDU_MAX,
+	     "The Firmware Distribution Upload Status message does not fit into the maximum "
+	     "outgoing SDU size.");
+
+#define DFD_UPLOAD_START_MSG_MAXLEN (16 + CONFIG_BT_MESH_DFU_FWID_MAXLEN + \
+				     CONFIG_BT_MESH_DFU_METADATA_MAXLEN)
+
+BUILD_ASSERT((DFD_UPLOAD_START_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFD_OP_UPLOAD_START) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
+	     "The Firmware Distribution Upload Start message does not fit into the maximum "
+	     "incoming SDU size.");
+
+#define DFD_RECEIVERS_LIST_MSG_MAXLEN (4 + CONFIG_BT_MESH_DFD_SRV_TARGETS_MAX * 5)
+
+BUILD_ASSERT((DFD_RECEIVERS_LIST_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFD_OP_RECEIVERS_LIST) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_TX_SDU_MAX,
+	     "The Firmware Distribution Receivers List message does not fit into the maximum "
+	     "outgoing SDU size.");
+
+#define DFD_RECEIVERS_ADD_MSG_MAXLEN (CONFIG_BT_MESH_DFD_SRV_TARGETS_MAX * 3)
+
+BUILD_ASSERT((DFD_RECEIVERS_ADD_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_DFD_OP_RECEIVERS_ADD) +
+	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
+	     "The Firmware Distribution Receivers Add message does not fit into the maximum "
+	     "incoming SDU size.");
+
 struct slot_search_ctx {
 	off_t offset;
 	size_t size;
@@ -160,10 +189,8 @@ static int handle_receivers_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ct
 
 	/* Create a buffer that can fit the full target list, maxing out at TX_SDU_MAX: */
 	NET_BUF_SIMPLE_DEFINE(
-		rsp, MIN(BT_MESH_TX_SDU_MAX,
-			 BT_MESH_MODEL_BUF_LEN(
-				 BT_MESH_DFD_OP_RECEIVERS_LIST,
-				 4 + CONFIG_BT_MESH_DFD_SRV_TARGETS_MAX * 5)));
+		rsp, BT_MESH_MODEL_BUF_LEN(BT_MESH_DFD_OP_RECEIVERS_LIST,
+					   DFD_RECEIVERS_LIST_MSG_MAXLEN));
 	bt_mesh_model_msg_init(&rsp, BT_MESH_DFD_OP_RECEIVERS_LIST);
 
 	net_buf_simple_add_le16(&rsp, srv->target_cnt);
@@ -444,7 +471,7 @@ static void upload_status_rsp(struct bt_mesh_dfd_srv *srv,
 			      enum bt_mesh_dfd_status status)
 {
 	BT_MESH_MODEL_BUF_DEFINE(rsp, BT_MESH_DFD_OP_UPLOAD_STATUS,
-				 5 + CONFIG_BT_MESH_DFU_FWID_MAXLEN);
+				 DFD_UPLOAD_STATUS_MSG_MAXLEN);
 	bt_mesh_model_msg_init(&rsp, BT_MESH_DFD_OP_UPLOAD_STATUS);
 
 	net_buf_simple_add_u8(&rsp, status);
