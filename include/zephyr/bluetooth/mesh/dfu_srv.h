@@ -60,9 +60,9 @@ struct bt_mesh_dfu_srv_cb {
 	 *  needs to determine whether this image should be accepted, and what
 	 *  the effect of the transfer would be.
 	 *
-	 *  If applying the image will have an effect on the mesh state of the
-	 *  node, this can be communicated through the @c effect return
-	 *  parameter.
+	 *  If applying the image will have an effect on the provisioning state
+	 *  of the mesh stack, this can be communicated through the @c effect
+	 *  return parameter.
 	 *
 	 *  The metadata check can be performed both as part of starting a new
 	 *  transfer and as a separate procedure.
@@ -72,15 +72,15 @@ struct bt_mesh_dfu_srv_cb {
 	 *  @param srv          DFU Server instance.
 	 *  @param img          DFU image the metadata check is performed on.
 	 *  @param metadata     Image metadata.
-	 *  @param metadata_len Image metadata length.
 	 *  @param effect       Return parameter for the image effect on the
-	 *                      mesh state.
+	 *                      provisioning state of the mesh stack.
 	 *
 	 *  @return 0 on success, or (negative) error code otherwise.
 	 */
 	int (*check)(struct bt_mesh_dfu_srv *srv,
-		     const struct bt_mesh_dfu_img *img, const uint8_t *metadata,
-		     size_t metadata_len, enum bt_mesh_dfu_effect *effect);
+		     const struct bt_mesh_dfu_img *img,
+		     struct net_buf_simple *metadata,
+		     enum bt_mesh_dfu_effect *effect);
 
 	/** @brief Transfer start callback.
 	 *
@@ -102,7 +102,6 @@ struct bt_mesh_dfu_srv_cb {
 	 *  @param srv          DFU Server instance.
 	 *  @param img          DFU image being updated.
 	 *  @param metadata     Image metadata.
-	 *  @param metadata_len Image metadata length.
 	 *  @param io           BLOB stream return parameter. Must be set to a
 	 *                      valid BLOB stream by the callback.
 	 *
@@ -112,8 +111,9 @@ struct bt_mesh_dfu_srv_cb {
 	 *          errors.
 	 */
 	int (*start)(struct bt_mesh_dfu_srv *srv,
-		     const struct bt_mesh_dfu_img *img, const uint8_t *metadata,
-		     size_t metadata_len, const struct bt_mesh_blob_io **io);
+		     const struct bt_mesh_dfu_img *img,
+		     struct net_buf_simple *metadata,
+		     const struct bt_mesh_blob_io **io);
 
 	/** @brief Transfer end callback.
 	 *

@@ -64,7 +64,7 @@ static enum bt_mesh_dfu_status metadata_check(struct bt_mesh_dfu_srv *srv,
 		return BT_MESH_DFU_SUCCESS;
 	}
 
-	if (srv->cb->check(srv, &srv->imgs[idx], buf->data, buf->len, effect)) {
+	if (srv->cb->check(srv, &srv->imgs[idx], buf, effect)) {
 		*effect = BT_MESH_DFU_EFFECT_NONE;
 		return BT_MESH_DFU_ERR_METADATA;
 	}
@@ -236,6 +236,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	uint8_t ttl, idx;
 	uint64_t blob_id;
 	int err;
+	struct net_buf_simple_state buf_state;
 
 	ttl = net_buf_simple_pull_u8(buf);
 	timeout_base = net_buf_simple_pull_le16(buf);
@@ -257,8 +258,10 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		goto rsp;
 	}
 
+	net_buf_simple_save(buf, &buf_state);
 	status = metadata_check(srv, idx, buf,
 				(enum bt_mesh_dfu_effect *)&srv->update.effect);
+	net_buf_simple_restore(buf, &buf_state);
 	if (status != BT_MESH_DFU_SUCCESS) {
 		goto rsp;
 	}
@@ -268,7 +271,7 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	srv->update.meta = meta_checksum;
 
 	io = NULL;
-	err = srv->cb->start(srv, &srv->imgs[idx], buf->data, buf->len, &io);
+	err = srv->cb->start(srv, &srv->imgs[idx], buf, &io);
 	if (err == -ENOMEM) {
 		status = BT_MESH_DFU_ERR_RESOURCES;
 		goto rsp;

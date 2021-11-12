@@ -3843,6 +3843,194 @@ static int cmd_dfu_blob_flash_stream_unset(const struct shell *shell, size_t arg
 
 #endif /* CONFIG_BT_MESH_BLOB_IO_FLASH */
 
+#if defined(CONFIG_BT_MESH_DFU_METADATA)
+
+NET_BUF_SIMPLE_DEFINE_STATIC(dfu_comp_data, BT_MESH_TX_SDU_MAX);
+
+static int cmd_dfu_comp_clear(const struct shell *shell, size_t argc, char *argv[])
+{
+	net_buf_simple_reset(&dfu_comp_data);
+	return 0;
+}
+
+static int cmd_dfu_comp_add(const struct shell *shell, size_t argc, char *argv[])
+{
+	if (argc < 6) {
+		return -EINVAL;
+	}
+
+	if (net_buf_simple_tailroom(&dfu_comp_data) < 10) {
+		shell_print(shell, "Buffer is too small: %u",
+			    net_buf_simple_tailroom(&dfu_comp_data));
+		return -EMSGSIZE;
+	}
+
+	for (size_t i = 1; i <= 5; i++) {
+		net_buf_simple_add_le16(&dfu_comp_data, strtoul(argv[i], NULL, 0));
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_comp_elem_add(const struct shell *shell, size_t argc, char *argv[])
+{
+	uint8_t sig_model_count;
+	uint8_t vnd_model_count;
+
+	if (argc < 5) {
+		return -EINVAL;
+	}
+
+	sig_model_count = strtoul(argv[2], NULL, 0);
+	vnd_model_count = strtoul(argv[3], NULL, 0);
+
+	if (argc < 4 + sig_model_count + vnd_model_count * 2) {
+		return -EINVAL;
+	}
+
+	if (net_buf_simple_tailroom(&dfu_comp_data) < 4 + sig_model_count * 2 +
+	    vnd_model_count * 4) {
+		shell_print(shell, "Buffer is too small: %u",
+			    net_buf_simple_tailroom(&dfu_comp_data));
+		return -EMSGSIZE;
+	}
+
+	net_buf_simple_add_le16(&dfu_comp_data, strtoul(argv[1], NULL, 0));
+	net_buf_simple_add_u8(&dfu_comp_data, sig_model_count);
+	net_buf_simple_add_u8(&dfu_comp_data, vnd_model_count);
+
+	for (size_t i = 0; i < sig_model_count; i++) {
+		net_buf_simple_add_le16(&dfu_comp_data, strtoul(argv[4 + i], NULL, 0));
+	}
+
+	for (size_t i = 0; i < vnd_model_count; i++) {
+		size_t arg_i = 4 + sig_model_count + i * 2;
+		net_buf_simple_add_le16(&dfu_comp_data, strtoul(argv[arg_i], NULL, 0));
+		net_buf_simple_add_le16(&dfu_comp_data, strtoul(argv[arg_i + 1], NULL, 0));
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_comp_hash_get(const struct shell *shell, size_t argc, char *argv[])
+{
+	uint8_t key[16] = {};
+	uint32_t hash;
+	int err;
+
+	if (dfu_comp_data.len < 14) {
+		shell_print(shell, "Composition data is not set");
+		return -EINVAL;
+	}
+
+	if (argc > 1) {
+		hex2bin(argv[1], strlen(argv[1]), key, sizeof(key));
+	}
+
+	shell_print(shell, "Composition data to be hashed:");
+	shell_print(shell, "\tCID: 0x%04x", sys_get_le16(&dfu_comp_data.data[0]));
+	shell_print(shell, "\tPID: 0x%04x", sys_get_le16(&dfu_comp_data.data[2]));
+	shell_print(shell, "\tVID: 0x%04x", sys_get_le16(&dfu_comp_data.data[4]));
+	shell_print(shell, "\tCPRL: %u", sys_get_le16(&dfu_comp_data.data[6]));
+	shell_print(shell, "\tFeatures: 0x%x", sys_get_le16(&dfu_comp_data.data[8]));
+
+	for (size_t i = 10; i < dfu_comp_data.len - 4;) {
+		uint8_t sig_model_count = dfu_comp_data.data[i + 2];
+		uint8_t vnd_model_count = dfu_comp_data.data[i + 3];
+
+		shell_print(shell, "\tElem: %u", sys_get_le16(&dfu_comp_data.data[i]));
+		shell_print(shell, "\t\tNumS: %u", sig_model_count);
+		shell_print(shell, "\t\tNumV: %u", vnd_model_count);
+
+		for (size_t j = 0; j < sig_model_count; j++) {
+			shell_print(shell, "\t\tSIG Model ID: 0x%04x",
+				    sys_get_le16(&dfu_comp_data.data[i + 4 + j * 2]));
+		}
+
+		for (size_t j = 0; j < vnd_model_count; j++) {
+			size_t arg_i = i + 4 + sig_model_count * 2 + j * 4;
+			shell_print(shell, "\t\tVnd Company ID: 0x%04x, Model ID: 0x%04x",
+				    sys_get_le16(&dfu_comp_data.data[arg_i]),
+				    sys_get_le16(&dfu_comp_data.data[arg_i + 2]));
+		}
+
+		i += 4 + sig_model_count * 2 + vnd_model_count * 4;
+	}
+
+	err = bt_mesh_dfu_metadata_comp_hash_get(&dfu_comp_data, key, &hash);
+	if (err) {
+		shell_print(shell, "Failed to compute composition data hash: %d\n", err);
+		return err;
+	}
+
+	shell_print(shell, "Composition data hash: 0x%04x", hash);
+
+	return 0;
+}
+
+static int cmd_dfu_metadata_encode(const struct shell *shell, size_t argc, char *argv[])
+{
+	char md_str[2 * CONFIG_BT_MESH_DFU_METADATA_MAXLEN + 1];
+	NET_BUF_SIMPLE_DEFINE(buf, CONFIG_BT_MESH_DFU_METADATA_MAXLEN);
+	uint8_t user_data[CONFIG_BT_MESH_DFU_METADATA_MAXLEN - 18];
+	struct bt_mesh_dfu_metadata md;
+	size_t len;
+	int err;
+
+	if (argc < 9) {
+		return -EINVAL;
+	}
+
+	md.fw_ver.major = strtoul(argv[1], NULL, 0);
+	md.fw_ver.minor = strtoul(argv[2], NULL, 0);
+	md.fw_ver.revision = strtoul(argv[3], NULL, 0);
+	md.fw_ver.build_num = strtoul(argv[4], NULL, 0);
+	md.fw_size = strtoul(argv[5], NULL, 0);
+	md.fw_core_type = strtoul(argv[6], NULL, 0);
+	md.comp_hash = strtoul(argv[7], NULL, 0);
+	md.elems = strtoul(argv[8], NULL, 0);
+
+	if (argc > 9) {
+		if (sizeof(user_data) < strlen(argv[9]) / 2) {
+			shell_print(shell, "User data is too big.");
+			return -EINVAL;
+		}
+
+		md.user_data_len = hex2bin(argv[9], strlen(argv[9]), user_data, sizeof(user_data));
+		md.user_data = user_data;
+	} else {
+		md.user_data_len = 0;
+	}
+
+	shell_print(shell, "Metadata to be encoded:");
+	shell_print(shell, "\tVersion: %u.%u.%u+%u", md.fw_ver.major, md.fw_ver.minor,
+		    md.fw_ver.revision, md.fw_ver.build_num);
+	shell_print(shell, "\tSize: %u", md.fw_size);
+	shell_print(shell, "\tCore Type: 0x%x", md.fw_core_type);
+	shell_print(shell, "\tComposition data hash: 0x%x", md.comp_hash);
+	shell_print(shell, "\tElements: %u", md.elems);
+
+	if (argc > 9) {
+		shell_print(shell, "\tUser data: %s", argv[10]);
+	}
+
+	shell_print(shell, "\tUser data length: %u", md.user_data_len);
+
+	err = bt_mesh_dfu_metadata_encode(&md, &buf);
+	if (err) {
+		shell_print(shell, "Failed to encode metadata: %d", err);
+		return err;
+	}
+
+	len = bin2hex(buf.data, buf.len, md_str, sizeof(md_str));
+	md_str[len] = '\0';
+	shell_print(shell, "Encoded metadata: %s", md_str);
+
+	return 0;
+}
+
+#endif /* CONFIG_BT_MESH_DFU_METADATA */
+
 #if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)
 
 static int cmd_dfu_slot_add(const struct shell *shell, size_t argc,
@@ -4908,6 +5096,19 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(blob-flash-stream-set, NULL, "<area id> [<offset>]",
 		      cmd_dfu_blob_flash_stream_set, 2, 1),
 	SHELL_CMD_ARG(blob-flash-stream-unset, NULL, NULL, cmd_dfu_blob_flash_stream_unset, 1, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_DFU_METADATA)
+	SHELL_CMD_ARG(dfu-comp-clear, NULL, NULL, cmd_dfu_comp_clear, 1, 0),
+	SHELL_CMD_ARG(dfu-comp-add, NULL, "<cid> <pid> <vid> <crpl> <features>",
+		      cmd_dfu_comp_add, 6, 0),
+	SHELL_CMD_ARG(dfu-comp-elem-add, NULL, "<loc> <nums> <numv> "
+		      "{<sig model id>|<vnd company id> <vnd model id>}...",
+		      cmd_dfu_comp_elem_add, 5, 10),
+	SHELL_CMD_ARG(dfu-comp-hash-get, NULL, "[<128-bit key>]", cmd_dfu_comp_hash_get, 1, 1),
+	SHELL_CMD_ARG(dfu-metadata-encode, NULL, "<major> <minor> <rev> <build_num> <size> "
+		      "<core type> <hash> <elems> [<user data>]",
+		      cmd_dfu_metadata_encode, 9, 1),
 #endif
 
 #if defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI)

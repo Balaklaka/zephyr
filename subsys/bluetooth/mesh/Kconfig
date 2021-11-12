@@ -1014,9 +1014,17 @@ config BT_MESH_DFU_FWID_MAXLEN
 config BT_MESH_DFU_METADATA_MAXLEN
 	int "DFU metadata max length"
 	default 32
+	range 18 255 if BT_MESH_DFU_METADATA
 	range 0 255
 	help
 	  This value defines the maximum length of an image's metadata.
+
+config BT_MESH_DFU_METADATA
+	bool "Enable support for the default metadata format"
+	default y
+	help
+	  This option adds a set of functions that can be used to encode and decode a firmware
+	  metadata using the format defined in the Mesh DFU subsystem.
 
 config BT_MESH_DFU_URI_MAXLEN
 	int "DFU URI max length"
