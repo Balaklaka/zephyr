@@ -82,6 +82,7 @@ static struct seg_tx {
 	struct bt_mesh_subnet *sub;
 	void                  *seg[BT_MESH_TX_SEG_MAX];
 	uint64_t              seq_auth;
+	int64_t               adv_start_timestamp; /* Calculate adv duration and adjust intervals*/
 	uint16_t              src;
 	uint16_t              dst;
 	uint16_t              ack_src;
@@ -291,23 +292,28 @@ static inline void seg_tx_complete(struct seg_tx *tx, int err)
 	}
 }
 
-static void schedule_retransmit(struct seg_tx *tx)
+static void schedule_transmit_continue(struct seg_tx *tx, uint32_t delta)
 {
+	uint32_t timeout = 0;
+
 	if (!tx->nack_count) {
 		return;
 	}
 
 	BT_DBG("");
 
-	/* If we haven't gone through all the segments for this attempt yet,
-	 * (likely because of a buffer allocation failure or because we
-	 * called this from inside bt_mesh_net_send), we should continue the
-	 * retransmit immediately, as we just freed up a tx buffer.
+	if (delta < BT_MESH_SAR_TX_SEG_INT_MS) {
+		timeout = BT_MESH_SAR_TX_SEG_INT_MS - delta;
+	}
+
+	/* If it is not the last segment then continue transmission after Segment Interval,
+	 * otherwise continue immediately as the callback will finish this transmission and
+	 * progress into retransmission.
 	 */
 	k_work_reschedule(&tx->retransmit,
-			  tx->seg_o ? K_NO_WAIT :
-					    K_MSEC(BT_MESH_SAR_TX_RETRANS_TIMEOUT_MS(
-					      tx->dst, tx->ttl)));
+			  (tx->seg_o <= tx->seg_n) ?
+					K_MSEC(timeout) :
+					K_NO_WAIT);
 }
 
 static void seg_send_start(uint16_t duration, int err, void *user_data)
@@ -320,25 +326,27 @@ static void seg_send_start(uint16_t duration, int err, void *user_data)
 	}
 
 	tx->seg_send_started = 1U;
+	tx->adv_start_timestamp = k_uptime_get();
 
 	/* If there's an error in transmitting the 'sent' callback will never
 	 * be called. Make sure that we kick the retransmit timer also in this
 	 * case since otherwise we risk the transmission of becoming stale.
 	 */
 	if (err) {
-		schedule_retransmit(tx);
+		schedule_transmit_continue(tx, 0);
 	}
 }
 
 static void seg_sent(int err, void *user_data)
 {
 	struct seg_tx *tx = user_data;
+	uint32_t delta_ms = (uint32_t)(k_uptime_get() - tx->adv_start_timestamp);
 
 	if (!tx->seg_send_started) {
 		return;
 	}
 
-	schedule_retransmit(tx);
+	schedule_transmit_continue(tx, delta_ms);
 }
 
 static const struct bt_mesh_send_cb seg_sent_cb = {
@@ -365,6 +373,8 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 		return;
 	}
 
+	uint32_t delta_ms;
+	uint32_t timeout;
 	struct bt_mesh_msg_ctx ctx = {
 		.net_idx = tx->sub->net_idx,
 		/* App idx only used by network to detect control messages: */
@@ -437,9 +447,14 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 		/* Move on to the next segment */
 		tx->seg_o++;
 
+		/* Return here to let the advertising layer process the message.
+		 * This function will be called again after Segment Interval.
+		 */
 		return;
 	}
 
+
+	/* All segments have been sent */
 	tx->seg_o = 0U;
 	tx->attempts_left--;
 	if (BT_MESH_ADDR_IS_UNICAST(tx->dst)) {
@@ -452,13 +467,15 @@ end:
 		bt_mesh_lpn_poll();
 	}
 
-	if (!tx->seg_pending) {
-		k_work_reschedule(&tx->retransmit,
-				  K_MSEC(BT_MESH_SAR_TX_RETRANS_TIMEOUT_MS(
-					  tx->dst, tx->ttl)));
+	delta_ms = (uint32_t)(k_uptime_get() - tx->adv_start_timestamp);
+	timeout = BT_MESH_SAR_TX_RETRANS_TIMEOUT_MS(tx->dst, tx->ttl);
+
+	if (delta_ms < timeout) {
+		timeout -= delta_ms;
 	}
 
-	tx->sending = 0U;
+	/* Schedule a retransmission */
+	k_work_reschedule(&tx->retransmit, K_MSEC(timeout));
 }
 
 static void seg_retransmit(struct k_work *work)
@@ -516,7 +533,6 @@ static int send_seg(struct bt_mesh_net_tx *net_tx, struct net_buf_simple *sdu,
 	tx->cb_data = cb_data;
 	tx->attempts_left = BT_MESH_SAR_TX_RETRANS_COUNT(tx->dst);
 	tx->attempts_left_without_progress = BT_MESH_SAR_TX_RETRANS_NO_PROGRESS;
-	tx->seg_pending = 0;
 	tx->xmit = net_tx->xmit;
 	tx->aszmic = net_tx->aszmic;
 	tx->friend_cred = net_tx->friend_cred;
