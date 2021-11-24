@@ -901,20 +901,18 @@ static int trans_ack(struct bt_mesh_net_rx *rx, uint8_t hdr,
 	if (new_seg_ack) {
 		tx->attempts_left_without_progress =
 			BT_MESH_SAR_TX_RETRANS_NO_PROGRESS;
-	} else {
-		if (tx->attempts_left_without_progress) {
-			--tx->attempts_left_without_progress;
-		}
 	}
 
 	if (tx->nack_count) {
-		/* According to the Bluetooth Mesh Profile specification,
-		 * section 3.5.3.3, we should reset the retransmit timer and
-		 * retransmit immediately when receiving a valid ack message.
-		 * Don't reset the retransmit timer if we didn't finish sending
-		 * segments.
+		/* If transmission is not in progress it means
+		 * that Retransmission Timer is running
 		 */
-		if (tx->seg_o == 0) {
+		if (tx->seg_o == 0 || tx->seg_o > tx->seg_n) {
+			/* According to the Bluetooth Mesh Profile specification,
+			 * section 3.5.3.3, we should reset the retransmit timer and
+			 * retransmit immediately when receiving a valid ack message
+			 * while Retransmisison timer is running.
+			 */
 			k_work_reschedule(&tx->retransmit, K_NO_WAIT);
 		}
 	} else {
