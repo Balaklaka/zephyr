@@ -153,6 +153,9 @@ struct bt_mesh_health_srv {
 
 	/** Attention Timer state */
 	struct k_work_delayable attn_timer;
+
+	/** Pointer to the array with Health Test Info Metadata */
+	struct bt_mesh_models_metadata_entry *metadata;
 };
 
 /**
@@ -167,29 +170,21 @@ struct bt_mesh_health_srv {
  *  @return New mesh model instance.
  */
 #define BT_MESH_MODEL_HEALTH_SRV(srv, pub)                                     \
-	BT_MESH_MODEL_CB(BT_MESH_MODEL_ID_HEALTH_SRV, bt_mesh_health_srv_op,   \
-			 pub, srv, &bt_mesh_health_srv_cb)
-
-/** @def BT_MESH_MODEL_HEALTH_SRV_METADATA
- *
- *  Define a new health server model with metadata.
- *
- *  @param srv Pointer to a unique struct bt_mesh_health_srv.
- *  @param pub Pointer to a unique struct bt_mesh_model_pub.
- *  @param metadata Pointer to a Models Metadata structure.
- *
- *  @return New mesh model instance.
- */
-#define BT_MESH_MODEL_HEALTH_SRV_METADATA(srv, pub, metadata)                  \
-	BT_MESH_MODEL_METADATA_CB(BT_MESH_MODEL_ID_HEALTH_SRV,                 \
-				  bt_mesh_health_srv_op, pub, srv,             \
-				  &bt_mesh_health_srv_cb, metadata)
+	BT_MESH_MODEL_METADATA_CB(BT_MESH_MODEL_ID_HEALTH_SRV, bt_mesh_health_srv_op,   \
+			 pub, srv, &bt_mesh_health_srv_cb, &(srv)->metadata)
 
 /** @def BT_MESH_HEALTH_TEST_INFO_METADATA
  *
  *  Health Test Information Metadata ID.
  */
-#define BT_MESH_HEALTH_TEST_INFO_METADATA 0x0001
+#define BT_MESH_HEALTH_TEST_INFO_METADATA_ID 0x0001
+
+#define BT_MESH_HEALTH_TEST_INFO_METADATA(tests)                               \
+	{                                                                      \
+		.len = ARRAY_SIZE(tests),                                      \
+		.id = BT_MESH_HEALTH_TEST_INFO_METADATA_ID,                    \
+		.data = tests,                                                 \
+	}
 
 /** @def BT_MESH_HEALTH_TEST_INFO
  *

@@ -494,7 +494,7 @@ struct bt_mesh_models_metadata_entry {
 	const uint16_t id;
 
 	/* Pointer to raw data */
-	void const *data;
+	void *data;
 };
 
 /** @def BT_MESH_MODELS_METADATA_ENTRY
@@ -619,8 +619,8 @@ struct bt_mesh_model {
 #endif
 
 #ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
-	/* Pointer to the first model metadata entry. */
-	struct bt_mesh_models_metadata_entry *metadata;
+	/* Pointer to the array of model metadata entries. */
+	struct bt_mesh_models_metadata_entry **metadata;
 #endif
 
 	/** Model-specific user data */

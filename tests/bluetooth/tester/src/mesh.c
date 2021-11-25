@@ -233,15 +233,6 @@ static const struct bt_mesh_health_srv_cb health_srv_cb = {
 	.fault_test = fault_test,
 };
 
-static struct bt_mesh_health_srv health_srv = {
-	.cb = &health_srv_cb,
-};
-
-BT_MESH_HEALTH_PUB_DEFINE(health_pub, CUR_FAULTS_MAX);
-
-static struct bt_mesh_cfg_cli cfg_cli = {
-};
-
 static void show_faults(uint8_t test_id, uint16_t cid, uint8_t *faults, size_t fault_count)
 {
 	size_t i;
@@ -272,25 +263,32 @@ static struct bt_mesh_health_cli health_cli = {
 	.current_status = health_current_status,
 };
 
-const uint8_t health_tests[] = {
+
+static uint8_t health_tests[] = {
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_LF, 6, 0x01, 0x02, 0x03, 0x04, 0x34,
 				 0x15),
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_NORDIC_SEMI, 3, 0x01, 0x02, 0x03),
 };
 
-static struct bt_mesh_models_metadata_entry health_meta[] = {
-	{
-		.len = ARRAY_SIZE(health_tests),
-		.id = BT_MESH_HEALTH_TEST_INFO_METADATA,
-		.data = health_tests,
-	},
+static struct bt_mesh_models_metadata_entry health_srv_meta[] = {
+	BT_MESH_HEALTH_TEST_INFO_METADATA(health_tests),
 	BT_MESH_MODELS_METADATA_END,
 };
+
+static struct bt_mesh_health_srv health_srv = {
+	.cb = &health_srv_cb,
+	.metadata = health_srv_meta,
+};
+
+BT_MESH_HEALTH_PUB_DEFINE(health_pub, CUR_FAULTS_MAX);
+
+static struct bt_mesh_cfg_cli cfg_cli = {
+};
+
 static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
-	BT_MESH_MODEL_HEALTH_SRV_METADATA(&health_srv, &health_pub,
-					  health_meta),
+	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
 	BT_MESH_MODEL_HEALTH_CLI(&health_cli),
 	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
