@@ -387,10 +387,16 @@ static void dfu_cli_lost_target(struct bt_mesh_dfu_cli *cli,
 	shell_print(ctx_shell, "DFU target lost: 0x%04x", target->blob.addr);
 }
 
+static void dfu_cli_confirmed(struct bt_mesh_dfu_cli *cli)
+{
+	shell_print(ctx_shell, "DFU confirmed");
+}
+
 const struct bt_mesh_dfu_cli_cb dfu_cli_cb = {
 	.ended = dfu_cli_ended,
 	.applied = dfu_cli_applied,
 	.lost_target = dfu_cli_lost_target,
+	.confirmed = dfu_cli_confirmed,
 };
 
 struct bt_mesh_dfu_cli bt_mesh_shell_dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb);
@@ -477,15 +483,16 @@ static struct bt_mesh_dfu_img dfu_imgs[] = { {
 
 static int dfu_meta_check(struct bt_mesh_dfu_srv *srv,
 			      const struct bt_mesh_dfu_img *img,
-			      const uint8_t *metadata, size_t metadata_len,
+			      struct net_buf_simple *metadata,
 			      enum bt_mesh_dfu_effect *effect)
 {
 	return 0;
 }
 
 static int dfu_start(struct bt_mesh_dfu_srv *srv,
-		     const struct bt_mesh_dfu_img *img, const uint8_t *metadata,
-		     size_t metadata_len, const struct bt_mesh_blob_io **io)
+		     const struct bt_mesh_dfu_img *img,
+		     struct net_buf_simple *metadata,
+		     const struct bt_mesh_blob_io **io)
 {
 	shell_print(ctx_shell, "DFU setup");
 
