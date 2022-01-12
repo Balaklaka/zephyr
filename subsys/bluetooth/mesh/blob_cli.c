@@ -22,9 +22,7 @@
 
 #define RETRY_TIME_PULL K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
 
-#define UNICAST_MODE(cli)                                                      \
-	((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED ||                    \
-	 (cli)->tx.ctx->force_unicast)
+#define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED)
 
 BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
 	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,

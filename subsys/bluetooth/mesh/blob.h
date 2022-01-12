@@ -75,7 +75,6 @@ struct blob_cli_broadcast_ctx {
 	void (*send)(struct bt_mesh_blob_cli *cli, uint16_t dst);
 	void (*next)(struct bt_mesh_blob_cli *cli);
 	bool acked;
-	bool force_unicast;
 	bool optional;
 };
 

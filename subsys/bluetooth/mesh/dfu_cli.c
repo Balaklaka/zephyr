@@ -204,9 +204,11 @@ static void blob_lost_target(struct bt_mesh_blob_cli *b,
 		CONTAINER_OF(blobt, struct bt_mesh_dfu_target, blob);
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
 
-	if (cli->xfer.state == STATE_CONFIRM &&
+	if ((cli->xfer.state == STATE_CONFIRM || cli->xfer.state == STATE_APPLY) &&
 	    target->effect == BT_MESH_DFU_EFFECT_UNPROV) {
-		/* This is the expected outcome. */
+		/* Reset status for such targets to use them in consequent procedures. See sections
+		 * 7.1.2.6 and 7.1.2.9 of the MeshDFU. */
+		target->blob.status = BT_MESH_BLOB_SUCCESS;
 		return;
 	}
 
@@ -364,7 +366,6 @@ static void initiate(struct bt_mesh_dfu_cli *cli)
 		.send = send_update_start,
 		.next = transfer,
 		.acked = true,
-		.force_unicast = true,
 	};
 
 	BT_DBG("");
@@ -654,7 +655,8 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		}
 	} else if (cli->xfer.state == STATE_APPLY) {
 		if (phase != BT_MESH_DFU_PHASE_APPLYING &&
-		    phase != BT_MESH_DFU_PHASE_IDLE) {
+		    (target->effect == BT_MESH_DFU_EFFECT_UNPROV ||
+		     phase != BT_MESH_DFU_PHASE_IDLE)) {
 			BT_WARN("Target 0x%04x in phase %u after apply",
 				target->blob.addr, phase);
 			target_failed(cli, target, BT_MESH_DFU_ERR_WRONG_PHASE);
