@@ -20,7 +20,9 @@
 
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_TX_SDU_MAX)
 
-#define RETRY_TIME_PULL K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
+#define CLIENT_TIMEOUT_MSEC(cli) (10 * MSEC_PER_SEC * (cli->inputs->timeout_base + 2) + \
+				  100 * cli->inputs->ttl)
+#define BLOCK_REPORT_TIME K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
 
 #define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED)
 
@@ -63,11 +65,10 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 	k_timeout_t time;
 
 	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		time = RETRY_TIME_PULL;
+		time = BLOCK_REPORT_TIME;
 	} else {
-		time = K_MSEC((10 * MSEC_PER_SEC * (cli->inputs->timeout_base + 2) +
-			       100 * cli->inputs->ttl) /
-			      CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES);
+		time = K_MSEC(CLIENT_TIMEOUT_MSEC(cli) /
+				CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES);
 	}
 
 	k_delayed_work_submit(&cli->tx.retry, time);
@@ -375,6 +376,15 @@ static void retry_timeout(struct k_work *work)
 {
 	struct bt_mesh_blob_cli *cli =
 		CONTAINER_OF(work, struct bt_mesh_blob_cli, tx.retry.work);
+
+	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+		if (k_uptime_delta(&cli->tx.cli_timestamp) <= 0ll) {
+			BT_DBG("Set result to failure. Drop target.");
+			drop_remaining_targets(cli);
+			broadcast_complete(cli);
+		}
+		return;
+	}
 
 	BT_DBG("%u", cli->tx.retries);
 
@@ -696,7 +706,6 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 	       cli->block.chunk_count, cli->block.number + 1, cli->block_count);
 
 	cli->chunk_idx = 0;
-	cli->tx.polls = CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES;
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_START;
 
 	TARGETS_FOR_EACH(cli, target) {
@@ -759,20 +768,19 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 		return;
 	}
 
-	cli->tx.polls--;
-	if (!cli->tx.polls) {
-		drop_remaining_targets(cli);
-		end(cli, false);
-		return;
-	}
-
-	BT_DBG("Waiting for partial block report... (%u)", cli->tx.polls);
-	cli->chunk_idx = next_missing_chunk(cli, 0);
+	BT_DBG("Waiting for partial block report...");
 
 	cli->tx.ctx = &ctx;
 	start_retry_timer(cli);
+
+	if (k_uptime_delta(&cli->tx.cli_timestamp) <= 0ll) {
+		cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
+	}
 }
 
+/* The block checking pair(block_check - block_check_end)
+ * is relevant only for Push mode.
+ */
 static void block_check(struct bt_mesh_blob_cli *cli)
 {
 	static const struct blob_cli_broadcast_ctx ctx = {
@@ -785,18 +793,7 @@ static void block_check(struct bt_mesh_blob_cli *cli)
 
 	BT_DBG("");
 
-	/* In pull mode, the block check procedure doesn't require any status
-	 * request, the server will send a block report unprompted. For this
-	 * case, we'll just run the retry timer without starting a TX, allowing
-	 * it to time out and stop the transfer if no block report came.
-	 */
-	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
-		blob_cli_broadcast(cli, &ctx);
-	} else {
-		cli->tx.retries = 0;
-		cli->tx.ctx = &ctx;
-		start_retry_timer(cli);
-	}
+	blob_cli_broadcast(cli, &ctx);
 }
 
 static void block_check_end(struct bt_mesh_blob_cli *cli)
@@ -911,11 +908,28 @@ static void rx_block_status(struct bt_mesh_blob_cli *cli,
 
 	if (block->missing == BT_MESH_BLOB_CHUNKS_MISSING_NONE) {
 		target->procedure_complete = 1U;
+
+		BT_DBG("No missed chunks");
+
+		if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+			if (cli->io->block_end) {
+				cli->io->block_end(cli->io, cli->xfer, &cli->block);
+			}
+
+			if (cli->block.number == cli->block_count - 1) {
+				cli->state = BT_MESH_BLOB_CLI_STATE_XFER_CHECK;
+				transfer_complete(cli);
+			}
+
+			return;
+		}
+
 	} else if (block->missing == BT_MESH_BLOB_CHUNKS_MISSING_ALL) {
 		blob_chunk_missing_set_all(&cli->block);
 	} else if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		memcpy(cli->block.missing, block->block.missing,
 		       sizeof(cli->block.missing));
+		cli->chunk_idx = next_missing_chunk(cli, 0);
 	} else {
 		for (int i = 0; i < ARRAY_SIZE(block->block.missing); ++i) {
 			cli->block.missing[i] |= block->block.missing[i];
@@ -1018,6 +1032,12 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 
 		blob_chunk_missing_set(&status.block, idx, true);
 	}
+
+	cli->tx.cli_timestamp = 0ll;
+	/* If this fails, the retry timeout handler will fail
+	 * the Pull session and drop target.
+	 */
+	(void)k_delayed_work_cancel(&cli->tx.retry);
 
 	rx_block_status(cli, ctx, &status);
 
@@ -1145,6 +1165,7 @@ static int blob_cli_init(struct bt_mesh_model *mod)
 
 	cli->mod = mod;
 
+	cli->tx.cli_timestamp = 0ll;
 	k_delayed_work_init(&cli->tx.retry, retry_timeout);
 	k_work_init(&cli->tx.complete, tx_complete);
 

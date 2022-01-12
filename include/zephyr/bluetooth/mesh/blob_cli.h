@@ -186,10 +186,10 @@ struct bt_mesh_blob_cli {
 		struct bt_mesh_blob_target *target;
 		const struct blob_cli_broadcast_ctx *ctx;
 		struct k_delayed_work retry;
+		int64_t cli_timestamp;
 		struct k_work complete;
 		uint16_t pending;
 		uint8_t retries;
-		uint8_t polls;
 		uint8_t sending : 1,
 			cancelled : 1;
 	} tx;

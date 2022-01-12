@@ -28,6 +28,7 @@
 #define BLOB_CHUNK_SIZE_MAX(sdu_max) ((sdu_max) - BLOB_CHUNK_SDU_OVERHEAD)
 #define BLOB_CHUNK_SDU_LEN(chunk_size) (BLOB_CHUNK_SDU_OVERHEAD + (chunk_size))
 
+/* The Maximum BLOB Poll Interval - T_MBPI */
 #define BLOB_POLL_TIME_MAX_SECS 30
 
 /* Utility macros for calculating log2 of a number at compile time.

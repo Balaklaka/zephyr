@@ -154,7 +154,6 @@ struct bt_mesh_blob_srv {
 
 	/* Pull mode behavior */
 	struct {
-		uint8_t counter;
 		uint16_t chunk_idx;
 		struct k_delayed_work report;
 	} pull;

@@ -18,8 +18,9 @@
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_RX_SDU_MAX)
 #define MTU_SIZE_MAX (BT_MESH_RX_SDU_MAX - BT_MESH_MIC_SHORT)
 
+/* The Receive BLOB Timeout Timer */
 #define SERVER_TIMEOUT_SECS(srv) (10 * (1 + (srv)->state.timeout_base))
-#define PULL_ATTEMPTS(srv) ceiling_fraction(SERVER_TIMEOUT_SECS(srv), (BLOB_POLL_TIME_MAX_SECS + 1))
+/* The initial timer value used by an instance of the Pull BLOB State machine - T_BPI */
 #define REPORT_TIMER_TIMEOUT K_SECONDS(BLOB_POLL_TIME_MAX_SECS + 1)
 
 BUILD_ASSERT(BLOB_BLOCK_SIZE_LOG_MIN <= BLOB_BLOCK_SIZE_LOG_MAX,
@@ -166,7 +167,9 @@ static void report_sent(int err, void *cb_data)
 		bt_mesh_lpn_poll();
 	}
 
-	k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
+	if (k_delayed_work_pending(&srv->rx_timeout)) {
+		k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
+	}
 }
 
 static void block_report(struct bt_mesh_blob_srv *srv)
@@ -180,16 +183,7 @@ static void block_report(struct bt_mesh_blob_srv *srv)
 	int count;
 	int i;
 
-	if (!srv->pull.counter--) {
-		srv->pull.counter = 0;
-
-		/* No need to do anything, the transfer will be suspended by
-		 * rx_timeout timer.
-		 */
-		return;
-	}
-
-	BT_DBG("remaining: %u", srv->pull.counter);
+	BT_DBG("rx BLOB Timeout Timer: %i", k_delayed_work_pending(&srv->rx_timeout));
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_BLOB_OP_BLOCK_REPORT,
 				 BLOB_BLOCK_REPORT_STATUS_MSG_MAXLEN);
@@ -238,6 +232,7 @@ static void suspend(struct bt_mesh_blob_srv *srv)
 {
 	BT_DBG("");
 	k_delayed_work_cancel(&srv->rx_timeout);
+	k_delayed_work_cancel(&srv->pull.report);
 	phase_set(srv, BT_MESH_BLOB_XFER_PHASE_SUSPENDED);
 	if (srv->cb && srv->cb->suspended) {
 		srv->cb->suspended(srv);
@@ -293,7 +288,6 @@ static void lpn_poll_visit(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
 		return;
 	}
 
-	srv->pull.counter = PULL_ATTEMPTS(srv);
 	block_report(srv);
 }
 
@@ -694,7 +688,6 @@ static int handle_block_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 
 	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		/* Wait for the client to send the first chunk */
-		srv->pull.counter = PULL_ATTEMPTS(srv);
 		k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
 	}
 
@@ -746,7 +739,6 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	reset_timer(srv);
 	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		srv->pull.counter = PULL_ATTEMPTS(srv);
 		k_delayed_work_submit(&srv->pull.report, REPORT_TIMER_TIMEOUT);
 	}
 
@@ -764,6 +756,8 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	if (missing_chunks(&srv->block)) {
 		return 0;
 	}
+
+	block_report(srv);
 
 	if (srv->io->block_end) {
 		srv->io->block_end(srv->io, &srv->state.xfer, &srv->block);
@@ -783,6 +777,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	phase_set(srv, BT_MESH_BLOB_XFER_PHASE_COMPLETE);
 	k_delayed_work_cancel(&srv->rx_timeout);
+	k_delayed_work_cancel(&srv->pull.report);
 	io_close(srv);
 	erase_state(srv);
 
