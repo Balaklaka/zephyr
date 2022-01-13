@@ -712,7 +712,7 @@ static int handle_fw_delete(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 	fwid_len = buf->len;
 	fwid = net_buf_simple_pull_mem(buf, fwid_len);
 
-	if (is_busy(srv) || srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
+	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
 		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION,
 			      0xffff, NULL, 0);
 		return 0;
@@ -751,7 +751,7 @@ static int handle_fw_delete_all(struct bt_mesh_model *mod, struct bt_mesh_msg_ct
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
 
-	if (is_busy(srv) || srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
+	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
 		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION,
 			      0xffff, NULL, 0);
 		return 0;
