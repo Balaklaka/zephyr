@@ -46,7 +46,8 @@ struct bt_mesh_blob_target {
 	uint8_t status;
 
 	uint8_t procedure_complete:1, /* Procedure has been completed. */
-		acked:1;              /* Message has been acknowledged. */
+		acked:1,              /* Message has been acknowledged. */
+		timedout:1;           /* Target didn't respond after specified timeout. */
 };
 
 /** BLOB Client transfer inputs. */
@@ -124,8 +125,10 @@ enum bt_mesh_blob_cli_state {
 	BT_MESH_BLOB_CLI_STATE_BLOCK_CHECK,
 	/** Checking transfer status. */
 	BT_MESH_BLOB_CLI_STATE_XFER_CHECK,
-	/** Checking transfer status. */
+	/** Cancelling transfer. */
 	BT_MESH_BLOB_CLI_STATE_CANCEL,
+	/** Transfer is suspended. */
+	BT_MESH_BLOB_CLI_STATE_SUSPENDED,
 };
 
 /** Event handler callbacks for the BLOB Client model.
@@ -160,6 +163,14 @@ struct bt_mesh_blob_cli_cb {
 	void (*lost_target)(struct bt_mesh_blob_cli *cli,
 			    struct bt_mesh_blob_target *target,
 			    enum bt_mesh_blob_status reason);
+
+	/** @brief Transfer is suspended.
+	 *
+	 * Called when the transfer is suspended due to response timeout from all targets.
+	 *
+	 * @param cli    BLOB Client instance.
+	 */
+	void (*suspended)(struct bt_mesh_blob_cli *cli);
 
 	/** @brief Transfer end callback.
 	 *
@@ -252,6 +263,18 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 			  const struct bt_mesh_blob_cli_inputs *inputs,
 			  const struct bt_mesh_blob_xfer *xfer,
 			  const struct bt_mesh_blob_io *io);
+
+/** @brief Suspend the active tranfser.
+ *
+ *  @param cli BLOB Client instance.
+ */
+void bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli);
+
+/** @brief Resume the suspended transfer.
+ *
+ *  @param cli BLOB Client instance.
+ */
+void bt_mesh_blob_cli_resume(struct bt_mesh_blob_cli *cli);
 
 /** @brief Cancel an ongoing transfer.
  *

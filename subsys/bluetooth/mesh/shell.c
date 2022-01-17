@@ -4632,6 +4632,22 @@ static int cmd_blob_tx_cancel(const struct shell *shell, size_t argc,
 	return 0;
 }
 
+static int cmd_blob_tx_suspend(const struct shell *shell, size_t argc,
+			       char *argv[])
+{
+	shell_print(shell, "Suspending transfer");
+	bt_mesh_blob_cli_suspend(&bt_mesh_shell_blob_cli);
+	return 0;
+}
+
+static int cmd_blob_tx_resume(const struct shell *shell, size_t argc,
+			      char *argv[])
+{
+	shell_print(shell, "Resuming transfer");
+	bt_mesh_blob_cli_resume(&bt_mesh_shell_blob_cli);
+	return 0;
+}
+
 #endif /* CONFIG_BT_MESH_BLOB_CLI */
 
 #if defined(CONFIG_BT_MESH_BLOB_SRV)
@@ -5329,6 +5345,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      "<chunk size> [<group> [<mode: push, pull>]]",
 		      cmd_blob_tx, 5, 2),
 	SHELL_CMD_ARG(blob-tx-cancel, NULL, NULL, cmd_blob_tx_cancel, 1, 0),
+	SHELL_CMD_ARG(blob-tx-suspend, NULL, NULL, cmd_blob_tx_suspend, 1, 0),
+	SHELL_CMD_ARG(blob-tx-resume, NULL, NULL, cmd_blob_tx_resume, 1, 0),
 #endif
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)

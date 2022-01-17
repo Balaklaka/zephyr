@@ -59,6 +59,15 @@ enum bt_mesh_dfd_status {
 
 	/** The format of the Update URI is invalid. */
 	BT_MESH_DFD_ERR_URI_MALFORMED,
+
+	/** The URI is currently unreachable. */
+	BT_MESH_DFD_ERR_URI_UNREACHABLE,
+
+	/** The Check Firmware OOB procedure did not find any new firmware. */
+	BT_MESH_DFD_ERR_NEW_FW_NOT_AVAILABLE,
+
+	/** The suspension of the Distribute Firmware procedure failed. */
+	BT_MESH_DFD_ERR_SUSPEND_FAILED,
 };
 
 /** Firmware distribution phases */
@@ -83,6 +92,9 @@ enum bt_mesh_dfd_phase {
 
 	/** The Cancel Firmware Update procedure is being executed. */
 	BT_MESH_DFD_PHASE_CANCELING_UPDATE,
+
+	/** The Transfer BLOB procedure is suspended. */
+	BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED,
 };
 
 /** Firmware upload phases */

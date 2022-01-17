@@ -120,6 +120,8 @@ static uint32_t targets_reset(struct bt_mesh_blob_cli *cli)
 			target->acked = 0U;
 			count++;
 		}
+
+		target->timedout = 0;
 	}
 
 	return count;
@@ -131,6 +133,19 @@ static bool targets_active(struct bt_mesh_blob_cli *cli)
 
 	TARGETS_FOR_EACH(cli, target) {
 		if (target->status == BT_MESH_BLOB_SUCCESS) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+static bool targets_timedout(struct bt_mesh_blob_cli *cli)
+{
+	struct bt_mesh_blob_target *target;
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (!!target->timedout) {
 			return true;
 		}
 	}
@@ -233,6 +248,15 @@ static void block_set(struct bt_mesh_blob_cli *cli, uint16_t block_idx)
 
 	BT_DBG("%u size: %u chunks: %u", block_idx, cli->block.size,
 	       cli->block.chunk_count);
+}
+
+static void suspend(struct bt_mesh_blob_cli *cli)
+{
+	cli->state = BT_MESH_BLOB_CLI_STATE_SUSPENDED;
+
+	if (cli->cb && cli->cb->suspended) {
+		cli->cb->suspended(cli);
+	}
 }
 
 static void end(struct bt_mesh_blob_cli *cli, bool success)
@@ -367,6 +391,7 @@ static void drop_remaining_targets(struct bt_mesh_blob_cli *cli)
 
 	TARGETS_FOR_EACH(cli, target) {
 		if (!target->acked) {
+			target->timedout = 1U;
 			target_drop(cli, target, BT_MESH_BLOB_ERR_INTERNAL);
 		}
 	}
@@ -698,6 +723,11 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 	struct bt_mesh_blob_target *target;
 
 	if (!targets_active(cli)) {
+		if (targets_timedout(cli)) {
+			suspend(cli);
+			return;
+		}
+
 		end(cli, false);
 		return;
 	}
@@ -731,6 +761,11 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 	};
 
 	if (!targets_active(cli)) {
+		if (targets_timedout(cli)) {
+			suspend(cli);
+			return;
+		}
+
 		end(cli, false);
 		return;
 	}
@@ -801,6 +836,11 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 	BT_DBG("");
 
 	if (!targets_active(cli)) {
+		if (targets_timedout(cli)) {
+			suspend(cli);
+			return;
+		}
+
 		end(cli, false);
 		return;
 	}
@@ -1255,6 +1295,42 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 	return xfer_start(cli);
 }
 
+void bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
+{
+	if (cli->state == BT_MESH_BLOB_CLI_STATE_SUSPENDED) {
+		return;
+	}
+
+	if (cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_START &&
+	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_SEND &&
+	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_CHECK) {
+		BT_WARN("BLOB xfer not started");
+		return;
+	}
+
+	cli->state = BT_MESH_BLOB_CLI_STATE_SUSPENDED;
+	(void)k_delayed_work_cancel(&cli->tx.retry);
+	cli->tx.ctx = NULL;
+	cli->tx.sending = 0;
+}
+
+void bt_mesh_blob_cli_resume(struct bt_mesh_blob_cli *cli)
+{
+	struct bt_mesh_blob_target *target;
+
+	if (cli->state != BT_MESH_BLOB_CLI_STATE_SUSPENDED) {
+		return;
+	}
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (!!target->timedout) {
+			target->status = BT_MESH_BLOB_SUCCESS;
+		}
+	}
+
+	block_start(cli);
+}
+
 void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)
 {
 	if (!bt_mesh_blob_cli_is_busy(cli)) {
@@ -1264,7 +1340,8 @@ void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)
 
 	BT_DBG("");
 
-	if (cli->state == BT_MESH_BLOB_CLI_STATE_CAPS_GET) {
+	if (cli->state == BT_MESH_BLOB_CLI_STATE_CAPS_GET ||
+	    cli->state == BT_MESH_BLOB_CLI_STATE_SUSPENDED) {
 		cli_state_reset(cli);
 		return;
 	}

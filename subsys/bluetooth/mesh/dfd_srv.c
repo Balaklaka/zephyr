@@ -352,8 +352,13 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			BT_WARN("Already completed or in progress");
 			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
 			return 0;
+		} else if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
+			bt_mesh_blob_cli_resume(&srv->dfu.blob);
+			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+			return 0;
 		}
-	} else if (is_busy(srv)) {
+	} else if (is_busy(srv) ||
+		   srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
 		BT_WARN("Busy with distribution");
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
 		return 0;
@@ -402,6 +407,30 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	return 0;
 }
 
+static int handle_suspend(struct bt_mesh_model *mod,
+			   struct bt_mesh_msg_ctx *ctx,
+			   struct net_buf_simple *buf)
+{
+	struct bt_mesh_dfd_srv *srv = mod->user_data;
+
+	if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
+		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+		return 0;
+	}
+
+	if (srv->phase != BT_MESH_DFD_PHASE_TRANSFER_ACTIVE) {
+		status_rsp(srv, ctx, BT_MESH_DFD_ERR_WRONG_PHASE);
+		return 0;
+	}
+
+	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
+	bt_mesh_blob_cli_suspend(&srv->dfu.blob);
+
+	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+
+	return 0;
+}
+
 static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			 struct net_buf_simple *buf)
 {
@@ -422,7 +451,7 @@ static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	/* Phase TRANSFER_ACTIVE, TRANSFER_SUCCESS, APPLYING_UPDATE: */
+	/* Phase TRANSFER_ACTIVE, TRANSFER_SUSPENDED, TRANSFER_SUCCESS, APPLYING_UPDATE: */
 
 	prev_phase = srv->phase;
 	dfd_phase_set(srv, BT_MESH_DFD_PHASE_CANCELING_UPDATE);
@@ -451,6 +480,7 @@ static int handle_apply(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	if (srv->phase == BT_MESH_DFD_PHASE_IDLE ||
 	    srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
 	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_ACTIVE ||
+	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED ||
 	    srv->phase == BT_MESH_DFD_PHASE_FAILED) {
 		status_rsp(srv, ctx, BT_MESH_DFD_ERR_WRONG_PHASE);
 		return 0;
@@ -781,6 +811,7 @@ const struct bt_mesh_model_op _bt_mesh_dfd_srv_op[] = {
 	{ BT_MESH_DFD_OP_CAPABILITIES_GET, BT_MESH_LEN_EXACT(0), handle_capabilities_get },
 	{ BT_MESH_DFD_OP_GET, BT_MESH_LEN_EXACT(0), handle_get },
 	{ BT_MESH_DFD_OP_START, BT_MESH_LEN_MIN(10), handle_start },
+	{ BT_MESH_DFD_OP_SUSPEND, BT_MESH_LEN_EXACT(0), handle_suspend },
 	{ BT_MESH_DFD_OP_CANCEL, BT_MESH_LEN_EXACT(0), handle_cancel },
 	{ BT_MESH_DFD_OP_APPLY, BT_MESH_LEN_EXACT(0), handle_apply },
 	{ BT_MESH_DFD_OP_UPLOAD_GET, BT_MESH_LEN_EXACT(0), handle_upload_get },
@@ -794,6 +825,14 @@ const struct bt_mesh_model_op _bt_mesh_dfd_srv_op[] = {
 
 	BT_MESH_MODEL_OP_END
 };
+
+static void dfu_suspended(struct bt_mesh_dfu_cli *cli)
+{
+	struct bt_mesh_dfd_srv *srv =
+		CONTAINER_OF(cli, struct bt_mesh_dfd_srv, dfu);
+
+	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
+}
 
 static void dfu_ended(struct bt_mesh_dfu_cli *cli,
 		      enum bt_mesh_dfu_status reason)
@@ -868,6 +907,7 @@ static void dfu_confirmed(struct bt_mesh_dfu_cli *cli)
 }
 
 const struct bt_mesh_dfu_cli_cb _bt_mesh_dfd_srv_dfu_cb = {
+	.suspended = dfu_suspended,
 	.ended = dfu_ended,
 	.applied = dfu_applied,
 	.confirmed = dfu_confirmed,

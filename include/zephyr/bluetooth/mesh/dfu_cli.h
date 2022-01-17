@@ -128,6 +128,13 @@ typedef enum bt_mesh_dfu_iter (*bt_mesh_dfu_img_cb_t)(
 
 /** DFU Client event callbacks. */
 struct bt_mesh_dfu_cli_cb {
+	/** @brief BLOB transfer is suspended.
+	 *
+	 * Called when the BLOB transfer is suspended due to response timeout from all targets.
+	 *
+	 * @param cli    DFU Client model instance.
+	 */
+	void (*suspended)(struct bt_mesh_dfu_cli *cli);
 
 	/** @brief DFU ended.
 	 *

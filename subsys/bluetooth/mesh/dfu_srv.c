@@ -110,6 +110,11 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 	struct bt_mesh_dfu_srv *srv = mod->user_data;
 	uint8_t idx, limit;
 
+	if (srv->update.phase == BT_MESH_DFU_PHASE_APPLYING) {
+		BT_INFO("Still applying, not responding");
+		return -EBUSY;
+	}
+
 	idx = net_buf_simple_pull_u8(buf);
 	limit = net_buf_simple_pull_u8(buf);
 
@@ -245,6 +250,20 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	meta_checksum = dfu_metadata_checksum(buf);
 
 	BT_DBG("%u ttl: %u extra time: %u", idx, ttl, timeout_base);
+
+	if ((!buf->len || meta_checksum == srv->update.meta) &&
+	    srv->update.phase == BT_MESH_DFU_PHASE_TRANSFER_ERR &&
+	    srv->update.ttl == ttl &&
+	    srv->update.timeout_base == timeout_base &&
+	    srv->update.idx == idx &&
+	    srv->blob.state.xfer.id == blob_id) {
+		srv->update.phase = BT_MESH_DFU_PHASE_TRANSFER_ACTIVE;
+		status = BT_MESH_DFU_SUCCESS;
+		store_state(srv);
+		/* blob srv will resume the transfer. */
+		BT_DBG("Resuming transfer");
+		goto rsp;
+	}
 
 	if (bt_mesh_dfu_srv_is_busy(srv)) {
 		if (is_active_update(srv, idx, timeout_base, &blob_id, ttl,
@@ -435,6 +454,14 @@ const struct bt_mesh_model_cb _bt_mesh_dfu_srv_cb = {
 	.reset = dfu_srv_reset,
 };
 
+static void blob_suspended(struct bt_mesh_blob_srv *b)
+{
+	struct bt_mesh_dfu_srv *srv = CONTAINER_OF(b, struct bt_mesh_dfu_srv, blob);
+
+	srv->update.phase = BT_MESH_DFU_PHASE_TRANSFER_ERR;
+	store_state(srv);
+}
+
 static void blob_end(struct bt_mesh_blob_srv *b, uint64_t id, bool success)
 {
 	struct bt_mesh_dfu_srv *srv =
@@ -483,6 +510,7 @@ static int blob_recover(struct bt_mesh_blob_srv *b,
 }
 
 const struct bt_mesh_blob_srv_cb _bt_mesh_dfu_srv_blob_cb = {
+	.suspended = blob_suspended,
 	.end = blob_end,
 	.recover = blob_recover,
 };

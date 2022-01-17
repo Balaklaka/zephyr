@@ -217,6 +217,17 @@ static void blob_lost_target(struct bt_mesh_blob_cli *b,
 	target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 }
 
+static void blob_suspended(struct bt_mesh_blob_cli *b)
+{
+	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
+
+	BT_DBG("BLOB transfer suspended");
+
+	if (cli->cb && cli->cb->suspended) {
+		cli->cb->suspended(cli);
+	}
+}
+
 static void blob_end(struct bt_mesh_blob_cli *b,
 		     const struct bt_mesh_blob_xfer *xfer, bool success)
 {
@@ -247,6 +258,7 @@ static void blob_end(struct bt_mesh_blob_cli *b,
 const struct bt_mesh_blob_cli_cb _bt_mesh_dfu_cli_blob_handlers = {
 	.caps = blob_caps,
 	.lost_target = blob_lost_target,
+	.suspended = blob_suspended,
 	.end = blob_end,
 };
 

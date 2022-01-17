@@ -1022,6 +1022,18 @@ The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :o
 	Cancel an ongoing BLOB transfer.
 
 
+``mesh blob-tx-suspend``
+------------------------
+
+	Suspend the ingoing BLOB transfer.
+
+
+``mesh blob-tx-resume``
+-----------------------
+
+	Resume the suspended BLOB transfer.
+
+
 BLOB Server model
 =================
 

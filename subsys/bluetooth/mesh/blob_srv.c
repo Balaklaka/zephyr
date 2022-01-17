@@ -952,6 +952,7 @@ int bt_mesh_blob_srv_cancel(struct bt_mesh_blob_srv *srv)
 bool bt_mesh_blob_srv_is_busy(const struct bt_mesh_blob_srv *srv)
 {
 	return srv->phase != BT_MESH_BLOB_XFER_PHASE_INACTIVE &&
+	       srv->phase != BT_MESH_BLOB_XFER_PHASE_SUSPENDED &&
 	       srv->phase != BT_MESH_BLOB_XFER_PHASE_COMPLETE;
 }
 
