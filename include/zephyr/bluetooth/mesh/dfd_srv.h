@@ -102,6 +102,15 @@ struct bt_mesh_dfd_srv_cb {
 	int (*send)(struct bt_mesh_dfd_srv *srv,
 		    const struct bt_mesh_dfu_slot *slot,
 		    const struct bt_mesh_blob_io **io);
+
+	/** @brief Phase change callback (Optional).
+	 *
+	 *  Called whenever the phase of the DFD server changes.
+	 *
+	 *  @param srv  DFD Server model instance.
+	 *  @param phase  New DFD phase.
+	 */
+	void (*phase)(struct bt_mesh_dfd_srv *srv, enum bt_mesh_dfd_phase phase);
 };
 
 /** DFD Server instance. */
