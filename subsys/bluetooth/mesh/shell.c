@@ -161,6 +161,7 @@ static const struct bt_mesh_health_srv_cb health_srv_cb = {
 	.attn_off = attn_off,
 };
 
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 static uint8_t health_tests[] = {
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_LF, 6, 0x01, 0x02, 0x03, 0x04, 0x34, 0x15),
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_NORDIC_SEMI, 3, 0x01, 0x02, 0x03),
@@ -170,10 +171,13 @@ static struct bt_mesh_models_metadata_entry health_srv_meta[] = {
 	BT_MESH_HEALTH_TEST_INFO_METADATA(health_tests),
 	BT_MESH_MODELS_METADATA_END,
 };
+#endif
 
 struct bt_mesh_health_srv bt_mesh_shell_health_srv = {
 	.cb = &health_srv_cb,
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 	.metadata = health_srv_meta,
+#endif
 };
 
 #if defined(CONFIG_BT_MESH_HEALTH_CLI)
@@ -3829,6 +3833,7 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 static int cmd_large_comp_data_get(const struct shell *shell, size_t argc,
 				   char *argv[])
 {
@@ -3884,6 +3889,7 @@ static int cmd_models_metadata_get(const struct shell *shell, size_t argc,
 
 	return 0;
 }
+#endif /* CONFIG_BT_MESH_LARGE_COMP_DATA_SRV */
 
 #if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
 static int cmd_dfu_blob_flash_stream_set(const struct shell *shell, size_t argc, char *argv[])
@@ -5288,10 +5294,13 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(cdb-app-key-del, NULL, "<AppKeyIdx>", cmd_cdb_app_key_del,
 		      2, 0),
 #endif
+
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 	SHELL_CMD_ARG(large-comp-data-get, NULL, NULL, cmd_large_comp_data_get,
 		      3, 0),
 	SHELL_CMD_ARG(models-metadata-get, NULL, NULL, cmd_models_metadata_get,
 		      3, 0),
+#endif
 
 #if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
 	SHELL_CMD_ARG(blob-flash-stream-set, NULL, "<area id> [<offset>]",

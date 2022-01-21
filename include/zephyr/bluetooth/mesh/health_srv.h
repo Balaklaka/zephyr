@@ -154,8 +154,10 @@ struct bt_mesh_health_srv {
 	/** Attention Timer state */
 	struct k_work_delayable attn_timer;
 
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 	/** Pointer to the array with Health Test Info Metadata */
 	struct bt_mesh_models_metadata_entry *metadata;
+#endif
 };
 
 /**
@@ -169,9 +171,15 @@ struct bt_mesh_health_srv {
  *
  *  @return New mesh model instance.
  */
-#define BT_MESH_MODEL_HEALTH_SRV(srv, pub)                                     \
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+#define BT_MESH_MODEL_HEALTH_SRV(srv, pub)                                              \
 	BT_MESH_MODEL_METADATA_CB(BT_MESH_MODEL_ID_HEALTH_SRV, bt_mesh_health_srv_op,   \
 			 pub, srv, &bt_mesh_health_srv_cb, &(srv)->metadata)
+#else
+#define BT_MESH_MODEL_HEALTH_SRV(srv, pub)                                     \
+	BT_MESH_MODEL_CB(BT_MESH_MODEL_ID_HEALTH_SRV, bt_mesh_health_srv_op,   \
+			 pub, srv, &bt_mesh_health_srv_cb)
+#endif
 
 /** @def BT_MESH_HEALTH_TEST_INFO_METADATA
  *
