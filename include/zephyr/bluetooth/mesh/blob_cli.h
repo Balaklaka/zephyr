@@ -267,8 +267,10 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 /** @brief Suspend the active tranfser.
  *
  *  @param cli BLOB Client instance.
+ *
+ *  @return 0 on success, or (negative) error code otherwise.
  */
-void bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli);
+int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli);
 
 /** @brief Resume the suspended transfer.
  *

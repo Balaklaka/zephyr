@@ -1298,23 +1298,25 @@ int bt_mesh_blob_cli_send(struct bt_mesh_blob_cli *cli,
 	return xfer_start(cli);
 }
 
-void bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
+int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
 {
 	if (cli->state == BT_MESH_BLOB_CLI_STATE_SUSPENDED) {
-		return;
+		return 0;
 	}
 
 	if (cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_START &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_SEND &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_CHECK) {
-		BT_WARN("BLOB xfer not started");
-		return;
+		BT_WARN("BLOB xfer not started: %d", cli->state);
+		return -EINVAL;
 	}
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_SUSPENDED;
 	(void)k_delayed_work_cancel(&cli->tx.retry);
 	cli->tx.ctx = NULL;
 	cli->tx.sending = 0;
+
+	return 0;
 }
 
 void bt_mesh_blob_cli_resume(struct bt_mesh_blob_cli *cli)

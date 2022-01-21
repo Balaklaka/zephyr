@@ -412,6 +412,7 @@ static int handle_suspend(struct bt_mesh_model *mod,
 			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
+	int err;
 
 	if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
 		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
@@ -423,9 +424,13 @@ static int handle_suspend(struct bt_mesh_model *mod,
 		return 0;
 	}
 
-	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
-	bt_mesh_blob_cli_suspend(&srv->dfu.blob);
+	err = bt_mesh_blob_cli_suspend(&srv->dfu.blob);
+	if (err) {
+		status_rsp(srv, ctx, BT_MESH_DFD_ERR_SUSPEND_FAILED);
+		return 0;
+	}
 
+	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
 	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
 
 	return 0;
