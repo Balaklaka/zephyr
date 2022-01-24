@@ -21,7 +21,7 @@
 /* The Receive BLOB Timeout Timer */
 #define SERVER_TIMEOUT_SECS(srv) (10 * (1 + (srv)->state.timeout_base))
 /* The initial timer value used by an instance of the Pull BLOB State machine - T_BPI */
-#define REPORT_TIMER_TIMEOUT K_SECONDS(BLOB_POLL_TIME_MAX_SECS + 1)
+#define REPORT_TIMER_TIMEOUT K_SECONDS(CONFIG_BT_MESH_BLOB_REPORT_TIMEOUT)
 
 BUILD_ASSERT(BLOB_BLOCK_SIZE_LOG_MIN <= BLOB_BLOCK_SIZE_LOG_MAX,
 	     "The must be at least one number between the min and "

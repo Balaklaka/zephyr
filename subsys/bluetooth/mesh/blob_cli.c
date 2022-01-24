@@ -20,6 +20,9 @@
 
 #define CHUNK_SIZE_MAX BLOB_CHUNK_SIZE_MAX(BT_MESH_TX_SDU_MAX)
 
+/* The Maximum BLOB Poll Interval - T_MBPI */
+#define BLOB_POLL_TIME_MAX_SECS 30
+
 #define CLIENT_TIMEOUT_MSEC(cli) (10 * MSEC_PER_SEC * (cli->inputs->timeout_base + 2) + \
 				  100 * cli->inputs->ttl)
 #define BLOCK_REPORT_TIME K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)

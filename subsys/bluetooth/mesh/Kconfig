@@ -948,6 +948,13 @@ config BT_MESH_BLOB_BLOCK_SIZE_MAX
 	  size min and block size max. If no such number exists, a compile
 	  time warning will be issued.
 
+config BT_MESH_BLOB_REPORT_TIMEOUT
+	int "Partial Block Report interval in Pull mode"
+	default 10
+	range 1 31
+	help
+	  The timer value that Pull BLOB server uses to report missed chunks.
+
 endif # BT_MESH_BLOB_SRV
 
 menuconfig BT_MESH_BLOB_CLI
