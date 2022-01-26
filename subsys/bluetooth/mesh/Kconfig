@@ -1180,7 +1180,7 @@ config BT_MESH_SAR_TX_UNICAST_RETRANS_COUNT
 config BT_MESH_SAR_TX_UNICAST_RETRANS_WITHOUT_PROG_COUNT
 	hex "Default value of SAR Unicast Retransmissions Without Progress Count state"
 	range 0x00 0x0F
-	default 0x03
+	default 0x02
 	help
 	  Set the value of a parameter of the SAR Transmitter state.
 	  The default values are defined by the Mesh Profile Specification.
@@ -1220,7 +1220,7 @@ config BT_MESH_SAR_TX_MULTICAST_RETRANS_INT
 config BT_MESH_SAR_RX_SEG_THRESHOLD
 	hex "Default value of SAR Segments Threshold state"
 	range 0x00 0x1F
-	default 0x04
+	default 0x03
 	help
 	  Set the value of a parameter of the SAR Receiver state.
 	  The default values are defined by the Mesh Profile Specification.
