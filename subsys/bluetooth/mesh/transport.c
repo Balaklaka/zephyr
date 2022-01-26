@@ -907,7 +907,7 @@ static int trans_ack(struct bt_mesh_net_rx *rx, uint8_t hdr,
 		/* If transmission is not in progress it means
 		 * that Retransmission Timer is running
 		 */
-		if (tx->seg_o == 0 || tx->seg_o > tx->seg_n) {
+		if (new_seg_ack && tx->seg_o == 0) {
 			/* According to the Bluetooth Mesh Profile specification,
 			 * section 3.5.3.3, we should reset the retransmit timer and
 			 * retransmit immediately when receiving a valid ack message
