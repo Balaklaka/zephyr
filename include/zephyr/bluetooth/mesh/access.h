@@ -306,6 +306,30 @@ struct bt_mesh_model_op {
 	.cb = _cb,                                                           \
 }
 
+/** @def BT_MESH_MODEL_VND_METADATA_CB
+ *
+ *  @brief Composition data vendor model entry with callback functions and metadata.
+ *
+ *  @param _company   Company ID.
+ *  @param _id        Model ID.
+ *  @param _op        Array of model opcode handlers.
+ *  @param _pub       Model publish parameters.
+ *  @param _user_data User data for the model.
+ *  @param _cb        Callback structure, or NULL to keep no callbacks.
+ *  @param _metadata  Metadata structure.
+ */
+#define BT_MESH_MODEL_VND_METADATA_CB(_company, _id, _op, _pub, _user_data, _cb, _metadata)      \
+{                                                                            \
+	.vnd.company = (_company),                                           \
+	.vnd.id = (_id),                                                     \
+	.op = _op,                                                           \
+	.pub = _pub,                                                         \
+	.keys = BT_MESH_MODEL_KEYS_UNUSED,                                   \
+	.groups = BT_MESH_MODEL_GROUPS_UNASSIGNED,                           \
+	.user_data = _user_data,                                             \
+	.cb = _cb,                                                           \
+	.metadata = _metadata,                                               \
+}
 
 /**
  *  @brief Composition data SIG model entry.
@@ -513,7 +537,7 @@ struct bt_mesh_models_metadata_entry {
 	}
 
 /** Helper to define an empty Models metadata array */
-#define BT_MESH_MODELS_METADATA_NONE ((struct bt_mesh_models_metadata_entry []){})
+#define BT_MESH_MODELS_METADATA_NONE NULL
 
 /** End of the Models Metadata list. Must always be present. */
 #define BT_MESH_MODELS_METADATA_END { 0, 0, NULL }

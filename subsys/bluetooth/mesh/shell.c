@@ -3833,7 +3833,7 @@ static int cmd_cdb_app_key_del(const struct shell *shell, size_t argc,
 }
 #endif
 
-#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_CLI
 static int cmd_large_comp_data_get(const struct shell *shell, size_t argc,
 				   char *argv[])
 {
@@ -3889,7 +3889,7 @@ static int cmd_models_metadata_get(const struct shell *shell, size_t argc,
 
 	return 0;
 }
-#endif /* CONFIG_BT_MESH_LARGE_COMP_DATA_SRV */
+#endif /* CONFIG_BT_MESH_LARGE_COMP_DATA_CLI */
 
 #if defined(CONFIG_BT_MESH_BLOB_IO_FLASH)
 static int cmd_dfu_blob_flash_stream_set(const struct shell *shell, size_t argc, char *argv[])
@@ -5295,7 +5295,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      2, 0),
 #endif
 
-#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_CLI
 	SHELL_CMD_ARG(large-comp-data-get, NULL, NULL, cmd_large_comp_data_get,
 		      3, 0),
 	SHELL_CMD_ARG(models-metadata-get, NULL, NULL, cmd_models_metadata_get,
