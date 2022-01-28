@@ -1450,6 +1450,7 @@ struct mesh_in_action_ev {
 
 #define MESH_PROV_BEARER_PB_ADV		0x00
 #define MESH_PROV_BEARER_PB_GATT	0x01
+#define MESH_PROV_BEARER_REMOTE		0x04
 #define MESH_EV_PROV_LINK_OPEN		0x84
 struct mesh_prov_link_open_ev {
 	uint8_t bearer;

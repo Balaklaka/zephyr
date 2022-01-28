@@ -288,6 +288,49 @@ static struct bt_mesh_cfg_cli cfg_cli = {
 
 static struct bt_mesh_sar_cfg_cli sar_cfg_cli;
 
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+static void rpr_scan_report(struct bt_mesh_rpr_cli *cli,
+			    const struct bt_mesh_rpr_node *srv,
+			    struct bt_mesh_rpr_unprov *unprov,
+			    struct net_buf_simple *adv_data)
+{
+	char uuid_hex_str[32 + 1];
+
+	bin2hex(unprov->uuid, 16, uuid_hex_str, sizeof(uuid_hex_str));
+
+	LOG_DBG("Server 0x%04x:\n"
+		    "\tuuid:   %s\n"
+		    "\tOOB:    0x%04x",
+		    srv->addr, uuid_hex_str, unprov->oob);
+
+	while (adv_data && adv_data->len > 2) {
+		uint8_t len, type;
+		uint8_t data[31];
+
+		len = net_buf_simple_pull_u8(adv_data) - 1;
+		type = net_buf_simple_pull_u8(adv_data);
+		memcpy(data, net_buf_simple_pull_mem(adv_data, len), len);
+		data[len] = '\0';
+
+		if (type == BT_DATA_URI) {
+			LOG_DBG("\tURI:    \"\\x%02x%s\"",
+				data[0], &data[1]);
+		} else if (type == BT_DATA_NAME_COMPLETE) {
+			LOG_DBG("\tName:   \"%s\"", data);
+		} else {
+			char string[64 + 1];
+
+			bin2hex(data, len, string, sizeof(string));
+			LOG_DBG("\t0x%02x:  %s", type, string);
+		}
+	}
+}
+
+static struct bt_mesh_rpr_cli rpr_cli = {
+	.scan_report = rpr_scan_report,
+};
+#endif
+
 static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
@@ -297,6 +340,12 @@ static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_SAR_CFG_CLI(&sar_cfg_cli),
 	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
+#if defined(CONFIG_BT_MESH_RPR_CLI)
+	BT_MESH_MODEL_RPR_CLI(&rpr_cli),
+#endif
+#if defined(CONFIG_BT_MESH_RPR_SRV)
+	BT_MESH_MODEL_RPR_SRV,
+#endif
 };
 
 static struct bt_mesh_model vnd_models[] = {
@@ -321,6 +370,9 @@ static void link_open(bt_mesh_prov_bearer_t bearer)
 	case BT_MESH_PROV_GATT:
 		ev.bearer = MESH_PROV_BEARER_PB_GATT;
 		break;
+	case BT_MESH_PROV_REMOTE:
+		ev.bearer = MESH_PROV_BEARER_REMOTE;
+		break;
 	default:
 		LOG_ERR("Invalid bearer");
 
@@ -343,6 +395,9 @@ static void link_close(bt_mesh_prov_bearer_t bearer)
 		break;
 	case BT_MESH_PROV_GATT:
 		ev.bearer = MESH_PROV_BEARER_PB_GATT;
+		break;
+	case BT_MESH_PROV_REMOTE:
+		ev.bearer = MESH_PROV_BEARER_REMOTE;
 		break;
 	default:
 		LOG_ERR("Invalid bearer");
@@ -440,6 +495,10 @@ static void prov_reset(void)
 	LOG_DBG("");
 
 	bt_mesh_prov_enable(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT);
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV)) {
+		bt_mesh_prov_enable(BT_MESH_PROV_REMOTE);
+	}
 }
 
 static const struct bt_mesh_comp comp = {
@@ -584,6 +643,13 @@ static void init(uint8_t *data, uint16_t len)
 		}
 	} else {
 		err = bt_mesh_prov_enable(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT);
+		if (err) {
+			status = BTP_STATUS_FAILED;
+		}
+	}
+
+	if (IS_ENABLED(CONFIG_BT_MESH_RPR_SRV)) {
+		err = bt_mesh_prov_enable(BT_MESH_PROV_REMOTE);
 		if (err) {
 			status = BTP_STATUS_FAILED;
 		}
