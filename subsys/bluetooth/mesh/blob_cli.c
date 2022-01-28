@@ -405,7 +405,7 @@ static void retry_timeout(struct k_work *work)
 	struct bt_mesh_blob_cli *cli =
 		CONTAINER_OF(work, struct bt_mesh_blob_cli, tx.retry.work);
 
-	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		if (k_uptime_delta(&cli->tx.cli_timestamp) <= 0ll) {
 			BT_DBG("Set result to failure. Drop target.");
 			drop_remaining_targets(cli);
