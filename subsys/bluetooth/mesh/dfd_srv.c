@@ -85,7 +85,8 @@ static bool is_busy(const struct bt_mesh_dfd_srv *srv)
 static bool upload_is_busy(const struct bt_mesh_dfd_srv *srv)
 {
 	return bt_mesh_blob_srv_is_busy(&srv->upload.blob) ||
-	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE;
+	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE ||
+	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ERROR;
 }
 
 static int slot_del(struct bt_mesh_dfd_srv *srv, const struct bt_mesh_dfu_slot *slot)
@@ -711,12 +712,12 @@ static int handle_fw_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	fwid = net_buf_simple_pull_mem(buf, fwid_len);
 
 	idx = bt_mesh_dfu_slot_get(fwid, fwid_len, &slot);
-	if (idx < 0) {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_FW_NOT_FOUND, 0xffff,
-			      fwid, fwid_len);
-	} else {
+	if (idx >= 0 && bt_mesh_dfu_slot_is_valid(slot)) {
 		fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, idx, fwid,
 			      fwid_len);
+	} else {
+		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_FW_NOT_FOUND, 0xffff,
+			      fwid, fwid_len);
 	}
 
 	return 0;
@@ -732,7 +733,7 @@ static int handle_fw_get_by_index(struct bt_mesh_model *mod, struct bt_mesh_msg_
 	idx = net_buf_simple_pull_le16(buf);
 
 	slot = bt_mesh_dfu_slot_at(idx);
-	if (slot) {
+	if (slot && bt_mesh_dfu_slot_is_valid(slot)) {
 		fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, idx, slot->fwid,
 			      slot->fwid_len);
 	} else {
@@ -762,7 +763,7 @@ static int handle_fw_delete(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 	}
 
 	idx = bt_mesh_dfu_slot_get(fwid, fwid_len, &slot);
-	if (idx < 0) {
+	if (idx < 0 || !bt_mesh_dfu_slot_is_valid(slot)) {
 		fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, 0xffff, fwid,
 			      fwid_len);
 		return 0;
