@@ -91,7 +91,7 @@ struct bt_mesh_rpr_cli {
 	} tx;
 
 	struct {
-		struct k_delayed_work timeout;
+		struct k_work_delayable timeout;
 		struct bt_mesh_rpr_node srv;
 		uint8_t time;
 		uint8_t tx_pdu;

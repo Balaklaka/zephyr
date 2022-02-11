@@ -54,8 +54,8 @@ static struct {
 			devs[CONFIG_BT_MESH_RPR_SRV_SCANNED_ITEMS_MAX];
 		uint8_t max_devs;
 		enum bt_mesh_rpr_scan state;
-		struct k_delayed_work report;
-		struct k_delayed_work timeout;
+		struct k_work_delayable report;
+		struct k_work_delayable timeout;
 		/* Extended scanning */
 		bt_addr_le_t addr;
 		uint8_t ad[CONFIG_BT_MESH_RPR_AD_TYPES_MAX];
@@ -140,8 +140,7 @@ static void scan_status_send(struct bt_mesh_msg_ctx *ctx,
 	uint8_t time = 0;
 
 	if (atomic_test_bit(srv.flags, SCANNING)) {
-		time = k_delayed_work_remaining_get(&srv.scan.timeout) /
-		       MSEC_PER_SEC;
+		time = k_work_delayable_remaining_get(&srv.scan.timeout) / MSEC_PER_SEC;
 	}
 
 	BT_MESH_MODEL_BUF_DEFINE(rsp, RPR_OP_SCAN_STATUS, 4);
@@ -187,20 +186,20 @@ static void scan_report_schedule(void)
 {
 	uint32_t delay;
 
-	if (k_delayed_work_remaining_get(&srv.scan.report) ||
+	if (k_work_delayable_remaining_get(&srv.scan.report) ||
 	    atomic_test_bit(srv.flags, SCAN_REPORT_PENDING)) {
 		return;
 	}
 
 	delay = (sys_rand32_get() % 480) + 20;
 
-	k_delayed_work_submit(&srv.scan.report, K_MSEC(delay));
+	k_work_reschedule(&srv.scan.report, K_MSEC(delay));
 }
 
 static void scan_report_sent(int err, void *cb_data)
 {
 	atomic_clear_bit(srv.flags, SCAN_REPORT_PENDING);
-	k_delayed_work_submit(&srv.scan.report, K_NO_WAIT);
+	k_work_reschedule(&srv.scan.report, K_NO_WAIT);
 }
 
 static const struct bt_mesh_send_cb report_cb = {
@@ -296,7 +295,7 @@ static void scan_ext_stop(uint32_t remaining_time)
 {
 	if ((remaining_time + srv.scan.additional_time) &&
 	    srv.scan.state != BT_MESH_RPR_SCAN_IDLE) {
-		k_delayed_work_submit(
+		k_work_reschedule(
 			&srv.scan.timeout,
 			K_MSEC(remaining_time + srv.scan.additional_time));
 	} else if (srv.scan.state != BT_MESH_RPR_SCAN_IDLE) {
@@ -581,7 +580,7 @@ static int handle_scan_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 	status = BT_MESH_RPR_SUCCESS;
 
 	atomic_set_bit(srv.flags, SCANNING);
-	k_delayed_work_submit(&srv.scan.timeout, K_SECONDS(timeout));
+	k_work_reschedule(&srv.scan.timeout, K_SECONDS(timeout));
 
 rsp:
 	scan_status_send(ctx, status);
@@ -729,16 +728,16 @@ static int handle_extended_scan_start(struct bt_mesh_model *mod, struct bt_mesh_
 	if (srv.scan.state == BT_MESH_RPR_SCAN_IDLE) {
 		srv.scan.additional_time = 0;
 		cli_set(&cli);
-	} else if (k_delayed_work_remaining_get(&srv.scan.timeout) < (timeout * MSEC_PER_SEC)) {
+	} else if (k_work_delayable_remaining_get(&srv.scan.timeout) < (timeout * MSEC_PER_SEC)) {
 		srv.scan.additional_time = 0;
 	} else {
 		srv.scan.additional_time =
-			k_delayed_work_remaining_get(&srv.scan.timeout) -
+			k_work_delayable_remaining_get(&srv.scan.timeout) -
 			(timeout * MSEC_PER_SEC);
 	}
 
 	bt_mesh_scan_active_set(true);
-	k_delayed_work_submit(&srv.scan.timeout, K_SECONDS(timeout));
+	k_work_reschedule(&srv.scan.timeout, K_SECONDS(timeout));
 	return 0;
 
 rsp:

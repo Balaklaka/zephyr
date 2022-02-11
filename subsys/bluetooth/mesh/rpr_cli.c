@@ -141,7 +141,7 @@ static int handle_link_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 		tx_complete(cli, -ECANCELED, cli->tx.ctx);
 	}
 
-	k_delayed_work_submit(&cli->link.timeout, K_SECONDS(cli->link.time));
+	k_work_reschedule(&cli->link.timeout, K_SECONDS(cli->link.time));
 
 	if (cli->link.srv.addr != srv.addr) {
 		BT_DBG("Link report from unknown server 0x%04x", srv.addr);
@@ -182,8 +182,7 @@ static int handle_link_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	}
 
 	if (cli->link.srv.addr == srv.addr) {
-		k_delayed_work_submit(&cli->link.timeout,
-				      K_SECONDS(cli->link.time));
+		k_work_reschedule(&cli->link.timeout, K_SECONDS(cli->link.time));
 
 		cli->link.state = link.state;
 		if (link.state == BT_MESH_RPR_LINK_IDLE) {
@@ -204,7 +203,7 @@ static int handle_pdu_outbound_report(struct bt_mesh_model *mod, struct bt_mesh_
 	void *cb_data = cli->tx.ctx;
 	uint8_t num;
 
-	k_delayed_work_submit(&cli->link.timeout, K_SECONDS(cli->link.time));
+	k_work_reschedule(&cli->link.timeout, K_SECONDS(cli->link.time));
 
 	if (srv.addr != cli->link.srv.addr) {
 		BT_WARN("Outbound report from unknown server 0x%04x", srv.addr);
@@ -242,7 +241,7 @@ static int handle_pdu_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 		return 0;
 	}
 
-	k_delayed_work_submit(&cli->link.timeout, K_SECONDS(cli->link.time));
+	k_work_reschedule(&cli->link.timeout, K_SECONDS(cli->link.time));
 
 	pdu = net_buf_simple_pull_u8(buf);
 	if (pdu <= cli->link.rx_pdu) {
@@ -350,12 +349,13 @@ const struct bt_mesh_model_op _bt_mesh_rpr_cli_op[] = {
 
 static void link_timeout(struct k_work *work)
 {
-	struct bt_mesh_rpr_cli *cli =
-		CONTAINER_OF(work, struct bt_mesh_rpr_cli, link.timeout.work);
+	struct bt_mesh_rpr_cli *cli = CONTAINER_OF(k_work_delayable_from_work(work),
+						   struct bt_mesh_rpr_cli, link.timeout);
 
-	BT_DBG("");
-
-	link_closed(cli, BT_MESH_RPR_ERR_LINK_CLOSED_BY_CLIENT);
+	if (cli->link.state != BT_MESH_RPR_LINK_IDLE) {
+		BT_DBG("");
+		link_closed(cli, BT_MESH_RPR_ERR_LINK_CLOSED_BY_CLIENT);
+	}
 }
 
 static int rpr_cli_init(struct bt_mesh_model *mod)
@@ -366,7 +366,7 @@ static int rpr_cli_init(struct bt_mesh_model *mod)
 	cli->link.time = LINK_TIMEOUT_SECONDS_DEFAULT;
 
 	k_sem_init(&cli->tx.sync, 0, 1);
-	k_delayed_work_init(&cli->link.timeout, link_timeout);
+	k_work_init_delayable(&cli->link.timeout, link_timeout);
 	mod->keys[0] = BT_MESH_KEY_DEV_REMOTE;
 
 	return 0;
@@ -470,12 +470,12 @@ static void link_init(struct bt_mesh_rpr_cli *cli,
 	cli->link.state = BT_MESH_RPR_LINK_IDLE;
 	cli->link.rx_pdu = 0;
 	cli->link.tx_pdu = 1;
-	k_delayed_work_submit(&cli->link.timeout, K_SECONDS(cli->link.time));
+	k_work_reschedule(&cli->link.timeout, K_SECONDS(cli->link.time));
 }
 
 static void link_reset(struct bt_mesh_rpr_cli *cli)
 {
-	k_delayed_work_cancel(&cli->link.timeout);
+	k_work_cancel_delayable(&cli->link.timeout);
 	cli->link.srv.addr = BT_MESH_ADDR_UNASSIGNED;
 	cli->link.state = BT_MESH_RPR_LINK_IDLE;
 }
