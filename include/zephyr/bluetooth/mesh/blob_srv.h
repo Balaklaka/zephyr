@@ -135,7 +135,7 @@ struct bt_mesh_blob_srv {
 
 	/* Runtime state: */
 	const struct bt_mesh_blob_io *io;
-	struct k_delayed_work rx_timeout;
+	struct k_work_delayable rx_timeout;
 	struct bt_mesh_blob_block block;
 	struct bt_mesh_model *mod;
 	enum bt_mesh_blob_xfer_phase phase;
@@ -155,7 +155,7 @@ struct bt_mesh_blob_srv {
 	/* Pull mode behavior */
 	struct {
 		uint16_t chunk_idx;
-		struct k_delayed_work report;
+		struct k_work_delayable report;
 	} pull;
 };
 

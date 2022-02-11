@@ -74,12 +74,12 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 				CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES);
 	}
 
-	k_delayed_work_submit(&cli->tx.retry, time);
+	k_work_reschedule(&cli->tx.retry, time);
 }
 
 static void cli_state_reset(struct bt_mesh_blob_cli *cli)
 {
-	k_delayed_work_cancel(&cli->tx.retry);
+	k_work_cancel_delayable(&cli->tx.retry);
 	cli->xfer = NULL;
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
 	cli->tx.ctx = NULL;
@@ -346,7 +346,7 @@ static void broadcast_complete(struct bt_mesh_blob_cli *cli)
 	BT_DBG("%s", cli->tx.cancelled ? "cancelling" : "continuing");
 
 	cli->tx.ctx = NULL;
-	k_delayed_work_cancel(&cli->tx.retry);
+	k_work_cancel_delayable(&cli->tx.retry);
 	if (cli->tx.cancelled) {
 		transfer_cancel(cli);
 	} else {
@@ -1080,7 +1080,7 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 	/* If this fails, the retry timeout handler will fail
 	 * the Pull session and drop target.
 	 */
-	(void)k_delayed_work_cancel(&cli->tx.retry);
+	(void)k_work_cancel_delayable(&cli->tx.retry);
 
 	rx_block_status(cli, ctx, &status);
 
@@ -1209,7 +1209,7 @@ static int blob_cli_init(struct bt_mesh_model *mod)
 	cli->mod = mod;
 
 	cli->tx.cli_timestamp = 0ll;
-	k_delayed_work_init(&cli->tx.retry, retry_timeout);
+	k_work_init_delayable(&cli->tx.retry, retry_timeout);
 	k_work_init(&cli->tx.complete, tx_complete);
 
 	return 0;
@@ -1312,7 +1312,7 @@ int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
 	}
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_SUSPENDED;
-	(void)k_delayed_work_cancel(&cli->tx.retry);
+	(void)k_work_cancel_delayable(&cli->tx.retry);
 	cli->tx.ctx = NULL;
 	cli->tx.sending = 0;
 

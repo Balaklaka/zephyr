@@ -196,7 +196,7 @@ struct bt_mesh_blob_cli {
 	struct {
 		struct bt_mesh_blob_target *target;
 		const struct blob_cli_broadcast_ctx *ctx;
-		struct k_delayed_work retry;
+		struct k_work_delayable retry;
 		int64_t cli_timestamp;
 		struct k_work complete;
 		uint16_t pending;
