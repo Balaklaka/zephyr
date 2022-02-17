@@ -1427,6 +1427,8 @@ struct mesh_models_metadata_get_cmd {
 	uint16_t offset;
 } __packed;
 
+#define MESH_COMP_CHANGE_PREPARE		0x55
+
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
 struct mesh_out_number_action_ev {

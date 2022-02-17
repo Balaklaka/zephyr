@@ -628,22 +628,20 @@ static void init(uint8_t *data, uint16_t len)
 
 	LOG_DBG("");
 
-	err = bt_mesh_init(&prov, &comp);
-	if (err) {
-		status = BTP_STATUS_FAILED;
-
-		goto rsp;
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		printk("Loading stored settings\n");
+		settings_load();
 	}
 
 	if (addr) {
 		err = bt_mesh_provision(net_key, net_key_idx, flags, iv_index,
 					addr, dev_key);
-		if (err) {
+		if (err && err != -EALREADY) {
 			status = BTP_STATUS_FAILED;
 		}
 	} else {
 		err = bt_mesh_prov_enable(BT_MESH_PROV_ADV | BT_MESH_PROV_GATT);
-		if (err) {
+		if (err && err != -EALREADY) {
 			status = BTP_STATUS_FAILED;
 		}
 	}
@@ -655,7 +653,6 @@ static void init(uint8_t *data, uint16_t len)
 		}
 	}
 
-rsp:
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_INIT, CONTROLLER_INDEX,
 		   status);
 }
@@ -1126,6 +1123,22 @@ static void composition_data_get(uint8_t *data, uint16_t len)
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_COMP_DATA_GET, CONTROLLER_INDEX, BTP_STATUS_FAILED);
+}
+
+static void change_prepare(uint8_t *data, uint16_t len)
+{
+	int err;
+	uint8_t status = BTP_STATUS_SUCCESS;
+
+	LOG_DBG("");
+
+	err = bt_mesh_comp_change_prepare();
+	if (err < 0) {
+		status = BTP_STATUS_FAILED;
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_COMP_CHANGE_PREPARE, BTP_INDEX_NONE,
+		   status);
 }
 
 static void config_krp_get(uint8_t *data, uint16_t len)
@@ -2856,6 +2869,9 @@ void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t l
 	case MESH_MODELS_METADATA_GET:
 		models_metadata_get(data, len);
 		break;
+	case MESH_COMP_CHANGE_PREPARE:
+		change_prepare(data, len);
+		break;
 	default:
 		tester_rsp(BTP_SERVICE_ID_MESH, opcode, index,
 			   BTP_STATUS_UNKNOWN_CMD);
@@ -3055,8 +3071,15 @@ BT_MESH_LPN_CB_DEFINE(lpn_cb) = {
 
 uint8_t tester_init_mesh(void)
 {
+	int err;
+
 	if (IS_ENABLED(CONFIG_BT_TESTING)) {
 		bt_test_cb_register(&bt_test_cb);
+	}
+
+	err = bt_mesh_init(&prov, &comp);
+	if (err) {
+		return BTP_STATUS_FAILED;
 	}
 
 	return BTP_STATUS_SUCCESS;
