@@ -1233,6 +1233,12 @@ static int node_refresh_link_accept(const struct prov_bearer_cb *cb,
 
 static void node_refresh_tx_complete(int err, void *cb_data)
 {
+	if (err) {
+		link_close(BT_MESH_RPR_ERR_LINK_CLOSED_AS_CANNOT_SEND_PDU,
+			   PROV_BEARER_LINK_STATUS_FAIL);
+		return;
+	}
+
 	if (srv.refresh.tx.cb) {
 		srv.refresh.tx.cb(err, srv.refresh.tx.cb_data);
 	}
@@ -1244,6 +1250,7 @@ static int node_refresh_buf_send(struct net_buf_simple *buf,
 	static const struct bt_mesh_send_cb send_cb = {
 		.end = node_refresh_tx_complete,
 	};
+	int err;
 
 	if (!atomic_test_bit(srv.flags, NODE_REFRESH)) {
 		return -EBUSY;
@@ -1255,7 +1262,13 @@ static int node_refresh_buf_send(struct net_buf_simple *buf,
 
 	BT_DBG("%u", srv.link.rx_pdu);
 
-	return inbound_pdu_send(buf, &send_cb);
+	err = inbound_pdu_send(buf, &send_cb);
+	if (err) {
+		link_close(BT_MESH_RPR_ERR_LINK_CLOSED_BY_SERVER,
+			   PROV_BEARER_LINK_STATUS_FAIL);
+	}
+
+	return err;
 }
 
 static void node_refresh_clear_tx(void)

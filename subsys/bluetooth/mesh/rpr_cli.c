@@ -478,6 +478,7 @@ static void link_reset(struct bt_mesh_rpr_cli *cli)
 	k_work_cancel_delayable(&cli->link.timeout);
 	cli->link.srv.addr = BT_MESH_ADDR_UNASSIGNED;
 	cli->link.state = BT_MESH_RPR_LINK_IDLE;
+	tx_reset(cli);
 }
 
 static void link_closed(struct bt_mesh_rpr_cli *cli,
