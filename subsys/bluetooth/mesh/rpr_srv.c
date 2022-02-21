@@ -336,11 +336,11 @@ static void link_close(enum bt_mesh_rpr_status status,
 
 	if (atomic_test_and_clear_bit(srv.flags, NODE_REFRESH)) {
 		/* Link closing is an atomic operation: */
+		srv.link.state = BT_MESH_RPR_LINK_IDLE;
+		link_report_send();
 		srv.refresh.cb->link_closed(&pb_remote_srv, srv.refresh.cb_data,
 					    srv.link.close_reason);
 
-		srv.link.state = BT_MESH_RPR_LINK_IDLE;
-		link_report_send();
 		cli_clear();
 	} else {
 		bt_mesh_pb_adv.link_close(reason);
