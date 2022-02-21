@@ -1059,6 +1059,12 @@ static int cmd_ident(const struct shell *shell, size_t argc, char *argv[])
 }
 #endif /* MESH_GATT_PROXY */
 
+static int cmd_comp_change(const struct shell *shell, size_t argc, char *argv[])
+{
+	bt_mesh_comp_change_prepare();
+	return 0;
+}
+
 #if defined(CONFIG_BT_MESH_CFG_CLI)
 static int cmd_get_comp(const struct shell *shell, size_t argc, char *argv[])
 {
@@ -1096,7 +1102,7 @@ static int cmd_get_comp(const struct shell *shell, size_t argc, char *argv[])
 		return 0;
 	}
 
-	shell_print(shell, "Got Composition Data for 0x%04x:", net.dst);
+	shell_print(shell, "Got Composition Data for 0x%04x, page: 0x%02x:", net.dst, page);
 	shell_print(shell, "\tCID      0x%04x", comp.cid);
 	shell_print(shell, "\tPID      0x%04x", comp.pid);
 	shell_print(shell, "\tVID      0x%04x", comp.vid);
@@ -5202,6 +5208,7 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 		      cmd_provision, 3, 1),
 	SHELL_CMD_ARG(beacon-listen, NULL, "<val: off, on>", cmd_beacon_listen,
 		      2, 0),
+	SHELL_CMD_ARG(comp-change, NULL, NULL, cmd_comp_change, 1, 0),
 
 #if defined(CONFIG_BT_MESH_CFG_CLI)
 	/* Configuration Client Model operations */
