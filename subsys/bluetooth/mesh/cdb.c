@@ -73,7 +73,8 @@ struct net_val {
 	uint16_t lowest_avail_addr;
 } __packed;
 
-static struct node_update cdb_node_updates[CONFIG_BT_MESH_CDB_NODE_COUNT];
+/* One more entry for the node's address update. */
+static struct node_update cdb_node_updates[CONFIG_BT_MESH_CDB_NODE_COUNT + 1];
 static struct key_update cdb_key_updates[CONFIG_BT_MESH_CDB_SUBNET_COUNT +
 					 CONFIG_BT_MESH_CDB_APP_KEY_COUNT];
 
@@ -904,13 +905,19 @@ void bt_mesh_cdb_node_del(struct bt_mesh_cdb_node *node, bool store)
 void bt_mesh_cdb_node_update(struct bt_mesh_cdb_node *node, uint16_t addr,
 			     uint8_t num_elem)
 {
+	/* Address is used as a key to the nodes array. Remove the current entry first, then store
+	 * new address.
+	 */
+	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
+		update_cdb_node_settings(node, false);
+	}
+
 	node->addr = addr;
 	node->num_elem = num_elem;
 
 	if (IS_ENABLED(CONFIG_BT_SETTINGS)) {
 		update_cdb_node_settings(node, true);
 	}
-
 }
 
 struct bt_mesh_cdb_node *bt_mesh_cdb_node_get(uint16_t addr)
