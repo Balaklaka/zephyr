@@ -60,7 +60,8 @@ struct block_status {
 	struct bt_mesh_blob_block block;
 };
 
-static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli);
+static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli,
+					       struct bt_mesh_blob_target **current);
 static void transfer_cancel(struct bt_mesh_blob_cli *cli);
 
 static void start_retry_timer(struct bt_mesh_blob_cli *cli)
@@ -123,8 +124,6 @@ static uint32_t targets_reset(struct bt_mesh_blob_cli *cli)
 			target->acked = 0U;
 			count++;
 		}
-
-		target->timedout = 0;
 	}
 
 	return count;
@@ -311,22 +310,23 @@ static enum bt_mesh_blob_status caps_adjust(struct bt_mesh_blob_cli *cli,
  * marked as unacked if they require no response.
  ******************************************************************************/
 
-static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli)
+static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli,
+					       struct bt_mesh_blob_target **current)
 {
-	if (cli->tx.target) {
-		cli->tx.target = SYS_SLIST_PEEK_NEXT_CONTAINER(cli->tx.target, n);
+	if (*current) {
+		*current = SYS_SLIST_PEEK_NEXT_CONTAINER(*current, n);
 	} else {
-		cli->tx.target = SYS_SLIST_PEEK_HEAD_CONTAINER(
-			(sys_slist_t *)&cli->inputs->targets, cli->tx.target, n);
+		*current = SYS_SLIST_PEEK_HEAD_CONTAINER(
+			(sys_slist_t *)&cli->inputs->targets, *current, n);
 	}
 
-	while (cli->tx.target &&
-	       (cli->tx.target->acked || cli->tx.target->procedure_complete ||
-		cli->tx.target->status != BT_MESH_BLOB_SUCCESS)) {
-		cli->tx.target = SYS_SLIST_PEEK_NEXT_CONTAINER(cli->tx.target, n);
+	while (*current &&
+	       ((*current)->acked || (*current)->procedure_complete ||
+		(*current)->status != BT_MESH_BLOB_SUCCESS)) {
+		*current = SYS_SLIST_PEEK_NEXT_CONTAINER(*current, n);
 	}
 
-	return cli->tx.target;
+	return *current;
 }
 
 static void send(struct bt_mesh_blob_cli *cli)
@@ -371,7 +371,7 @@ static void tx_complete(struct k_work *work)
 		return;
 	}
 
-	if (UNICAST_MODE(cli) && next_target(cli)) {
+	if (UNICAST_MODE(cli) && next_target(cli, &cli->tx.target)) {
 		send(cli);
 		return;
 	}
@@ -431,7 +431,7 @@ static void retry_timeout(struct k_work *work)
 		return;
 	}
 
-	if (!cli->tx.ctx->acked || !next_target(cli) || cli->tx.cancelled) {
+	if (!cli->tx.ctx->acked || !next_target(cli, &cli->tx.target) || cli->tx.cancelled) {
 		broadcast_complete(cli);
 		return;
 	}
@@ -456,7 +456,7 @@ void blob_cli_broadcast(struct bt_mesh_blob_cli *cli,
 	BT_DBG("%u targets", cli->tx.pending);
 
 	cli->tx.target = NULL;
-	if (!next_target(cli)) {
+	if (!next_target(cli, &cli->tx.target)) {
 		BT_ERR("No active targets");
 		broadcast_complete(cli);
 		return;
@@ -792,7 +792,13 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 	 * sent chunk has been received.
 	 */
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
-		blob_chunk_missing_set(&cli->block, cli->chunk_idx, false);
+		struct bt_mesh_blob_target *target = cli->tx.target;
+
+		if (!next_target(cli, &target)) {
+			blob_chunk_missing_set_none(&cli->block);
+		} else {
+			blob_chunk_missing_set(&cli->block, cli->chunk_idx, false);
+		}
 	}
 
 	cli->chunk_idx = next_missing_chunk(cli, cli->chunk_idx + 1);
@@ -1319,21 +1325,30 @@ int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
 	return 0;
 }
 
-void bt_mesh_blob_cli_resume(struct bt_mesh_blob_cli *cli)
+int bt_mesh_blob_cli_resume(struct bt_mesh_blob_cli *cli)
 {
 	struct bt_mesh_blob_target *target;
 
 	if (cli->state != BT_MESH_BLOB_CLI_STATE_SUSPENDED) {
-		return;
+		BT_WARN("Not suspended");
+		return -EINVAL;
 	}
 
+	/* Restore timed out targets. */
 	TARGETS_FOR_EACH(cli, target) {
 		if (!!target->timedout) {
 			target->status = BT_MESH_BLOB_SUCCESS;
+			target->timedout = 0U;
 		}
 	}
 
-	block_start(cli);
+	if (!targets_reset(cli)) {
+		BT_ERR("No valid targets");
+		return -ENODEV;
+	}
+
+	block_set(cli, 0);
+	return xfer_start(cli);
 }
 
 void bt_mesh_blob_cli_cancel(struct bt_mesh_blob_cli *cli)

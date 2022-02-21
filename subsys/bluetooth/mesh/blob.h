@@ -108,6 +108,11 @@ static inline void blob_chunk_missing_set_all(struct bt_mesh_blob_block *block)
 	}
 }
 
+static inline void blob_chunk_missing_set_none(struct bt_mesh_blob_block *block)
+{
+	memset(block->missing, 0, sizeof(block->missing));
+}
+
 /** @brief Perform a message broadcast to all BLOB Client targets.
  *
  *  Will send to a group or each target individually, repeating until

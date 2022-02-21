@@ -241,9 +241,7 @@ static void suspend(struct bt_mesh_blob_srv *srv)
 
 static void resume(struct bt_mesh_blob_srv *srv)
 {
-	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_SUSPENDED) {
-		return;
-	}
+	BT_DBG("Resuming");
 
 	phase_set(srv, BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_BLOCK);
 	reset_timer(srv);
@@ -350,8 +348,7 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 	bt_mesh_model_msg_init(&buf, BT_MESH_BLOB_OP_BLOCK_STATUS);
 
 	if (srv->phase == BT_MESH_BLOB_XFER_PHASE_INACTIVE ||
-	    srv->phase == BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_START ||
-	    srv->phase == BT_MESH_BLOB_XFER_PHASE_SUSPENDED) {
+	    srv->phase == BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_START) {
 		missing = srv->block.chunk_count;
 	} else if (srv->phase == BT_MESH_BLOB_XFER_PHASE_COMPLETE) {
 		missing = 0U;
@@ -467,10 +464,12 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 
 		if (srv->phase == BT_MESH_BLOB_XFER_PHASE_SUSPENDED) {
 			resume(srv);
+			store_state(srv);
+		} else {
+			BT_DBG("Duplicate");
 		}
 
 		status = BT_MESH_BLOB_SUCCESS;
-		BT_DBG("Duplicate");
 		goto rsp;
 	}
 
@@ -757,7 +756,9 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return 0;
 	}
 
-	block_report(srv);
+	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+		block_report(srv);
+	}
 
 	if (srv->io->block_end) {
 		srv->io->block_end(srv->io, &srv->state.xfer, &srv->block);
@@ -812,7 +813,7 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 
 const struct bt_mesh_model_op _bt_mesh_blob_srv_op[] = {
 	{ BT_MESH_BLOB_OP_XFER_GET, BT_MESH_LEN_EXACT(0), handle_xfer_get },
-	{ BT_MESH_BLOB_OP_XFER_START, BT_MESH_LEN_EXACT(12), handle_xfer_start },
+	{ BT_MESH_BLOB_OP_XFER_START, BT_MESH_LEN_EXACT(16), handle_xfer_start },
 	{ BT_MESH_BLOB_OP_XFER_CANCEL, BT_MESH_LEN_EXACT(8), handle_xfer_cancel },
 	{ BT_MESH_BLOB_OP_BLOCK_GET, BT_MESH_LEN_EXACT(0), handle_block_get },
 	{ BT_MESH_BLOB_OP_BLOCK_START, BT_MESH_LEN_EXACT(4), handle_block_start },

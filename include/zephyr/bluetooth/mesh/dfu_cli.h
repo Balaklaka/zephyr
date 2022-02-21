@@ -252,6 +252,22 @@ int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 			 const struct bt_mesh_blob_io *io,
 			 const struct bt_mesh_dfu_cli_xfer *xfer);
 
+/** @brief Suspend a DFU transfer.
+ *
+ *  @param cli DFU Client instance.
+ *
+ *  @return 0 on success, or (negative) error code otherwise.
+ */
+int bt_mesh_dfu_cli_suspend(struct bt_mesh_dfu_cli *cli);
+
+/** @brief Resume the suspended transfer.
+ *
+ *  @param cli DFU Client instance.
+ *
+ *  @return 0 on success, or (negative) error code otherwise.
+ */
+int bt_mesh_dfu_cli_resume(struct bt_mesh_dfu_cli *cli);
+
 /** @brief Cancel a DFU transfer.
  *
  *  Will cancel the ongoing DFU transfer, or the transfer on a specific target

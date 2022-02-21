@@ -4510,6 +4510,34 @@ static int cmd_dfu_confirm(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
+static int cmd_dfu_suspend(const struct shell *sh, size_t argc, char *argv[])
+{
+	int err;
+
+	shell_print(sh, "Suspending DFU");
+
+	err = bt_mesh_dfu_cli_suspend(&bt_mesh_shell_dfu_cli);
+	if (err) {
+		shell_print(sh, "Failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
+static int cmd_dfu_resume(const struct shell *sh, size_t argc, char *argv[])
+{
+	int err;
+
+	shell_print(sh, "Resuming DFU");
+
+	err = bt_mesh_dfu_cli_resume(&bt_mesh_shell_dfu_cli);
+	if (err) {
+		shell_print(sh, "Failed (err: %d)", err);
+	}
+
+	return 0;
+}
+
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 
 static void blob_cli_inputs_prepare(uint16_t group)
@@ -5346,6 +5374,8 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(dfu-cancel, NULL, "[<addr>]", cmd_dfu_cancel, 1, 1),
 	SHELL_CMD_ARG(dfu-apply, NULL, NULL, cmd_dfu_apply, 0, 0),
 	SHELL_CMD_ARG(dfu-confirm, NULL, NULL, cmd_dfu_confirm, 0, 0),
+	SHELL_CMD_ARG(dfu-suspend, NULL, NULL, cmd_dfu_suspend, 0, 0),
+	SHELL_CMD_ARG(dfu-resume, NULL, NULL, cmd_dfu_resume, 0, 0),
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 	/* BLOB Client Model Operations */
 	SHELL_CMD_ARG(blob-target, NULL, "<addr>", cmd_blob_target, 2, 0),

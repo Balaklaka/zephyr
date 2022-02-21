@@ -1025,7 +1025,7 @@ The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :o
 ``mesh blob-tx-suspend``
 ------------------------
 
-	Suspend the ingoing BLOB transfer.
+	Suspend the ongoing BLOB transfer.
 
 
 ``mesh blob-tx-resume``
@@ -1145,6 +1145,18 @@ The DFU Client model can be added to the Mesh Shell by enabling :option:`CONFIG_
 ---------------------
 
 	Check the progress of the current transfer.
+
+
+``mesh dfu-suspend``
+--------------------
+
+	Suspend the ongoing DFU transfer.
+
+
+``mesh dfu-resume``
+-------------------
+
+	Resume the suspended DFU transfer.
 
 
 DFU Server model

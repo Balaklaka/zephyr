@@ -48,6 +48,7 @@ enum {
 	FLAG_FAILED = BIT(0),
 	FLAG_CANCELLED = BIT(1),
 	FLAG_SKIP_CAPS_GET = BIT(2),
+	FLAG_RESUME = BIT(3),
 };
 
 enum {
@@ -59,6 +60,7 @@ enum {
 	STATE_APPLIED,
 	STATE_CONFIRM,
 	STATE_CANCEL,
+	STATE_SUSPENDED,
 };
 
 static int32_t timeout = (10 * MSEC_PER_SEC);
@@ -222,6 +224,8 @@ static void blob_suspended(struct bt_mesh_blob_cli *b)
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
 
 	BT_DBG("BLOB transfer suspended");
+
+	cli->xfer.state = STATE_SUSPENDED;
 
 	if (cli->cb && cli->cb->suspended) {
 		cli->cb->suspended(cli);
@@ -400,7 +404,15 @@ static void transfer(struct bt_mesh_blob_cli *b)
 		return;
 	}
 
-	if (cli->xfer.flags & FLAG_SKIP_CAPS_GET) {
+	if (cli->xfer.flags & FLAG_RESUME) {
+		cli->xfer.flags ^= FLAG_RESUME;
+		err = bt_mesh_blob_cli_resume(b);
+		if (err) {
+			BT_ERR("Resuming BLOB xfer failed: %d", err);
+			dfu_failed(cli, BT_MESH_DFU_ERR_BLOB_XFER_BUSY);
+		}
+	} else if (cli->xfer.flags & FLAG_SKIP_CAPS_GET) {
+		cli->xfer.flags ^= FLAG_SKIP_CAPS_GET;
 		err = bt_mesh_blob_cli_send(b, b->inputs, &cli->xfer.blob, cli->xfer.io);
 		if (err) {
 			BT_ERR("Starting BLOB xfer failed: %d", err);
@@ -904,6 +916,40 @@ int bt_mesh_dfu_cli_send(struct bt_mesh_dfu_cli *cli,
 	TARGETS_FOR_EACH(cli, target) {
 		target->status = BT_MESH_DFU_SUCCESS;
 		target->phase = BT_MESH_DFU_PHASE_UNKNOWN;
+	}
+
+	initiate(cli);
+	return 0;
+}
+
+int bt_mesh_dfu_cli_suspend(struct bt_mesh_dfu_cli *cli)
+{
+	int err;
+
+	err = bt_mesh_blob_cli_suspend(&cli->blob);
+	if (!err) {
+		cli->xfer.state = STATE_SUSPENDED;
+	}
+
+	return err;
+}
+
+int bt_mesh_dfu_cli_resume(struct bt_mesh_dfu_cli *cli)
+{
+	struct bt_mesh_dfu_target *target;
+
+	if (cli->xfer.state != STATE_SUSPENDED) {
+		return -EINVAL;
+	}
+
+	cli->xfer.flags = FLAG_RESUME;
+
+	/* Restore timed out targets. */
+	TARGETS_FOR_EACH(cli, target) {
+		if (!!target->blob.timedout) {
+			target->status = BT_MESH_DFU_SUCCESS;
+			target->phase = BT_MESH_DFU_PHASE_UNKNOWN;
+		}
 	}
 
 	initiate(cli);
