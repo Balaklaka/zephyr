@@ -727,7 +727,7 @@ int bt_mesh_prov_enable(bt_mesh_prov_bearer_t bearers)
 
 		/* Only PB-Remote supports reprovisioning */
 		if (bt_mesh_is_provisioned()) {
-			return 0;
+			goto role_init;
 		}
 	} else if (bt_mesh_is_provisioned()) {
 		return -EALREADY;
@@ -750,6 +750,7 @@ int bt_mesh_prov_enable(bt_mesh_prov_bearer_t bearers)
 		bt_mesh_pb_gatt.link_accept(bt_mesh_prov_bearer_cb_get(), NULL);
 	}
 
+role_init:
 	bt_mesh_prov_link.role = &role_device;
 
 	return 0;
