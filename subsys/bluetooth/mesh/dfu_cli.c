@@ -7,6 +7,7 @@
 #include <string.h>
 #include <bluetooth/mesh.h>
 #include <settings/settings.h>
+#include "access.h"
 #include "dfu.h"
 #include "blob.h"
 #include <random/rand32.h>
@@ -392,6 +393,19 @@ static void initiate(struct bt_mesh_dfu_cli *cli)
 	blob_cli_broadcast(&cli->blob, &tx);
 }
 
+static bool is_self_update(struct bt_mesh_dfu_cli *cli)
+{
+	struct bt_mesh_dfu_target *target;
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (!bt_mesh_has_addr(target->blob.addr)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static void transfer(struct bt_mesh_blob_cli *b)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
@@ -401,6 +415,12 @@ static void transfer(struct bt_mesh_blob_cli *b)
 
 	if (!targets_active(cli)) {
 		dfu_failed(cli, BT_MESH_DFU_ERR_INTERNAL);
+		return;
+	}
+
+	if (is_self_update(cli)) {
+		/* If distributor only updates itself, proceed to the refresh step immediately. */
+		refresh(cli);
 		return;
 	}
 

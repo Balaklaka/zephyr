@@ -104,6 +104,26 @@ static void apply_rsp_sending(uint16_t duration, int err, void *cb_params)
 	}
 }
 
+static void verify(struct bt_mesh_dfu_srv *srv)
+{
+	srv->update.phase = BT_MESH_DFU_PHASE_VERIFY;
+
+	if (srv->update.idx >= srv->img_count) {
+		bt_mesh_dfu_srv_rejected(srv);
+		return;
+	}
+
+	if (!srv->cb->end) {
+		bt_mesh_dfu_srv_verified(srv);
+		return;
+	}
+
+	srv->cb->end(srv, &srv->imgs[srv->update.idx], true);
+	if (srv->update.phase == BT_MESH_DFU_PHASE_VERIFY) {
+		store_state(srv);
+	}
+}
+
 static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			   struct net_buf_simple *buf)
 {
@@ -303,12 +323,12 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	if (err == -EALREADY) {
 		/* This image has already been received. Skip the transfer
-		 * phase and mark the image as verified.
+		 * phase and proceed to verifying update.
 		 */
 		status = BT_MESH_DFU_SUCCESS;
 		srv->update.idx = idx;
-		srv->update.phase = BT_MESH_DFU_PHASE_VERIFY_OK;
-		store_state(srv);
+		srv->blob.state.xfer.id = blob_id;
+		verify(srv);
 		goto rsp;
 	}
 
@@ -475,22 +495,7 @@ static void blob_end(struct bt_mesh_blob_srv *b, uint64_t id, bool success)
 		return;
 	}
 
-	srv->update.phase = BT_MESH_DFU_PHASE_VERIFY;
-
-	if (srv->update.idx >= srv->img_count) {
-		bt_mesh_dfu_srv_rejected(srv);
-		return;
-	}
-
-	if (!srv->cb->end) {
-		bt_mesh_dfu_srv_verified(srv);
-		return;
-	}
-
-	srv->cb->end(srv, &srv->imgs[srv->update.idx], true);
-	if (srv->update.phase == BT_MESH_DFU_PHASE_VERIFY) {
-		store_state(srv);
-	}
+	verify(srv);
 }
 
 static int blob_recover(struct bt_mesh_blob_srv *b,
