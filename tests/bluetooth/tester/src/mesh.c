@@ -265,6 +265,7 @@ static struct bt_mesh_health_cli health_cli = {
 };
 
 
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 static uint8_t health_tests[] = {
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_LF, 6, 0x01, 0x02, 0x03, 0x04, 0x34,
 				 0x15),
@@ -275,10 +276,13 @@ static struct bt_mesh_models_metadata_entry health_srv_meta[] = {
 	BT_MESH_HEALTH_TEST_INFO_METADATA(health_tests),
 	BT_MESH_MODELS_METADATA_END,
 };
+#endif
 
 static struct bt_mesh_health_srv health_srv = {
 	.cb = &health_srv_cb,
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
 	.metadata = health_srv_meta,
+#endif
 };
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, CUR_FAULTS_MAX);
@@ -338,7 +342,9 @@ static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_HEALTH_CLI(&health_cli),
 	BT_MESH_MODEL_SAR_CFG_SRV,
 	BT_MESH_MODEL_SAR_CFG_CLI(&sar_cfg_cli),
+#if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)
 	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
+#endif
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
 #if defined(CONFIG_BT_MESH_RPR_CLI)
 	BT_MESH_MODEL_RPR_CLI(&rpr_cli),
