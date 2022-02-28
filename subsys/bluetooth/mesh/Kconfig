@@ -1027,7 +1027,7 @@ config BT_MESH_DFU_METADATA_MAXLEN
 	  This value defines the maximum length of an image's metadata.
 
 config BT_MESH_DFU_METADATA
-	bool "Enable support for the default metadata format"
+	bool "Support for the default metadata format"
 	default y
 	help
 	  This option adds a set of functions that can be used to encode and decode a firmware
@@ -1044,7 +1044,7 @@ config BT_MESH_DFU_URI_MAXLEN
 endmenu
 
 menuconfig BT_MESH_DFU_SLOTS
-	bool "Enable Firmware image slot manager"
+	bool "Firmware image slot manager"
 	default y if BT_MESH_DFU_CLI
 	help
 	  Enable the DFU image slot manager, for managing Firmware distribution slots

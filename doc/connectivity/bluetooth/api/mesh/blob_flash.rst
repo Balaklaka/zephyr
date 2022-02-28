@@ -22,5 +22,5 @@ The BLOB Flash Writer copies chunk data into a buffer to accommodate chunks that
 API Reference
 *************
 
-.. doxygengroup:: bt_mesh_blob_flash
+.. doxygengroup:: bt_mesh_blob_io_flash
    :project: Zephyr

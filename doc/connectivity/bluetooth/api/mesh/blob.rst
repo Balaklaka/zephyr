@@ -70,7 +70,7 @@ The application may implement their own BLOB stream, or use the implementations 
 .. toctree::
    :maxdepth: 2
 
-   blob_io_flash
+   blob_flash
 
 
 Transfer capabilities
@@ -78,12 +78,12 @@ Transfer capabilities
 
 Each BLOB Server may have different transfer capabilities. The transfer capabilities of each device is controlled through the following configuration options:
 
-* :option:`CONFIG_BT_MESH_BLOB_SIZE_MAX`
-* :option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN`
-* :option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MAX`
-* :option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX`
+* :kconfig:option:`CONFIG_BT_MESH_BLOB_SIZE_MAX`
+* :kconfig:option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN`
+* :kconfig:option:`CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MAX`
+* :kconfig:option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX`
 
-The :option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX` option is also used by the BLOB Client and affects memory consumption by the BLOB Client model structure.
+The :kconfig:option:`CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX` option is also used by the BLOB Client and affects memory consumption by the BLOB Client model structure.
 
 To ensure that the transfer can be received by as many Servers as possible, the BLOB Client can retrieve the capabilities of each BLOB Server before starting the transfer. The Client will transfer the BLOB with the highest possible block and chunk size.
 

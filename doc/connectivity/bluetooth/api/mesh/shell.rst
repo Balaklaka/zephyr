@@ -985,7 +985,7 @@ The Configuration database is an optional mesh subsystem that can be enabled thr
 BLOB Client model
 =================
 
-The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_CLI`, and disabling the :option:`CONFIG_BT_MESH_DFU_CLI` configuration option.
+The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_CLI`, and disabling the :kconfig:option:`CONFIG_BT_MESH_DFU_CLI` configuration option.
 
 ``mesh blob-target <addr>``
 ----------------------------
@@ -1017,7 +1017,7 @@ The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :o
 
 
 ``mesh blob-tx-cancel``
-------------------
+-----------------------
 
 	Cancel an ongoing BLOB transfer.
 
@@ -1037,11 +1037,11 @@ The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :o
 BLOB Server model
 =================
 
-The :ref:`bluetooth_mesh_blob_srv` can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_SRV`. The BLOB Server model is capable of receiving any BLOB data, but the implementation in the Mesh Shell will discard the incoming data.
+The :ref:`bluetooth_mesh_blob_srv` can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_SRV`. The BLOB Server model is capable of receiving any BLOB data, but the implementation in the Mesh Shell will discard the incoming data.
 
 
 ``mesh blob-rx <id> [<timeout base>]``
-----------------
+--------------------------------------
 
 	Prepare to receive a BLOB transfer.
 
@@ -1058,11 +1058,11 @@ The :ref:`bluetooth_mesh_blob_srv` can be added to the Mesh Shell by enabling :o
 DFU Client model
 ================
 
-The DFU Client model can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_CLI` and :option:`CONFIG_BT_MESH_DFU_CLI`. The DFU Client demonstrates the Firmware upgrade distributor role by transferring a dummy firmware upgrade to a set of DFU targets.
+The DFU Client model can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_CLI` and :kconfig:option:`CONFIG_BT_MESH_DFU_CLI`. The DFU Client demonstrates the Firmware upgrade distributor role by transferring a dummy firmware upgrade to a set of DFU targets.
 
 
 ``mesh dfu-slot-add <size> [<fwid> [<metadata> [<uri>]]]``
---------------------------------------------------------------------
+----------------------------------------------------------
 
 	Add a virtual DFU image slot that can be transferred as a DFU image. The image slot will be assigned an image slot index, which is printed as a response, and can be used to reference the slot in other commands.
 
@@ -1162,7 +1162,7 @@ The DFU Client model can be added to the Mesh Shell by enabling :option:`CONFIG_
 DFU Server model
 ================
 
-The DFU Server model can be added to the Mesh Shell by enabling :option:`CONFIG_BT_MESH_BLOB_SRV` and :option:`CONFIG_BT_MESH_DFU_SRV`. The DFU Server demonstrates the Firmware upgrade target role by accepting any firmware upgrade. The Mesh Shell DFU Server will discard the incoming firmware data, but otherwise behave as a proper DFU target node.
+The DFU Server model can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_SRV` and :kconfig:option:`CONFIG_BT_MESH_DFU_SRV`. The DFU Server demonstrates the Firmware upgrade target role by accepting any firmware upgrade. The Mesh Shell DFU Server will discard the incoming firmware data, but otherwise behave as a proper DFU target node.
 
 
 ``mesh dfu-applied``
@@ -1185,18 +1185,18 @@ The DFU Server model can be added to the Mesh Shell by enabling :option:`CONFIG_
 
 
 SAR Configuration Client
-======================
+========================
 
-The SAR Configuration client is an optional Mesh model that can be enabled through the :option:`CONFIG_BT_MESH_SAR_CFG_CLI` configuration option. The SAR Configuration Client model is used to support the functionality of configuring the behavior of the lower transport layer of a node that supports the SAR Configuration Server model.
+The SAR Configuration client is an optional Mesh model that can be enabled through the :kconfig:option:`CONFIG_BT_MESH_SAR_CFG_CLI` configuration option. The SAR Configuration Client model is used to support the functionality of configuring the behavior of the lower transport layer of a node that supports the SAR Configuration Server model.
 
 
 ``mesh sar-tx-get``
-----------------------------
+-------------------
 
 	Send SAR Configuration Transmitter Get message.
 
 ``mesh sar-tx-set <7 configuration values>``
-----------------------------
+--------------------------------------------
 
 	Send SAR Configuration Transmitter Set message.
 
@@ -1215,12 +1215,12 @@ The SAR Configuration client is an optional Mesh model that can be enabled throu
 	* ``multicast_retrans_int``: SAR Multicast Retransmissions Interval state.
 
 ``mesh sar-rx-get``
-----------------------------
+-------------------
 
 	Send SAR Configuration Receiver Get message.
 
 ``mesh sar-rx-set <5 configuration values>``
-----------------------------
+--------------------------------------------
 
 	Send SAR Configuration Receiver Set message.
 

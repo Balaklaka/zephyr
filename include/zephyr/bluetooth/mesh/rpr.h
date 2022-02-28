@@ -94,7 +94,7 @@ struct bt_mesh_rpr_unprov {
 	bt_mesh_prov_oob_info_t oob;
 	/** URI hash in unprovisioned beacon.
 	 *
-	 *  Only valid if @c flags has @ref BT_MESH_RPR_UNPROV_FLAG_HASH set.
+	 *  Only valid if @c flags has @ref BT_MESH_RPR_UNPROV_HASH set.
 	 */
 	uint32_t hash;
 };
@@ -114,4 +114,3 @@ struct bt_mesh_rpr_link {
 #endif /* ZEPHYR_INCLUDE_BT_MESH_RPR_H__ */
 
 /** @} */
-

@@ -85,8 +85,8 @@ Building and flashing the MCUboot
 
 The sample is configured as an application for the MCUboot bootloader and thus requires it to be
 flashed on the device. Build and flash the MCUboot bootloader as it is described in
-`Building MCUboot with Zephyr`_. Remember to set ``CONFIG_BOOT_SIGNATURE_KEY_FILE`` to the same
-key as for signing the sample.
+`Building MCUboot with Zephyr`_. Remember to set ``BOOT_SIGNATURE_KEY_FILE`` Kconfig option to the
+same key as for signing the sample.
 
 Interacting with the sample
 ***************************

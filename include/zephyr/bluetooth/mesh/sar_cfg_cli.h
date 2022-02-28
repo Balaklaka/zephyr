@@ -125,4 +125,4 @@ extern const struct bt_mesh_model_cb _bt_mesh_sar_cfg_cli_cb;
 
 #endif /* BT_MESH_SAR_CFG_CLI_H__ */
 
-/* @} */
+/** @} */

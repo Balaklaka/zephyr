@@ -66,4 +66,4 @@ struct bt_mesh_sar_rx {
 
 #endif /* BT_MESH_SAR_CFG_H__ */
 
-/* @} */
+/** @} */

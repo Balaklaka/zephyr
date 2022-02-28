@@ -534,10 +534,6 @@ static int handle_xfer_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 	store_state(srv);
 	status = BT_MESH_BLOB_SUCCESS;
 
-	/* TODO: Set the LPN poll interval in a permanent manner.
-	 * Currently, it'll move towards CONFIG_POLL_MAX exponentially, even
-	 * if we set it manually.
-	 */
 rsp:
 	xfer_status_rsp(srv, ctx, status);
 

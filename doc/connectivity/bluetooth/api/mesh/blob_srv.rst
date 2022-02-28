@@ -55,7 +55,7 @@ The BLOB Client may resume a suspended transfer by starting a new block transfer
 Transfer recovery
 *****************
 
-If :option:`CONFIG_BT_SETTINGS` is enabled, the state of the BLOB transfer is stored persistently. If a reboot occurs, the BLOB Server will attempt to recover the transfer. When the Mesh subsystem is started (for instance by calling :cpp:func:`bt_mesh_init`), the BLOB Server will check for aborted transfers, and call the :cpp:member:`recover <bt_mesh_blob_srv_cb::recover>` callback if there is any. In the recover callback, the user must provide a BLOB stream to use for the rest of the transfer. If the recover callback doesn't return successfully or does not provide a BLOB stream, the transfer is abandoned. If no recover callback is implemented, transfers are always abandoned after a reboot.
+If :kconfig:option:`CONFIG_BT_SETTINGS` is enabled, the state of the BLOB transfer is stored persistently. If a reboot occurs, the BLOB Server will attempt to recover the transfer. When the Mesh subsystem is started (for instance by calling :cpp:func:`bt_mesh_init`), the BLOB Server will check for aborted transfers, and call the :cpp:member:`recover <bt_mesh_blob_srv_cb::recover>` callback if there is any. In the recover callback, the user must provide a BLOB stream to use for the rest of the transfer. If the recover callback doesn't return successfully or does not provide a BLOB stream, the transfer is abandoned. If no recover callback is implemented, transfers are always abandoned after a reboot.
 
 After a transfer is successfully recovered, the BLOB Server enters the suspended state. It will stay suspended until the BLOB Client resumes the transfer, or the user cancels it.
 

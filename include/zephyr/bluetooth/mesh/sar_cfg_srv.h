@@ -14,7 +14,7 @@
 
 /**
  * @brief Bluetooth Mesh
- * @defgroup bt_mesh_sar_cfg_cli Bluetooth Mesh SAR Configuration Server Model
+ * @defgroup bt_mesh_sar_cfg_srv Bluetooth Mesh SAR Configuration Server Model
  * @ingroup bt_mesh
  * @{
  */
@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_SAR_CFG_SRV
+/** @def BT_MESH_MODEL_SAR_CFG_SRV
  *
  *  @brief Transport SAR Configuration Server model composition data entry.
  */

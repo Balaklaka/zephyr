@@ -187,7 +187,7 @@ int bt_mesh_rpr_scan_start(struct bt_mesh_rpr_cli *cli,
  *                  the remote server.
  *  @param timeout  Scan timeout in seconds. Valid values from @ref BT_MESH_RPR_EXT_SCAN_TIME_MIN
  *                  to @ref BT_MESH_RPR_EXT_SCAN_TIME_MAX. Ignored if UUID is NULL.
- *  @param ad_types List of AD types to include in the scan report. Must contain 1 to @option
+ *  @param ad_types List of AD types to include in the scan report. Must contain 1 to
  *                  CONFIG_BT_MESH_RPR_AD_TYPES_MAX entries.
  *  @param ad_count Number of AD types in @c ad_types.
  *
