@@ -271,7 +271,12 @@ static void test_friend_msg(void)
 	 */
 	ASSERT_OK(bt_mesh_test_recv(15, cfg->addr, K_SECONDS(10)),
 		  "Receive from LPN failed");
-	friend_wait_for_polls(2);
+	/* 4 polls:
+	 * - The first one triggered manually by transport when sending segmented message;
+	 * - 2 for each SegAck (SegAcks are sent faster than Friend Poll messages);
+	 * - The last one with MD == 0;
+	 */
+	friend_wait_for_polls(4);
 
 	PASS();
 }
