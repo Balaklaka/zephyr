@@ -1503,7 +1503,7 @@ found_rx:
 
 	if (!bt_mesh_lpn_established() && BT_MESH_ADDR_IS_UNICAST(rx->dst)) {
 		BT_DBG("ack delay %u", ACK_DELAY(rx->seg_n));
-		k_work_schedule(&rx->ack, K_MSEC(ACK_DELAY(rx->seg_n)));
+		k_work_reschedule(&rx->ack, K_MSEC(ACK_DELAY(rx->seg_n)));
 	}
 
 	/* Allocated segment here */
