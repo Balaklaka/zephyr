@@ -135,4 +135,6 @@ int bt_mesh_test_send_ra(uint16_t addr, uint8_t *data, size_t len,
 			 const struct bt_mesh_send_cb *send_cb,
 			 void *cb_data);
 void bt_mesh_test_ra_cb_setup(void (*cb)(uint8_t *, size_t));
+uint *bt_mesh_test_sync_init(void);
+void bt_mesh_test_sync(uint *sync_chan_id);
 #endif /* ZEPHYR_TESTS_BLUETOOTH_BSIM_BT_BSIM_TEST_MESH_MESH_TEST_H_ */

@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 #include "mesh_test.h"
+#include "argparse.h"
+#include <bs_pc_backchannel.h>
 
 #define LOG_MODULE_NAME mesh_test
 
@@ -252,6 +254,11 @@ void bt_mesh_test_setup(void)
 {
 	static struct bt_mesh_prov prov;
 
+	/* Ensure those test devices will not drift more than
+	 * 100ms for each other in emulated time
+	 */
+	tm_set_phy_max_resync_offset(100000);
+
 	net_buf_simple_init(pub.msg, 0);
 	net_buf_simple_init(vnd_pub.msg, 0);
 
@@ -486,4 +493,42 @@ int bt_mesh_test_send_ra(uint16_t addr, uint8_t *data, size_t len,
 void bt_mesh_test_ra_cb_setup(void (*cb)(uint8_t *, size_t))
 {
 	ra_cb = cb;
+}
+
+uint *bt_mesh_test_sync_init(void)
+{
+	uint *sync_chan_id = bs_open_back_channel(get_device_nbr(),
+						  (uint[]){(get_device_nbr() + 1) % 2},
+						  (uint[]){0}, 1);
+	ASSERT_OK(sync_chan_id == NULL);
+	return sync_chan_id;
+}
+
+void bt_mesh_test_sync(uint *sync_chan_id)
+{
+	static size_t sync_id;
+	const uint32_t barrier_msg = 0xC0FFEE;
+	uint32_t recv_msg;
+	int size;
+
+	LOG_INF("sync_id: %u", sync_id);
+	sync_id++;
+
+	bs_bc_send_msg(*sync_chan_id, (uint8_t *)&barrier_msg, sizeof(barrier_msg));
+
+	for (size_t i = 0; i < 40; i++) {
+		size = bs_bc_is_msg_received(*sync_chan_id);
+
+		if (size < 0) {
+			FAIL("Sync channel error: %d", size);
+		} else if (size == 0) {
+			k_sleep(K_MSEC(100));
+		} else {
+			ASSERT_EQUAL(size, sizeof(barrier_msg));
+			break;
+		}
+	}
+
+	bs_bc_receive_msg(*sync_chan_id, (uint8_t *)&recv_msg, sizeof(recv_msg));
+	ASSERT_EQUAL(barrier_msg, recv_msg);
 }
