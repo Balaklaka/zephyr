@@ -134,8 +134,10 @@ static void close_link(enum prov_bearer_link_status status);
 
 static void buf_sent(int err, void *user_data)
 {
+	enum prov_bearer_link_status reason = (enum prov_bearer_link_status)user_data;
+
 	if (atomic_test_and_clear_bit(link.flags, ADV_LINK_CLOSING)) {
-		close_link(PROV_BEARER_LINK_STATUS_SUCCESS);
+		close_link(reason);
 		return;
 	}
 }
@@ -620,7 +622,7 @@ static void prov_retransmit(struct k_work *work)
 
 	if (k_uptime_get() - link.tx.start > link.tx.timeout * MSEC_PER_SEC) {
 		BT_WARN("Giving up transaction");
-		prov_link_close(PROV_BEARER_LINK_STATUS_FAIL);
+		prov_link_close(PROV_BEARER_LINK_STATUS_TIMEOUT);
 		return;
 	}
 
@@ -664,7 +666,7 @@ static int bearer_ctl_send(struct net_buf *buf)
 	return 0;
 }
 
-static int bearer_ctl_send_unacked(struct net_buf *buf)
+static int bearer_ctl_send_unacked(struct net_buf *buf, void *user_data)
 {
 	if (!buf) {
 		return -ENOMEM;
@@ -673,7 +675,7 @@ static int bearer_ctl_send_unacked(struct net_buf *buf)
 	prov_clear_tx();
 	k_work_reschedule(&link.prot_timer, PROTOCOL_TIMEOUT);
 
-	bt_mesh_adv_send(buf, &buf_sent_cb, NULL);
+	bt_mesh_adv_send(buf, &buf_sent_cb, user_data);
 	net_buf_unref(buf);
 
 	return 0;
@@ -770,7 +772,9 @@ static void link_open(struct prov_rx *rx, struct net_buf_simple *buf)
 
 		BT_DBG("Resending link ack");
 		/* Ignore errors, message will be attempted again if we keep receiving link open: */
-		(void)bearer_ctl_send_unacked(ctl_buf_create(LINK_ACK, NULL, 0, RETRANSMITS_ACK));
+		(void)bearer_ctl_send_unacked(
+			ctl_buf_create(LINK_ACK, NULL, 0, RETRANSMITS_ACK),
+			PROV_BEARER_LINK_STATUS_SUCCESS);
 		return;
 	}
 
@@ -783,7 +787,9 @@ static void link_open(struct prov_rx *rx, struct net_buf_simple *buf)
 	atomic_set_bit(link.flags, ADV_LINK_ACTIVE);
 	net_buf_simple_reset(link.rx.buf);
 
-	err = bearer_ctl_send_unacked(ctl_buf_create(LINK_ACK, NULL, 0, RETRANSMITS_ACK));
+	err = bearer_ctl_send_unacked(
+		ctl_buf_create(LINK_ACK, NULL, 0, RETRANSMITS_ACK),
+		PROV_BEARER_LINK_STATUS_SUCCESS);
 	if (err) {
 		reset_adv_link();
 		return;
@@ -925,9 +931,10 @@ static void prov_link_close(enum prov_bearer_link_status status)
 	 * message until CLOSING_TIMEOUT has elapsed.
 	 */
 	link.tx.timeout = CLOSING_TIMEOUT;
-
 	/* Ignore errors, the link will time out eventually if this doesn't get sent */
-	bearer_ctl_send_unacked(ctl_buf_create(LINK_CLOSE, &status, 1, RETRANSMITS_LINK_CLOSE));
+	bearer_ctl_send_unacked(
+		ctl_buf_create(LINK_CLOSE, &status, 1, RETRANSMITS_LINK_CLOSE),
+		(void *)status);
 }
 
 void bt_mesh_pb_adv_init(void)
