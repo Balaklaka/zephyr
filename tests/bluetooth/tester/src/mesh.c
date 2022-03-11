@@ -525,6 +525,7 @@ static struct bt_mesh_prov prov = {
 	.complete = prov_complete,
 	.node_added = prov_node_added,
 	.reset = prov_reset,
+	.uri = "Tester",
 };
 
 static void config_prov(uint8_t *data, uint16_t len)
