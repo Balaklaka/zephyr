@@ -592,28 +592,6 @@ config BT_MESH_LOOPBACK_BUFS
 	  The number of buffers allocated for the network loopback mechanism.
 	  Loopback is used when the device sends messages to itself.
 
-config BT_MESH_TX_SEG_RETRANS_COUNT
-	int "Transport message segment retransmit attempts"
-	default 4
-	range 1 8
-	help
-	  Maximum number of transport message segment retransmit attempts
-	  for outgoing segment message.
-
-config BT_MESH_TX_SEG_RETRANS_TIMEOUT_UNICAST
-	int "Transport message segment retransmit interval for unicast messages"
-	default 400
-	range 200 500
-	help
-	  Maximum time of retransmit segment message to unicast address.
-
-config BT_MESH_TX_SEG_RETRANS_TIMEOUT_GROUP
-	int "Transport message segment retransmit interval for group messages"
-	default 50
-	range 20 200
-	help
-	  Maximum time of retransmit segment message to group address.
-
 config BT_MESH_NETWORK_TRANSMIT_COUNT
 	int "Network Transmit Count"
 	default 2
