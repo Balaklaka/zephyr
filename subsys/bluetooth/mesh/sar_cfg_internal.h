@@ -33,8 +33,8 @@
 	{                                                                      \
 		CONFIG_BT_MESH_SAR_RX_SEG_THRESHOLD,                           \
 			CONFIG_BT_MESH_SAR_RX_ACK_DELAY_INC,                   \
-			CONFIG_BT_MESH_SAR_RX_SEG_INT_STEP,                    \
 			CONFIG_BT_MESH_SAR_RX_DISCARD_TIMEOUT,                 \
+			CONFIG_BT_MESH_SAR_RX_SEG_INT_STEP,                    \
 			CONFIG_BT_MESH_SAR_RX_ACK_RETRANS_COUNT,               \
 	}
 
