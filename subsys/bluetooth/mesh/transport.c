@@ -100,7 +100,8 @@ static struct seg_tx {
 			      aszmic:1,      /* MIC size */
 			      started:1,     /* Start cb called */
 			      friend_cred:1, /* Using Friend credentials */
-			      seg_send_started:1; /* Used to check if seg_send_start cb is called */
+			      seg_send_started:1, /* Used to check if seg_send_start cb is called */
+			      ack_received:1; /* Ack received during seg message transmission. */
 	const struct bt_mesh_send_cb *cb;
 	void                  *cb_data;
 	struct k_work_delayable retransmit;    /* Retransmit timer */
@@ -447,6 +448,8 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 		/* Move on to the next segment */
 		tx->seg_o++;
 
+		tx->ack_received = 0U;
+
 		/* Return here to let the advertising layer process the message.
 		 * This function will be called again after Segment Interval.
 		 */
@@ -457,7 +460,7 @@ static void seg_tx_send_unacked(struct seg_tx *tx)
 	/* All segments have been sent */
 	tx->seg_o = 0U;
 	tx->attempts_left--;
-	if (BT_MESH_ADDR_IS_UNICAST(tx->dst)) {
+	if (BT_MESH_ADDR_IS_UNICAST(tx->dst) && !tx->ack_received) {
 		tx->attempts_left_without_progress--;
 	}
 
@@ -468,7 +471,15 @@ end:
 	}
 
 	delta_ms = (uint32_t)(k_uptime_get() - tx->adv_start_timestamp);
-	timeout = BT_MESH_SAR_TX_RETRANS_TIMEOUT_MS(tx->dst, tx->ttl);
+	if (tx->ack_received) {
+		/* Schedule retransmission immediately but keep SAR segment interval time if
+		 * SegAck was received while sending last segment.
+		 */
+		timeout = BT_MESH_SAR_TX_SEG_INT_MS;
+		tx->ack_received = 0U;
+	} else {
+		timeout = BT_MESH_SAR_TX_RETRANS_TIMEOUT_MS(tx->dst, tx->ttl);
+	}
 
 	if (delta_ms < timeout) {
 		timeout -= delta_ms;
@@ -907,13 +918,17 @@ static int trans_ack(struct bt_mesh_net_rx *rx, uint8_t hdr,
 		/* If transmission is not in progress it means
 		 * that Retransmission Timer is running
 		 */
-		if (new_seg_ack && tx->seg_o == 0) {
-			/* According to the Bluetooth Mesh Profile specification,
-			 * section 3.5.3.3, we should reset the retransmit timer and
-			 * retransmit immediately when receiving a valid ack message
-			 * while Retransmisison timer is running.
-			 */
-			k_work_reschedule(&tx->retransmit, K_NO_WAIT);
+		if (new_seg_ack) {
+			if (tx->seg_o == 0) {
+				/* According to the Bluetooth Mesh Profile specification,
+				 * section 3.5.3.3, we should reset the retransmit timer and
+				 * retransmit immediately when receiving a valid ack message
+				 * while Retransmisison timer is running.
+				 */
+				k_work_reschedule(&tx->retransmit, K_NO_WAIT);
+			} else {
+				tx->ack_received = 1U;
+			}
 		}
 	} else {
 		BT_DBG("SDU TX complete");
