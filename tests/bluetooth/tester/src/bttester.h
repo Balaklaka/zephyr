@@ -1429,6 +1429,8 @@ struct mesh_models_metadata_get_cmd {
 
 #define MESH_COMP_CHANGE_PREPARE		0x55
 
+#define MESH_SET_COMP_ALT			0x56
+
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
 struct mesh_out_number_action_ev {

@@ -76,6 +76,8 @@ static struct {
 	.dst = BT_MESH_ADDR_UNASSIGNED,
 };
 
+static bool default_comp = true;
+
 static void supported_commands(uint8_t *data, uint16_t len)
 {
 	struct net_buf_simple *buf = NET_BUF_SIMPLE(BTP_DATA_MAX_SIZE);
@@ -511,6 +513,14 @@ static const struct bt_mesh_comp comp = {
 	.cid = CID_LOCAL,
 	.elem = elements,
 	.elem_count = ARRAY_SIZE(elements),
+	.vid = 1,
+};
+
+static const struct bt_mesh_comp comp_alt = {
+	.cid = CID_LOCAL,
+	.elem = elements,
+	.elem_count = ARRAY_SIZE(elements),
+	.vid = 2,
 };
 
 static struct bt_mesh_prov prov = {
@@ -1148,6 +1158,13 @@ static void change_prepare(uint8_t *data, uint16_t len)
 		   status);
 }
 
+static void set_comp_alt(uint8_t *data, uint16_t len)
+{
+	default_comp = false;
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_SET_COMP_ALT, BTP_INDEX_NONE,
+		   BTP_STATUS_SUCCESS);
+}
 static void config_krp_get(uint8_t *data, uint16_t len)
 {
 	struct mesh_cfg_krp_get_cmd *cmd = (void *)data;
@@ -2879,6 +2896,9 @@ void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t l
 	case MESH_COMP_CHANGE_PREPARE:
 		change_prepare(data, len);
 		break;
+	case MESH_SET_COMP_ALT:
+		set_comp_alt(data, len);
+		break;
 	default:
 		tester_rsp(BTP_SERVICE_ID_MESH, opcode, index,
 			   BTP_STATUS_UNKNOWN_CMD);
@@ -3084,7 +3104,12 @@ uint8_t tester_init_mesh(void)
 		bt_test_cb_register(&bt_test_cb);
 	}
 
-	err = bt_mesh_init(&prov, &comp);
+	if (default_comp) {
+		err = bt_mesh_init(&prov, &comp);
+	} else {
+		err = bt_mesh_init(&prov, &comp_alt);
+	}
+
 	if (err) {
 		return BTP_STATUS_FAILED;
 	}
