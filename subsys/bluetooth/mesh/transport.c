@@ -920,12 +920,22 @@ static int trans_ack(struct bt_mesh_net_rx *rx, uint8_t hdr,
 		 */
 		if (new_seg_ack) {
 			if (tx->seg_o == 0) {
+				uint32_t delta_ms = (uint32_t)(k_uptime_get() -
+							       tx->adv_start_timestamp);
+				k_timeout_t timeout = K_NO_WAIT;
+
 				/* According to the Bluetooth Mesh Profile specification,
 				 * section 3.5.3.3, we should reset the retransmit timer and
 				 * retransmit immediately when receiving a valid ack message
-				 * while Retransmisison timer is running.
+				 * while Retransmisison timer is running. However, transport should
+				 * still keep segment transmission interval time between
+				 * transmission of each segment.
 				 */
-				k_work_reschedule(&tx->retransmit, K_NO_WAIT);
+				if (delta_ms < BT_MESH_SAR_TX_SEG_INT_MS) {
+					timeout = K_MSEC(BT_MESH_SAR_TX_SEG_INT_MS - delta_ms);
+				}
+
+				k_work_reschedule(&tx->retransmit, timeout);
 			} else {
 				tx->ack_received = 1U;
 			}
