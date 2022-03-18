@@ -9,6 +9,7 @@
 #include "dfu_slot.h"
 #include "dfd.h"
 #include "dfu.h"
+#include "dfd_srv_internal.h"
 #include "net.h"
 #include "transport.h"
 
@@ -127,37 +128,14 @@ static int handle_receivers_add(struct bt_mesh_model *mod, struct bt_mesh_msg_ct
 		return 0;
 	}
 
-	while (buf->len >= 3) {
-		struct bt_mesh_dfu_target *t;
+	while (buf->len >= 3 && status == BT_MESH_DFD_SUCCESS) {
 		uint8_t img_idx;
 		uint16_t addr;
 
 		addr = net_buf_simple_pull_le16(buf);
 		img_idx = net_buf_simple_pull_u8(buf);
-		if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
-			continue;
-		}
 
-		t = target_get(srv, addr);
-		if (t) {
-			t->img_idx = img_idx;
-			continue;
-		}
-
-		/* New target node, add it to the list */
-
-		if (srv->target_cnt == ARRAY_SIZE(srv->targets)) {
-			status = BT_MESH_DFD_ERR_INSUFFICIENT_RESOURCES;
-			break;
-		}
-
-		t = &srv->targets[srv->target_cnt++];
-		memset(t, 0, sizeof(*t));
-		t->blob.addr = addr;
-		t->img_idx = img_idx;
-
-		BT_DBG("Added receiver 0x%04x img: %u", t->blob.addr,
-		       t->img_idx);
+		status = bt_mesh_dfd_srv_receiver_add(srv, addr, img_idx);
 	}
 
 	receivers_status_rsp(srv, ctx, status);
@@ -170,16 +148,7 @@ static int handle_receivers_delete_all(struct bt_mesh_model *mod, struct bt_mesh
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
 
-	if (bt_mesh_dfu_cli_is_busy(&srv->dfu)) {
-		receivers_status_rsp(srv, ctx,
-				     BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
-		return 0;
-	}
-
-	sys_slist_init(&srv->inputs.targets);
-	srv->target_cnt = 0;
-
-	receivers_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	receivers_status_rsp(srv, ctx, bt_mesh_dfd_srv_receivers_delete_all(srv));
 
 	return 0;
 }
@@ -301,19 +270,16 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
-	uint16_t app_idx, timeout_base, slot_idx, group;
-	struct bt_mesh_dfu_cli_xfer xfer;
-	uint8_t byte, ttl;
-	bool apply;
-	int err, i;
+	struct bt_mesh_dfd_start_params params;
+	uint8_t byte;
 
-	app_idx = net_buf_simple_pull_le16(buf);
-	ttl = net_buf_simple_pull_u8(buf);
-	timeout_base = net_buf_simple_pull_le16(buf);
+	params.app_idx = net_buf_simple_pull_le16(buf);
+	params.ttl = net_buf_simple_pull_u8(buf);
+	params.timeout_base = net_buf_simple_pull_le16(buf);
 	byte = net_buf_simple_pull_u8(buf);
-	xfer.mode = byte & BIT_MASK(2);
-	apply = (byte >> 2U) & BIT_MASK(1);
-	slot_idx = net_buf_simple_pull_le16(buf);
+	params.xfer_mode = byte & BIT_MASK(2);
+	params.apply = (byte >> 2U) & BIT_MASK(1);
+	params.slot_idx = net_buf_simple_pull_le16(buf);
 
 	if (buf->len == 16) {
 		/* TODO: Virtual addresses not supported. */
@@ -325,86 +291,9 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return -EINVAL;
 	}
 
-	group = net_buf_simple_pull_le16(buf);
+	params.group = net_buf_simple_pull_le16(buf);
 
-	if (!srv->target_cnt) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_RECEIVERS_LIST_EMPTY);
-		return 0;
-	}
-
-	if (!bt_mesh_app_key_exists(app_idx)) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INVALID_APPKEY_INDEX);
-		return 0;
-	}
-
-	xfer.slot = bt_mesh_dfu_slot_at(slot_idx);
-	if (!xfer.slot || !bt_mesh_dfu_slot_is_valid(xfer.slot)) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_FW_NOT_FOUND);
-		return 0;
-	}
-
-	if (srv->inputs.app_idx == app_idx &&
-	    srv->inputs.timeout_base == timeout_base &&
-	    srv->inputs.group == group && srv->inputs.ttl == ttl &&
-	    srv->dfu.xfer.blob.mode == xfer.mode && srv->apply == apply &&
-	    srv->slot_idx == slot_idx) {
-		if (is_busy(srv) ||
-		    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
-			BT_WARN("Already completed or in progress");
-			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-			return 0;
-		} else if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
-			bt_mesh_dfu_cli_resume(&srv->dfu);
-			dfd_phase_set(srv, BT_MESH_DFD_PHASE_TRANSFER_ACTIVE);
-			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-			return 0;
-		}
-	} else if (is_busy(srv) ||
-		   srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
-		BT_WARN("Busy with distribution");
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
-		return 0;
-	}
-
-	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
-		BT_WARN("Canceling distribution");
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION);
-		return 0;
-	}
-
-	srv->io = NULL;
-	err = srv->cb->send(srv, xfer.slot, &srv->io);
-	if (err || !srv->io) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
-		return 0;
-	}
-
-	sys_slist_init(&srv->inputs.targets);
-	for (i = 0; i < srv->target_cnt; i++) {
-		sys_slist_append(&srv->inputs.targets, &srv->targets[i].blob.n);
-	}
-
-	srv->slot_idx = slot_idx;
-	srv->inputs.app_idx = app_idx;
-	srv->inputs.timeout_base = timeout_base;
-	srv->inputs.group = group;
-	srv->inputs.ttl = ttl;
-	srv->apply = apply;
-
-	BT_DBG("Distribution Start: slot: %d, appidx: %d, tb: %d, addr: %04X, ttl: %d, apply: %d",
-	       slot_idx, app_idx, timeout_base, group, ttl, apply);
-
-	/* DFD Server will always retrieve targets' capabilities before distributing a firmware.*/
-	xfer.blob_params = NULL;
-
-	err = bt_mesh_dfu_cli_send(&srv->dfu, &srv->inputs, srv->io, &xfer);
-	if (err) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
-		return 0;
-	}
-
-	dfd_phase_set(srv, BT_MESH_DFD_PHASE_TRANSFER_ACTIVE);
-	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	status_rsp(srv, ctx, bt_mesh_dfd_srv_start(srv, &params));
 
 	return 0;
 }
@@ -414,26 +303,8 @@ static int handle_suspend(struct bt_mesh_model *mod,
 			   struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
-	int err;
 
-	if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
-		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-		return 0;
-	}
-
-	if (srv->phase != BT_MESH_DFD_PHASE_TRANSFER_ACTIVE) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_WRONG_PHASE);
-		return 0;
-	}
-
-	err = bt_mesh_dfu_cli_suspend(&srv->dfu);
-	if (err) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_SUSPEND_FAILED);
-		return 0;
-	}
-
-	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
-	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	status_rsp(srv, ctx, bt_mesh_dfd_srv_suspend(srv));
 
 	return 0;
 }
@@ -442,38 +313,8 @@ static int handle_cancel(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			 struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
-	enum bt_mesh_dfd_phase prev_phase;
-	int err;
 
-	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
-	    srv->phase == BT_MESH_DFD_PHASE_IDLE) {
-		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-		return 0;
-	}
-
-	if (srv->phase == BT_MESH_DFD_PHASE_COMPLETED ||
-	    srv->phase == BT_MESH_DFD_PHASE_FAILED) {
-		dfd_phase_set(srv, BT_MESH_DFD_PHASE_IDLE);
-		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-		return 0;
-	}
-
-	/* Phase TRANSFER_ACTIVE, TRANSFER_SUSPENDED, TRANSFER_SUCCESS, APPLYING_UPDATE: */
-
-	prev_phase = srv->phase;
-	dfd_phase_set(srv, BT_MESH_DFD_PHASE_CANCELING_UPDATE);
-	err = bt_mesh_dfu_cli_cancel(&srv->dfu, NULL);
-	if (err) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
-		return 0;
-	}
-
-	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-
-	if (prev_phase == BT_MESH_DFD_PHASE_APPLYING_UPDATE) {
-		dfd_phase_set(srv, BT_MESH_DFD_PHASE_IDLE);
-		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-	}
+	bt_mesh_dfd_srv_cancel(srv, ctx);
 
 	return 0;
 }
@@ -482,31 +323,8 @@ static int handle_apply(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
-	int err;
 
-	if (srv->phase == BT_MESH_DFD_PHASE_IDLE ||
-	    srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
-	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_ACTIVE ||
-	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED ||
-	    srv->phase == BT_MESH_DFD_PHASE_FAILED) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_WRONG_PHASE);
-		return 0;
-	}
-
-	if (srv->phase == BT_MESH_DFD_PHASE_APPLYING_UPDATE ||
-	    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
-		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
-		return 0;
-	}
-
-	err = bt_mesh_dfu_cli_apply(&srv->dfu);
-	if (err) {
-		status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
-		return 0;
-	}
-
-	dfd_phase_set(srv, BT_MESH_DFD_PHASE_APPLYING_UPDATE);
-	status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	status_rsp(srv, ctx, bt_mesh_dfd_srv_apply(srv));
 
 	return 0;
 }
@@ -749,33 +567,15 @@ static int handle_fw_delete(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 			    struct net_buf_simple *buf)
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
-	const struct bt_mesh_dfu_slot *slot;
 	const uint8_t *fwid;
 	size_t fwid_len;
-	int idx, err;
 
 	fwid_len = buf->len;
 	fwid = net_buf_simple_pull_mem(buf, fwid_len);
 
-	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION,
-			      0xffff, NULL, 0);
-		return 0;
-	}
+	enum bt_mesh_dfd_status status = bt_mesh_dfd_srv_fw_delete(srv, &fwid_len, &fwid);
 
-	idx = bt_mesh_dfu_slot_get(fwid, fwid_len, &slot);
-	if (idx < 0 || !bt_mesh_dfu_slot_is_valid(slot)) {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, 0xffff, fwid,
-			      fwid_len);
-		return 0;
-	}
-
-	err = slot_del(srv, slot);
-	if (err) {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL, 0xffff, NULL, 0);
-	} else {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, 0xffff, fwid, fwid_len);
-	}
+	fw_status_rsp(srv, ctx, status, 0xffff, fwid, fwid_len);
 
 	return 0;
 }
@@ -796,17 +596,7 @@ static int handle_fw_delete_all(struct bt_mesh_model *mod, struct bt_mesh_msg_ct
 {
 	struct bt_mesh_dfd_srv *srv = mod->user_data;
 
-	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
-		fw_status_rsp(srv, ctx, BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION,
-			      0xffff, NULL, 0);
-		return 0;
-	}
-
-	bt_mesh_dfu_slot_foreach(slot_del_cb, srv);
-
-	bt_mesh_dfu_slot_del_all();
-
-	fw_status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS, 0xffff, NULL, 0);
+	fw_status_rsp(srv, ctx, bt_mesh_dfd_srv_fw_delete_all(srv), 0xffff, NULL, 0);
 
 	return 0;
 }
@@ -990,3 +780,262 @@ const struct bt_mesh_model_cb _bt_mesh_dfd_srv_cb = {
 	.init = dfd_srv_init,
 	.reset = dfd_srv_reset,
 };
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_receiver_add(struct bt_mesh_dfd_srv *srv, uint16_t addr,
+						     uint8_t img_idx)
+{
+	struct bt_mesh_dfu_target *t;
+
+	if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	t = target_get(srv, addr);
+	if (t) {
+		t->img_idx = img_idx;
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	/* New target node, add it to the list */
+
+	if (srv->target_cnt == ARRAY_SIZE(srv->targets)) {
+		return BT_MESH_DFD_ERR_INSUFFICIENT_RESOURCES;
+	}
+
+	t = &srv->targets[srv->target_cnt++];
+	memset(t, 0, sizeof(*t));
+	t->blob.addr = addr;
+	t->img_idx = img_idx;
+
+	BT_DBG("Added receiver 0x%04x img: %u", t->blob.addr,
+		t->img_idx);
+
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_receivers_delete_all(struct bt_mesh_dfd_srv *srv)
+{
+	if (bt_mesh_dfu_cli_is_busy(&srv->dfu)) {
+		return BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION;
+	}
+
+	sys_slist_init(&srv->inputs.targets);
+	srv->target_cnt = 0;
+
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_start(struct bt_mesh_dfd_srv *srv,
+					      struct bt_mesh_dfd_start_params *params)
+{
+	int err, i;
+	struct bt_mesh_dfu_cli_xfer xfer;
+
+	if (!srv->target_cnt) {
+		return BT_MESH_DFD_ERR_RECEIVERS_LIST_EMPTY;
+	}
+
+	if (!bt_mesh_app_key_exists(params->app_idx)) {
+		return BT_MESH_DFD_ERR_INVALID_APPKEY_INDEX;
+	}
+
+	xfer.mode = params->xfer_mode;
+	xfer.slot = bt_mesh_dfu_slot_at(params->slot_idx);
+	if (!xfer.slot || !bt_mesh_dfu_slot_is_valid(xfer.slot)) {
+		return BT_MESH_DFD_ERR_FW_NOT_FOUND;
+	}
+
+	if (srv->inputs.app_idx == params->app_idx &&
+	    srv->inputs.timeout_base == params->timeout_base &&
+	    srv->inputs.group == params->group && srv->inputs.ttl == params->ttl &&
+	    srv->dfu.xfer.blob.mode == xfer.mode && srv->apply == params->apply &&
+	    srv->slot_idx == params->slot_idx) {
+		if (is_busy(srv) ||
+		    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
+			BT_WARN("Already completed or in progress");
+			return BT_MESH_DFD_SUCCESS;
+		} else if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
+			bt_mesh_dfu_cli_resume(&srv->dfu);
+			dfd_phase_set(srv, BT_MESH_DFD_PHASE_TRANSFER_ACTIVE);
+			return BT_MESH_DFD_SUCCESS;
+		}
+	} else if (is_busy(srv) ||
+		   srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
+		BT_WARN("Busy with distribution");
+		return BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION;
+	}
+
+	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE) {
+		BT_WARN("Canceling distribution");
+		return BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION;
+	}
+
+	srv->io = NULL;
+	err = srv->cb->send(srv, xfer.slot, &srv->io);
+	if (err || !srv->io) {
+		return BT_MESH_DFD_ERR_INTERNAL;
+	}
+
+	sys_slist_init(&srv->inputs.targets);
+	for (i = 0; i < srv->target_cnt; i++) {
+		sys_slist_append(&srv->inputs.targets, &srv->targets[i].blob.n);
+	}
+
+	srv->slot_idx = params->slot_idx;
+	srv->inputs.app_idx = params->app_idx;
+	srv->inputs.timeout_base = params->timeout_base;
+	srv->inputs.group = params->group;
+	srv->inputs.ttl = params->ttl;
+	srv->apply = params->apply;
+
+	BT_DBG("Distribution Start: slot: %d, appidx: %d, tb: %d, addr: %04X, ttl: %d, apply: %d",
+	       params->slot_idx, params->app_idx, params->timeout_base, params->group, params->ttl,
+	       params->apply);
+
+	/* DFD Server will always retrieve targets' capabilities before distributing a firmware.*/
+	xfer.blob_params = NULL;
+
+	err = bt_mesh_dfu_cli_send(&srv->dfu, &srv->inputs, srv->io, &xfer);
+	if (err) {
+		return BT_MESH_DFD_ERR_INTERNAL;
+	}
+
+	dfd_phase_set(srv, BT_MESH_DFD_PHASE_TRANSFER_ACTIVE);
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_suspend(struct bt_mesh_dfd_srv *srv)
+{
+	int err;
+
+	if (srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED) {
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	if (srv->phase != BT_MESH_DFD_PHASE_TRANSFER_ACTIVE) {
+		return BT_MESH_DFD_ERR_WRONG_PHASE;
+	}
+
+	err = bt_mesh_dfu_cli_suspend(&srv->dfu);
+	if (err) {
+		return BT_MESH_DFD_ERR_SUSPEND_FAILED;
+	}
+
+	srv->phase = BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED;
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_cancel(struct bt_mesh_dfd_srv *srv,
+					       struct bt_mesh_msg_ctx *ctx)
+{
+	enum bt_mesh_dfd_phase prev_phase;
+	int err;
+
+	if (srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
+	    srv->phase == BT_MESH_DFD_PHASE_IDLE) {
+		if (ctx != NULL) {
+			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+		}
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	if (srv->phase == BT_MESH_DFD_PHASE_COMPLETED ||
+	    srv->phase == BT_MESH_DFD_PHASE_FAILED) {
+		dfd_phase_set(srv, BT_MESH_DFD_PHASE_IDLE);
+		if (ctx != NULL) {
+			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+		}
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	/* Phase TRANSFER_ACTIVE, TRANSFER_SUSPENDED, TRANSFER_SUCCESS, APPLYING_UPDATE: */
+
+	prev_phase = srv->phase;
+	dfd_phase_set(srv, BT_MESH_DFD_PHASE_CANCELING_UPDATE);
+	err = bt_mesh_dfu_cli_cancel(&srv->dfu, NULL);
+	if (err) {
+		if (ctx != NULL) {
+			status_rsp(srv, ctx, BT_MESH_DFD_ERR_INTERNAL);
+		}
+		return BT_MESH_DFD_ERR_INTERNAL;
+	}
+
+	if (ctx != NULL) {
+		status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+	}
+
+	if (prev_phase == BT_MESH_DFD_PHASE_APPLYING_UPDATE) {
+		dfd_phase_set(srv, BT_MESH_DFD_PHASE_IDLE);
+		if (ctx != NULL) {
+			status_rsp(srv, ctx, BT_MESH_DFD_SUCCESS);
+		}
+	}
+
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_apply(struct bt_mesh_dfd_srv *srv)
+{
+	int err;
+
+	if (srv->phase == BT_MESH_DFD_PHASE_IDLE ||
+	    srv->phase == BT_MESH_DFD_PHASE_CANCELING_UPDATE ||
+	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_ACTIVE ||
+	    srv->phase == BT_MESH_DFD_PHASE_TRANSFER_SUSPENDED ||
+	    srv->phase == BT_MESH_DFD_PHASE_FAILED) {
+		return BT_MESH_DFD_ERR_WRONG_PHASE;
+	}
+
+	if (srv->phase == BT_MESH_DFD_PHASE_APPLYING_UPDATE ||
+	    srv->phase == BT_MESH_DFD_PHASE_COMPLETED) {
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	err = bt_mesh_dfu_cli_apply(&srv->dfu);
+	if (err) {
+		return BT_MESH_DFD_ERR_INTERNAL;
+	}
+
+	dfd_phase_set(srv, BT_MESH_DFD_PHASE_APPLYING_UPDATE);
+	return BT_MESH_DFD_SUCCESS;
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_fw_delete(struct bt_mesh_dfd_srv *srv, size_t *fwid_len,
+						  const uint8_t **fwid)
+{
+	const struct bt_mesh_dfu_slot *slot;
+	int idx, err;
+
+	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
+		*fwid = NULL;
+		*fwid_len = 0;
+		return BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION;
+	}
+
+	idx = bt_mesh_dfu_slot_get(*fwid, *fwid_len, &slot);
+	if (idx < 0 || !bt_mesh_dfu_slot_is_valid(slot)) {
+		return BT_MESH_DFD_SUCCESS;
+	}
+
+	err = slot_del(srv, slot);
+	if (err) {
+		*fwid = NULL;
+		*fwid_len = 0;
+		return BT_MESH_DFD_ERR_INTERNAL;
+	} else {
+		return BT_MESH_DFD_SUCCESS;
+	}
+}
+
+enum bt_mesh_dfd_status bt_mesh_dfd_srv_fw_delete_all(struct bt_mesh_dfd_srv *srv)
+{
+	if (srv->phase != BT_MESH_DFD_PHASE_IDLE) {
+		return BT_MESH_DFD_ERR_BUSY_WITH_DISTRIBUTION;
+	}
+
+	bt_mesh_dfu_slot_foreach(slot_del_cb, srv);
+
+	bt_mesh_dfu_slot_del_all();
+
+	return BT_MESH_DFD_SUCCESS;
+}

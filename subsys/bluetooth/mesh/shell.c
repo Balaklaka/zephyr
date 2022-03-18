@@ -24,6 +24,7 @@
 #include "mesh.h"
 #include "net.h"
 #include "rpl.h"
+#include "shell_dfd.h"
 #include "transport.h"
 #include "foundation.h"
 #include "settings.h"
@@ -329,49 +330,7 @@ static void slot_info_print(const struct shell *shell, const struct bt_mesh_dfu_
 
 #endif /* defined(CONFIG_BT_MESH_DFD_SRV) || defined(CONFIG_BT_MESH_DFU_CLI) */
 
-#if defined(CONFIG_BT_MESH_DFD_SRV)
-
-static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
-			const struct bt_mesh_dfu_slot *slot,
-			const struct bt_mesh_blob_io **io)
-{
-	shell_print(ctx_shell, "Uploading new firmware image to the distributor.");
-	slot_info_print(ctx_shell, slot, NULL);
-
-	*io = blob_io;
-
-	return 0;
-}
-
-static void dfd_srv_del(struct bt_mesh_dfd_srv *srv,
-			const struct bt_mesh_dfu_slot *slot)
-{
-	shell_print(ctx_shell, "Deleting the firmware image from the distributor.");
-	slot_info_print(ctx_shell, slot, NULL);
-}
-
-static int dfd_srv_send(struct bt_mesh_dfd_srv *srv,
-			const struct bt_mesh_dfu_slot *slot,
-			const struct bt_mesh_blob_io **io)
-{
-	shell_print(ctx_shell, "Starting the firmware distribution.");
-	slot_info_print(ctx_shell, slot, NULL);
-
-	*io = blob_io;
-
-	return 0;
-}
-
-static struct bt_mesh_dfd_srv_cb dfd_srv_cb = {
-	.recv = dfd_srv_recv,
-	.del = dfd_srv_del,
-	.send = dfd_srv_send,
-};
-
-struct bt_mesh_dfd_srv bt_mesh_shell_dfd_srv = BT_MESH_DFD_SRV_INIT(&dfd_srv_cb);
-
-#else /* CONFIG_BT_MESH_DFD_SRV */
-
+#if !defined(CONFIG_BT_MESH_DFD_SRV)
 #if defined(CONFIG_BT_MESH_DFU_CLI)
 
 static void dfu_cli_ended(struct bt_mesh_dfu_cli *cli,
@@ -895,8 +854,8 @@ static int cmd_init(const struct shell *sh, size_t argc, char *argv[])
 #if defined(CONFIG_BT_MESH_DFU_SRV) && defined(CONFIG_BOOTLOADER_MCUBOOT)
 	struct mcuboot_img_header img_header;
 
-	err = boot_read_bank_header(DT_FLASH_AREA_IMAGE_0_ID, &img_header,
-				    sizeof(img_header));
+	int err = boot_read_bank_header(FLASH_AREA_ID(image_0), &img_header,
+					sizeof(img_header));
 	if (!err) {
 		struct shell_dfu_fwid *fwid =
 			(struct shell_dfu_fwid *)dfu_imgs[0].fwid;
@@ -5365,7 +5324,27 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(dfu-slot-get, NULL, "<slot idx>", cmd_dfu_slot_get, 2, 0),
 #endif
 
-#if !defined(CONFIG_BT_MESH_DFD_SRV)
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+	SHELL_CMD_ARG(dfd-receivers-add, NULL, "<addr>,<fw_idx>[;<addr>,<fw_idx>]...",
+		      cmd_dfd_receivers_add, 2, 0),
+	SHELL_CMD_ARG(dfd-receivers-delete-all, NULL, NULL, cmd_dfd_receivers_delete_all, 1, 0),
+	SHELL_CMD_ARG(dfd-receivers-get, NULL, "<first> <count>", cmd_dfd_receivers_get, 3, 0),
+	SHELL_CMD_ARG(dfd-capabilities-get, NULL, NULL, cmd_dfd_capabilities_get, 1, 0),
+	SHELL_CMD_ARG(dfd-get, NULL, NULL, cmd_dfd_get, 1, 0),
+	SHELL_CMD_ARG(dfd-start, NULL,
+		      "<app_idx> <slot_idx> [<group> [<policy_apply> [<ttl> "
+		      "[<timeout_base> [<xfer_mode>]]]]]",
+		      cmd_dfd_start, 3, 5),
+	SHELL_CMD_ARG(dfd-suspend, NULL, NULL, cmd_dfd_suspend, 1, 0),
+	SHELL_CMD_ARG(dfd-cancel, NULL, NULL, cmd_dfd_cancel, 1, 0),
+	SHELL_CMD_ARG(dfd-apply, NULL, NULL, cmd_dfd_apply, 1, 0),
+	SHELL_CMD_ARG(dfd-fw-get, NULL, "<fwid>", cmd_dfd_fw_get, 2, 0),
+	SHELL_CMD_ARG(dfd-fw-get-by-idx, NULL, "<idx>", cmd_dfd_fw_get_by_idx, 2, 0),
+	SHELL_CMD_ARG(dfd-fw-delete, NULL, "<fwid>", cmd_dfd_fw_delete, 2, 0),
+	SHELL_CMD_ARG(dfd-fw-delete-all, NULL, NULL, cmd_dfd_fw_delete_all, 1, 0),
+	SHELL_CMD_ARG(dfd-instance-set, NULL, "<elem_idx>", cmd_dfd_instance_set, 2, 0),
+	SHELL_CMD_ARG(dfd-instance-get-all, NULL, NULL, cmd_dfd_instance_get_all, 1, 0),
+#else
 #if defined(CONFIG_BT_MESH_DFU_CLI)
 	/* DFU Client Model Operations */
 	SHELL_CMD_ARG(dfu-target, NULL, "<addr> <img idx>", cmd_dfu_target, 3,

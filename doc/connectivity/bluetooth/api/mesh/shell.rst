@@ -982,8 +982,8 @@ The Configuration database is an optional mesh subsystem that can be enabled thr
 
 	* ``AppKeyIdx``: Key index of the application key to delete.
 
-BLOB Client model
-=================
+Binary Large Object (BLOB) Client model
+=======================================
 
 The :ref:`bluetooth_mesh_blob_cli` can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_CLI`, and disabling the :kconfig:option:`CONFIG_BT_MESH_DFU_CLI` configuration option.
 
@@ -1055,8 +1055,8 @@ The :ref:`bluetooth_mesh_blob_srv` can be added to the Mesh Shell by enabling :k
 	Cancel an ongoing BLOB transfer.
 
 
-DFU Client model
-================
+Device Firmware Update (DFU) Client model
+=========================================
 
 The DFU Client model can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_BLOB_CLI` and :kconfig:option:`CONFIG_BT_MESH_DFU_CLI`. The DFU Client demonstrates the Firmware upgrade distributor role by transferring a dummy firmware upgrade to a set of DFU targets.
 
@@ -1184,8 +1184,115 @@ The DFU Server model can be added to the Mesh Shell by enabling :kconfig:option:
 	Cancel incoming DFU transfer.
 
 
-SAR Configuration Client
-========================
+Device Firmware Distribution (DFD) Server model
+===============================================
+
+The DFD Server model can be added to the Mesh Shell by enabling :kconfig:option:`CONFIG_BT_MESH_DFD_SRV`.
+The shell commands for this model mirrors the messages sent to the server by a DFD Client model.
+To use these commands, a DFD server must be instantiated by the application.
+
+``mesh dfd-receivers-add <addr>,<fw_idx>[;<addr>,<fw_idx>]...``
+---------------------------------------------------------------
+
+	Add receivers to the DFD Server.
+	Supply receivers as a list of comma-separated addr,fw_idx pairs, separated by semicolons, for example, ``0x0001,0;0x0002,0;0x0004,1``.
+	Do not use spaces in the receiver list.
+
+	* ``addr``: Address of the receiving node(s)
+	* ``fw_idx``: Index of the firmware slot to send to ``addr``.
+
+``mesh dfd-receivers-delete-all``
+---------------------------------
+
+	Delete all receivers from the server.
+
+``mesh dfd-receivers-get <first> <count>``
+------------------------------------------
+
+	Get a list of info about firmware receivers.
+
+	* ``first``: Index of the first receiver to get from the receiver list.
+	* ``count``: The number of recievers for which to get info.
+
+``mesh dfd-capabilities-get``
+-----------------------------
+
+	Get the capabilities of the server.
+
+``mesh dfd-get``
+----------------
+
+	Get information about the current distribution.
+
+``mesh dfd-start <app_idx> <slot_idx> [<group> [<policy_apply> [<ttl> [<timeout_base> [<xfer_mode>]]]]]``
+---------------------------------------------------------------------------------------------------------
+
+	Start the firmware distribution
+
+	* ``app_idx``: Application index to use for sending.
+	* ``slot_idx``: Index of the local image slot to send.
+	* ``group``: Optional group address to use when communicating with the target nodes. If omitted, the DFD server will address each target individually.
+	* ``policy_apply``: Optional, set to ``true`` to automatically apply the image once transfer is done.
+	* ``ttl``: Optional. TTL value to use when sending. Defaults to configured default TTL.
+	* ``timeout_base``: Optional additional value used to calculate timeout values in the firmware distribution process.
+	* ``xfer_mode``: Optional BLOB transfer mode. 1 = Push mode, 2 = Pull mode. Defaults to Push mode.
+
+``mesh dfd-suspend``
+--------------------
+
+	Suspends the ongoing distribution.
+
+``mesh dfd-cancel``
+-------------------
+
+	Cancel the ongoing distribution.
+
+``mesh dfd-apply``
+------------------
+
+	Apply the distributed firmware.
+
+``mesh dfd-fw-get <fwid>``
+--------------------------
+
+	Get information about a firmware image.
+
+	* ``fwid``: Firmware ID of the image to get.
+
+``mesh dfd-fw-get-by-idx <idx>``
+--------------------------------
+
+	Get information about a firmware image in a specific slot.
+
+	* ``idx``: Index of the slot to get the image from.
+
+``mesh dfd-fw-delete <fwid>``
+-----------------------------
+
+	Delete a firmware image from the server.
+
+	* ``fwid``: Firware ID of the image to delete.
+
+``mesh dfd-fw-delete-all``
+--------------------------
+
+	Delete all firmware images from the server.
+
+``mesh dfd-instance-set <elem_idx>``
+------------------------------------
+
+	Use the DFD Server model instance on the specified element when using the other DFD Server model commands.
+
+	* ``elem_idx``: The element on which to find the DFD Server model instance to use.
+
+``mesh dfd-instance-get-all``
+-----------------------------
+
+	Get a list of all DFD Server model instances on the node.
+
+
+Segmentation and Reassembly (SAR) Configuration Client
+======================================================
 
 The SAR Configuration client is an optional Mesh model that can be enabled through the :kconfig:option:`CONFIG_BT_MESH_SAR_CFG_CLI` configuration option. The SAR Configuration Client model is used to support the functionality of configuring the behavior of the lower transport layer of a node that supports the SAR Configuration Server model.
 
