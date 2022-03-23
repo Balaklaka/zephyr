@@ -3875,7 +3875,7 @@ static int cmd_dfu_blob_flash_stream_set(const struct shell *shell, size_t argc,
 
 	err = bt_mesh_blob_io_flash_init(&blob_flash_stream, area_id, offset);
 	if (err) {
-		printk("Failed to init BLOB IO Flash module: %d\n", err);
+		shell_error(shell, "Failed to init BLOB IO Flash module: %d\n", err);
 	}
 
 	blob_io = &blob_flash_stream.io;
