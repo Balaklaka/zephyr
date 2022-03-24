@@ -2,7 +2,7 @@
 
 cmake_minimum_required(VERSION 3.13.1)
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(mesh_dfu_target)
+project(mesh_dfu_distributor)
 
 set(common_dir ${CMAKE_CURRENT_SOURCE_DIR}/../common/src)
 

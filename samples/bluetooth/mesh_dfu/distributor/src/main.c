@@ -1,11 +1,11 @@
 /*
- * Copyright (c) 2021 Nordic Semiconductor ASA
+ * Copyright (c) 2022 Nordic Semiconductor ASA
  *
  * SPDX-License-Identifier: Apache-2.0
  */
 
 /** @file
- *  @brief Bluetooth Mesh DFU Target role sample
+ *  @brief Bluetooth Mesh DFU Distributor role sample
  */
 #include <zephyr.h>
 #include <devicetree.h>
@@ -16,7 +16,13 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/mesh.h>
+#include <bluetooth/mesh/shell.h>
 
+#include <img_mgmt/img_mgmt.h>
+#include <shell_mgmt/shell_mgmt.h>
+
+#include "smp_bt.h"
+#include "dfu_dist.h"
 #include "dfu_target.h"
 
 #if DT_NODE_EXISTS(DT_ALIAS(led0))
@@ -37,6 +43,7 @@ static const struct device *led_dev = DEVICE_DT_GET(LED0_DEV);
 
 static struct bt_mesh_blob_io_flash blob_flash_stream;
 
+/* Health Server model configuration. */
 static void led_init(void)
 {
 #if DT_NODE_EXISTS(LED0)
@@ -83,14 +90,19 @@ static struct bt_mesh_health_srv health_srv = {
 
 BT_MESH_HEALTH_PUB_DEFINE(health_pub, 0);
 
-static struct bt_mesh_model models[] = {
+static struct bt_mesh_model primary_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
-	BT_MESH_MODEL_DFU_SRV(&dfu_srv)
+	BT_MESH_MODEL_DFD_SRV(&dfd_srv),
+};
+
+static struct bt_mesh_model secondary_models[] = {
+	BT_MESH_MODEL_DFU_SRV(&dfu_srv),
 };
 
 static struct bt_mesh_elem elements[] = {
-	BT_MESH_ELEM(1, models, BT_MESH_MODEL_NONE),
+	BT_MESH_ELEM(1, primary_models, BT_MESH_MODEL_NONE),
+	BT_MESH_ELEM(2, secondary_models, BT_MESH_MODEL_NONE),
 };
 
 static const struct bt_mesh_comp comp = {
@@ -140,6 +152,9 @@ static void bt_ready(int err)
 
 	printk("Mesh initialized\n");
 
+	/* Start advertising SMP BT service. */
+	smp_bt_start();
+
 	/* Confirm the image and mark it as applied after the mesh started. */
 	dfu_target_image_confirm();
 }
@@ -161,10 +176,15 @@ void main(void)
 	}
 
 	led_init();
+	dfu_distributor_init(&blob_flash_stream);
 	dfu_target_init(&blob_flash_stream);
 
 	err = bt_enable(bt_ready);
 	if (err) {
 		printk("Bluetooth init failed (err %d)\n", err);
+		return;
 	}
+
+	img_mgmt_register_group();
+	shell_mgmt_register_group();
 }

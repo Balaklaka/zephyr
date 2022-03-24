@@ -16,9 +16,10 @@
 #include <bluetooth/mesh.h>
 
 #include <storage/flash_map.h>
+
 #include <dfu/mcuboot.h>
 
-static struct bt_mesh_blob_io_flash flash_stream;
+static struct bt_mesh_blob_io_flash *blob_flash_stream;
 static enum bt_mesh_dfu_effect img_effect = BT_MESH_DFU_EFFECT_NONE;
 
 static struct bt_mesh_dfu_img dfu_imgs[] = { {
@@ -26,6 +27,7 @@ static struct bt_mesh_dfu_img dfu_imgs[] = { {
 	.fwid_len = sizeof(struct mcuboot_img_sem_ver),
 } };
 
+#if defined(CONFIG_BT_MESH_DFU_METADATA)
 static size_t flash_area_size_get(uint8_t area_id)
 {
 	const struct flash_area *area;
@@ -42,12 +44,41 @@ static size_t flash_area_size_get(uint8_t area_id)
 
 	return fa_size;
 }
+#endif
+
+static bool is_firmware_newer(struct mcuboot_img_sem_ver *new, struct mcuboot_img_sem_ver *cur)
+{
+	if (new->major > cur->major) {
+		return true;
+	} else if (new->major < cur->major) {
+		return false;
+	}
+
+	if (new->minor > cur->minor) {
+		return true;
+	} else if (new->minor > cur->minor) {
+		return false;
+	}
+
+	if (new->revision > cur->revision) {
+		return true;
+	} else if (new->revision > cur->revision) {
+		return false;
+	}
+
+	if (new->build_num > cur->build_num) {
+		return true;
+	}
+
+	return false;
+}
 
 static int dfu_meta_check(struct bt_mesh_dfu_srv *srv,
 			  const struct bt_mesh_dfu_img *img,
 			  struct net_buf_simple *metadata_raw,
 			  enum bt_mesh_dfu_effect *effect)
 {
+#if defined(CONFIG_BT_MESH_DFU_METADATA)
 	struct mcuboot_img_sem_ver *img_ver = (struct mcuboot_img_sem_ver *) dfu_imgs[0].fwid;
 	struct bt_mesh_dfu_metadata metadata;
 	uint8_t key[16] = {};
@@ -83,10 +114,7 @@ static int dfu_meta_check(struct bt_mesh_dfu_srv *srv,
 
 	printk("\tUser data length: %u\n", metadata.user_data_len);
 
-	if (metadata.fw_ver.major < img_ver->major ||
-	    metadata.fw_ver.minor < img_ver->minor ||
-	    metadata.fw_ver.revision < img_ver->revision ||
-	    metadata.fw_ver.build_num <= img_ver->build_num) {
+	if (!is_firmware_newer((struct mcuboot_img_sem_ver *) &metadata.fw_ver, img_ver)) {
 		printk("New firmware version is older\n");
 		return -EINVAL;
 	}
@@ -116,6 +144,10 @@ static int dfu_meta_check(struct bt_mesh_dfu_srv *srv,
 		img_effect = BT_MESH_DFU_EFFECT_UNPROV;
 	}
 
+#else
+	img_effect = BT_MESH_DFU_EFFECT_UNPROV;
+#endif /* CONFIG_BT_MESH_DFU_METADATA */
+
 	printk("Metadata check succeeded, effect: %d\n", img_effect);
 
 	*effect = img_effect;
@@ -130,9 +162,14 @@ static int dfu_start(struct bt_mesh_dfu_srv *srv,
 {
 	printk("Firmware upload started\n");
 
-	*io = &flash_stream.io;
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+	/* When distributor updates itself, the image is already stored on the device. */
+	return -EALREADY;
+#else
+	*io = &blob_flash_stream->io;
 
 	return 0;
+#endif
 }
 
 static void dfu_end(struct bt_mesh_dfu_srv *srv, const struct bt_mesh_dfu_img *img, bool success)
@@ -156,9 +193,13 @@ static int dfu_recover(struct bt_mesh_dfu_srv *srv,
 
 	/* TODO: Need to recover the effect. */
 
-	*io = &flash_stream.io;
+#if defined(CONFIG_BT_MESH_DFD_SRV)
+	return -ENOTSUP;
+#else
+	*io = &blob_flash_stream->io;
 
 	return 0;
+#endif
 }
 
 static void do_reboot(struct k_work *work)
@@ -177,7 +218,7 @@ static int dfu_apply(struct bt_mesh_dfu_srv *srv, const struct bt_mesh_dfu_img *
 	if (img_effect == BT_MESH_DFU_EFFECT_UNPROV) {
 		bt_mesh_reset();
 
-		printk("Pending the mesh settings to cleared before rebooting...");
+		printk("Pending the mesh settings to cleared before rebooting...\n");
 
 		/* Let the mesh reset its settings before rebooting the device. */
 		k_work_init_delayable(&pending_reboot, do_reboot);
@@ -209,7 +250,7 @@ static void image_version_load(void)
 
 	err = boot_read_bank_header(FLASH_AREA_ID(image_0), &img_header, sizeof(img_header));
 	if (err) {
-		printk("Failed to read image header: %d", err);
+		printk("Failed to read image header: %d\n", err);
 		return;
 	}
 
@@ -219,17 +260,11 @@ static void image_version_load(void)
 	       img_ver->revision, img_ver->build_num);
 }
 
-int dfu_target_init(void)
+int dfu_target_init(struct bt_mesh_blob_io_flash *flash_stream)
 {
-	int err;
+	blob_flash_stream = flash_stream;
 
 	image_version_load();
-
-	err = bt_mesh_blob_io_flash_init(&flash_stream, FLASH_AREA_ID(image_1), 0);
-	if (err) {
-		printk("Failed to init BLOB IO Flash module: %d\n", err);
-		return err;
-	}
 
 	return 0;
 }

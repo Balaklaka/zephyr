@@ -1184,6 +1184,8 @@ The DFU Server model can be added to the Mesh Shell by enabling :kconfig:option:
 	Cancel incoming DFU transfer.
 
 
+.. _bluetooth_mesh_shell_dfd_server:
+
 Device Firmware Distribution (DFD) Server model
 ===============================================
 
@@ -1231,7 +1233,7 @@ To use these commands, a DFD server must be instantiated by the application.
 
 	* ``app_idx``: Application index to use for sending.
 	* ``slot_idx``: Index of the local image slot to send.
-	* ``group``: Optional group address to use when communicating with the target nodes. If omitted, the DFD server will address each target individually.
+	* ``group``: Optional group address to use when communicating with the target nodes. If omitted, the DFD server will address each target individually. To keep addressing each target individually while changing other arguments, set this argument value to 0.
 	* ``policy_apply``: Optional, set to ``true`` to automatically apply the image once transfer is done.
 	* ``ttl``: Optional. TTL value to use when sending. Defaults to configured default TTL.
 	* ``timeout_base``: Optional additional value used to calculate timeout values in the firmware distribution process.
@@ -1289,6 +1291,71 @@ To use these commands, a DFD server must be instantiated by the application.
 -----------------------------
 
 	Get a list of all DFD Server model instances on the node.
+
+
+.. _bluetooth_mesh_shell_dfu_metadata:
+
+DFU metadata
+============
+
+The DFU metadata commands allow generating metadata that can be used by a target node to check the firmware before accepting it. The commands are enabled through the :kconfig:option:`CONFIG_BT_MESH_DFU_METADATA` configuration option.
+
+``mesh dfu-comp-clear``
+-----------------------
+
+	Clear the stored composition data to be used for the target node.
+
+``mesh dfu-comp-add <cid> <pid> <vid> <crpl> <features>``
+---------------------------------------------------------
+
+	Create a header of the Composition Data Page 0.
+
+	* ``cid``: Company identifier assigned by Bluetooth SIG.
+	* ``pid``: Vendor-assigned product identifier.
+	* ``vid``: Vendor-assigned version identifier.
+	* ``crpl``: The size of the replay protection list.
+	* ``features``: Features supported by the node in bit field format:
+		* ``0``: Relay.
+		* ``1``: Proxy.
+		* ``2``: Friend.
+		* ``3``: Low Power.
+
+``mesh dfu-comp-elem-add <loc> <nums> <numv> {<sig model id>|<vnd company id> <vnd model id>}...``
+--------------------------------------------------------------------------------------------------
+
+	Add element description of the target node.
+
+	* ``loc``: Elemenet location
+	* ``nums``: Number of SIG models instantiated on the element.
+	* ``numv``: Number of vendor models instantiated on the element.
+	* ``sig model id``: SIG Model ID.
+	* ``vnd company id``: Vendor model company identifier.
+	* ``vnd model id``: Vendor model identifier.
+
+``mesh dfu-comp-hash-get [<128-bit key>]``
+------------------------------------------
+
+	Generate a hash of the stored composition data to be used in metadata.
+
+	* ``128-bit key``: Optional 128-bit key to be used to generate the hash.
+
+``mesh dfu-metadata-encode <major> <minor> <rev> <build_num> <size> <core type> <hash> <elems> [<user data>]``
+--------------------------------------------------------------------------------------------------------------
+
+	Encode metadata for the DFU.
+
+	* ``major``: Major version of the firmware.
+	* ``minor``: Minor version of the firmware.
+	* ``rev``: Revision number of the firmware.
+	* ``build_num``: Build number.
+	* ``size``: Size of the signed bin file.
+	* ``core type``: New firmware core type in bit field format:
+		* ``0``: Application core.
+		* ``1``: Network core.
+		* ``2``: Applications specific BLOB.
+	* ``hash``: Hash of the composition data generated using ``mesh dfu-comp-hash-get`` command.
+	* ``elems``: Number of elements on the new firmware.
+	* ``user data``: User data supplied with the metadata.
 
 
 Segmentation and Reassembly (SAR) Configuration Client

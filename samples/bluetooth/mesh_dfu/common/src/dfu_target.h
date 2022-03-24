@@ -19,7 +19,7 @@ extern "C" {
 
 extern struct bt_mesh_dfu_srv dfu_srv;
 
-int dfu_target_init(void);
+int dfu_target_init(struct bt_mesh_blob_io_flash *flash_stream);
 void dfu_target_image_confirm(void);
 
 #ifdef __cplusplus

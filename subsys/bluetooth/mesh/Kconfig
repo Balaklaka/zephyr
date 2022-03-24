@@ -1006,7 +1006,6 @@ config BT_MESH_DFU_METADATA_MAXLEN
 
 config BT_MESH_DFU_METADATA
 	bool "Support for the default metadata format"
-	default y
 	help
 	  This option adds a set of functions that can be used to encode and decode a firmware
 	  metadata using the format defined in the Mesh DFU subsystem.
