@@ -40,8 +40,8 @@
 #define _BLOB_LOG_2_CEIL(l, x) ((x) <= (1U << l)) ? l :
 #define _BLOB_LOG_2_FLOOR(l, x) ((x) < (1U << (l + 1))) ? l :
 
-#define BLOB_BLOCK_SIZE_LOG_CEIL(x) (UTIL_LISTIFY(20, _BLOB_LOG_2_CEIL, x) 20)
-#define BLOB_BLOCK_SIZE_LOG_FLOOR(x) (UTIL_LISTIFY(20, _BLOB_LOG_2_FLOOR, x) 20)
+#define BLOB_BLOCK_SIZE_LOG_CEIL(x) (LISTIFY(20, _BLOB_LOG_2_CEIL, (), x) 20)
+#define BLOB_BLOCK_SIZE_LOG_FLOOR(x) (LISTIFY(20, _BLOB_LOG_2_FLOOR, (), x) 20)
 
 /* Log2 representation of the minimum block size */
 #define BLOB_BLOCK_SIZE_LOG_MIN BLOB_BLOCK_SIZE_LOG_CEIL(CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN)
