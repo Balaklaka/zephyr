@@ -28,6 +28,7 @@ extern "C" {
 #define BT_MESH_RPR_UNPROV_REPORTED       BIT(3) /**< Internal */
 #define BT_MESH_RPR_UNPROV_EXT            BIT(4) /**< Internal */
 #define BT_MESH_RPR_UNPROV_HAS_LINK       BIT(5) /**< Internal */
+#define BT_MESH_RPR_UNPROV_EXT_ADV_RXD    BIT(6) /**< Internal */
 
 /** Minimum extended scan duration in seconds */
 #define BT_MESH_RPR_EXT_SCAN_TIME_MIN 1
