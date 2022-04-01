@@ -43,6 +43,7 @@ else()
   src/test_access.c
   src/test_iv_index.c
   src/test_advertiser.c
+  src/test_blob.c
  )
 endif()
 
