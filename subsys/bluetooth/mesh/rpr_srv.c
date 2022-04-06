@@ -140,7 +140,9 @@ static void scan_status_send(struct bt_mesh_msg_ctx *ctx,
 	uint8_t time = 0;
 
 	if (atomic_test_bit(srv.flags, SCANNING)) {
-		time = k_work_delayable_remaining_get(&srv.scan.timeout) / MSEC_PER_SEC;
+		time = k_ticks_to_ms_floor32(
+			k_work_delayable_remaining_get(&srv.scan.timeout)) /
+			MSEC_PER_SEC;
 	}
 
 	BT_MESH_MODEL_BUF_DEFINE(rsp, RPR_OP_SCAN_STATUS, 4);
@@ -731,11 +733,13 @@ static int handle_extended_scan_start(struct bt_mesh_model *mod, struct bt_mesh_
 	if (srv.scan.state == BT_MESH_RPR_SCAN_IDLE) {
 		srv.scan.additional_time = 0;
 		cli_set(&cli);
-	} else if (k_work_delayable_remaining_get(&srv.scan.timeout) < (timeout * MSEC_PER_SEC)) {
+	} else if (k_ticks_to_ms_floor32(
+			k_work_delayable_remaining_get(&srv.scan.timeout)) <
+			(timeout * MSEC_PER_SEC)) {
 		srv.scan.additional_time = 0;
 	} else {
 		srv.scan.additional_time =
-			k_work_delayable_remaining_get(&srv.scan.timeout) -
+			k_ticks_to_ms_floor32(k_work_delayable_remaining_get(&srv.scan.timeout)) -
 			(timeout * MSEC_PER_SEC);
 	}
 
