@@ -452,7 +452,9 @@ static void pb_link_closed(const struct prov_bearer *bearer, void *cb_data,
 		} else {
 			srv.link.status = BT_MESH_RPR_ERR_LINK_CLOSED_BY_SERVER;
 		}
-	} else if (reason == PROV_BEARER_LINK_STATUS_FAIL) {
+	} else if (reason == PROV_BEARER_LINK_STATUS_FAIL &&
+	   srv.link.status != BT_MESH_RPR_ERR_LINK_CLOSED_BY_CLIENT &&
+	   srv.link.status != BT_MESH_RPR_ERR_LINK_CLOSED_BY_SERVER) {
 		srv.link.status = BT_MESH_RPR_ERR_LINK_CLOSED_BY_DEVICE;
 	}
 
