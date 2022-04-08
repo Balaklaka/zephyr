@@ -15,3 +15,7 @@ RunTest mesh_blob \
 # The test instance sequence must stay as it is due to addressing scheme
 RunTest mesh_blob \
 	blob_cli_caps_no_rsp blob_srv_caps_no_rsp blob_srv_caps_no_rsp
+
+# The test instance seqence must stay as it is due to addressing scheme
+RunTest mesh_blob \
+	blob_cli_caps_cancelled blob_srv_caps_standard
