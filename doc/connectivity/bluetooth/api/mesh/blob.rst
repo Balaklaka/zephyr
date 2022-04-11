@@ -99,6 +99,24 @@ In push mode, the send rate is controlled by the BLOB Client, which will push al
 In pull mode, the BLOB Server will "pull" the chunks from the BLOB Client at its own rate. Pull mode can only be conducted with a single target, and is intended for transferring BLOBs to targets acting as :ref:`bluetooth_mesh_lpn`. When operating in pull mode, the BLOB Server will request chunks from the BLOB Client in small batches, and wait for them all to arrive before requesting more chunks. This process is repeated until the BLOB Server has received all chunks in a block. Then, the BLOB Client starts the next block, and the BLOB Server requests all chunks of that block.
 
 
+.. _bluetooth_mesh_blob_timeout:
+
+Transfer timeout
+================
+
+The timeout of the BLOB transfer is based on a Timeout Base value. Both client and server use the same Timeout Base value, but they calculate timeout differently.
+
+The BLOB server uses the following formula to calculate the BLOB transfer timeout::
+
+  10 * (Timeout Base + 1) seconds
+
+
+For the BLOB client, the following formula is used::
+
+  (10000 * (Timeout Base + 2)) + (100 * TTL) milliseconds
+
+where TTL is Time-To-Live value set in the transfer.
+
 API reference
 *************
 

@@ -41,6 +41,11 @@ The following table shows the mesh composition data for this sample:
    | DFU Server    |
    +---------------+
 
+Logging
+=======
+
+In this sample, UART and Segger RTT are available as logging backends.
+
 Requirements
 ************
 
@@ -95,37 +100,35 @@ To program this sample, use the following command:
 When programming, ``west flash`` will use the signed binaries. See :ref:`west-sign` for more
 information about the signing process.
 
-Using the sample as a new firmware
-==================================
+.. _ble_mesh_dfu_target_upgrade:
 
-This sample can be transferred over a mesh network to update the existing nodes. In that case, the
-firmware version needs to be increased when signing to pass the validation during the metadata
-check. To sign the firmware and set a new version, execute the following command:
+Performing a Device Firmware Upgrade
+************************************
+
+This sample can be transferred as a DFU over a mesh network to update the existing nodes.
+The sample can also be the Target node updated by any firmware image that is compiled as the MCUboot application and transferred over the mesh network.
+In both cases, the firmware needs to be signed and the firmware version increased to pass the validation when the MCUboot swaps the images.
+To sign the firmware and set a new version, execute the following command:
 
 .. code-block:: console
 
     west sign -t imgtool -- --key ../bootloader/mcuboot/root-rsa-2048.pem --version "2.0.0+0"
 
-Interacting with the sample
-***************************
+To perform a DFU with this sample, the following additional information is required:
 
-Provisioning and configuration
-==============================
+Firmware ID
+   Firmware ID used in this sample corresponds to the image version that is encoded in the format
+   defined by the :c:struct:`mcuboot_img_sem_ver` structure. For example, when the new version is
+   ``2.0.0+0``, the encoded value will be ``0200000000000000``.
 
-The sample needs to be provisioned into an existing mesh network with an external provisioner
-device. After the provisioning is completed, a Configuration Client needs to add an application key
-to the device, which a Distributor will use in a firmware distribution process. The added
-application key should be bound to the BLOB Server and DFU Server models instantiated on the device.
-
-.. _ble_mesh_dfu_target_upgrade:
-
-Performing a Device Firmware Upgrade
-====================================
+Firmware metadata
+   This sample enables :kconfig:option:`CONFIG_BT_MESH_DFU_METADATA` and uses the format defined by
+   :ref:`Bluetooth mesh DFU subsystem<bluetooth_mesh_dfu>`. How to generate valid metadata for
+   this sample is described in :ref:`bluetooth_mesh_dfu_eval_md`.
 
 The firmware distribution process starts on a target node with checking a metadata supplied with
-a new firmware. The sample uses firmware metadata format defined in
-:c:struct:`bt_mesh_dfu_metadata`. If the metadata data is decoded successfully, the following
-checks are performed in this sample:
+a new firmware. If the metadata data is decoded successfully, the following checks are performed in
+this sample:
 
 * That the new firmware version is higher than the existing one
 * That the new firmware fits into the flash storage
@@ -144,12 +147,13 @@ supported by this sample:
   device reboots, so if the MCUboot fails to validate the new firmware, the device will
   boot unprovisioned anyway.
 
-The sample uses devicetree to split flash into partitions. When the DFU transfer starts, the sample
-stores the new firmware at slot-1. For more information about the partition layout, read
+In this sample, the device flash is split into fixed partitions using devicetree as defined in
+:zephyr_file:`nrf52840dk_nrf52840.dts<boards/arm/nrf52840dk_nrf52840/nrf52840dk_nrf52840.dts>`.
+When the DFU transfer starts, the sample stores the new firmware at slot-1 using
 :ref:`flash_map_api`.
 
 When the DFU transfer ends, the sample requests the MCUboot to replace slot-0 with slot-1 and
-reboot the device. The MCUboot performs the validation of firmware located at slot-1. Upon
+reboots the device. The MCUboot performs the validation of the image located at slot-1. Upon
 successful validation, the MCUboot replaces the old firmware with the new one and boots it. After
 booting, the sample confirms the image so the old image does not get reverted at the next reboot.
 
