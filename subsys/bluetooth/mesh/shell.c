@@ -4517,7 +4517,7 @@ static void blob_cli_inputs_prepare(uint16_t group)
 	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
 		/* Reset target context. */
 		uint16_t addr = blob_cli_xfer.targets[i].addr;
-		memset(&blob_cli_xfer.targets[i].addr, 0, sizeof(struct bt_mesh_blob_target));
+		memset(&blob_cli_xfer.targets[i], 0, sizeof(struct bt_mesh_blob_target));
 		blob_cli_xfer.targets[i].addr = addr;
 
 		sys_slist_append(&blob_cli_xfer.inputs.targets,
