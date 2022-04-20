@@ -9,3 +9,9 @@ RunTest mesh_blob \
 
 RunTest mesh_blob \
 	blob_cli_broadcast_trans
+
+RunTest mesh_blob \
+	blob_cli_broadcast_unicast_seq
+
+RunTest mesh_blob \
+	blob_cli_broadcast_unicast
