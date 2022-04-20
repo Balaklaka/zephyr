@@ -7,6 +7,7 @@
 #include <bluetooth/mesh.h>
 #include "dfu.h"
 #include "blob.h"
+#include "access.h"
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_DFU)
 #define LOG_MODULE_NAME bt_mesh_dfu_srv
@@ -311,6 +312,18 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	io = NULL;
 	err = srv->cb->start(srv, &srv->imgs[idx], buf, &io);
+	if (err == -EALREADY || (!err && bt_mesh_has_addr(ctx->addr))) {
+		/* This image has already been received or this is a
+		 * self-update. Skip the transfer phase and proceed to
+		 * verifying update.
+		 */
+		status = BT_MESH_DFU_SUCCESS;
+		srv->update.idx = idx;
+		srv->blob.state.xfer.id = blob_id;
+		verify(srv);
+		goto rsp;
+	}
+
 	if (err == -ENOMEM) {
 		status = BT_MESH_DFU_ERR_RESOURCES;
 		goto rsp;
@@ -318,17 +331,6 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	if (err == -EBUSY) {
 		status = BT_MESH_DFU_ERR_TEMPORARILY_UNAVAILABLE;
-		goto rsp;
-	}
-
-	if (err == -EALREADY) {
-		/* This image has already been received. Skip the transfer
-		 * phase and proceed to verifying update.
-		 */
-		status = BT_MESH_DFU_SUCCESS;
-		srv->update.idx = idx;
-		srv->blob.state.xfer.id = blob_id;
-		verify(srv);
 		goto rsp;
 	}
 

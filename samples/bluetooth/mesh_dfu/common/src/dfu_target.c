@@ -162,14 +162,9 @@ static int dfu_start(struct bt_mesh_dfu_srv *srv,
 {
 	printk("Firmware upload started\n");
 
-#if defined(CONFIG_BT_MESH_DFD_SRV)
-	/* When distributor updates itself, the image is already stored on the device. */
-	return -EALREADY;
-#else
 	*io = &blob_flash_stream->io;
 
 	return 0;
-#endif
 }
 
 static void dfu_end(struct bt_mesh_dfu_srv *srv, const struct bt_mesh_dfu_img *img, bool success)
