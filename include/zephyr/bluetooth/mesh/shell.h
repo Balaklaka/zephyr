@@ -53,9 +53,6 @@ extern struct bt_mesh_blob_srv bt_mesh_shell_blob_srv;
 /** @brief External reference to BLOB Client */
 extern struct bt_mesh_blob_cli bt_mesh_shell_blob_cli;
 
-/** @brief External reference to DFD Server */
-extern struct bt_mesh_dfd_srv bt_mesh_shell_dfd_srv;
-
 /** @brief External reference to Remote Provisioning Client */
 extern struct bt_mesh_rpr_cli bt_mesh_shell_rpr_cli;
 

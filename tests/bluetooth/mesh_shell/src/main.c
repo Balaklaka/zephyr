@@ -16,6 +16,8 @@
 
 static struct bt_mesh_cfg_cli cfg_cli;
 
+static struct bt_mesh_dfd_srv dfd_srv;
+
 BT_MESH_SHELL_HEALTH_PUB_DEFINE(health_pub);
 
 static struct bt_mesh_model root_models[] = {
@@ -24,7 +26,7 @@ static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_HEALTH_SRV(&bt_mesh_shell_health_srv, &health_pub),
 	BT_MESH_MODEL_HEALTH_CLI(&bt_mesh_shell_health_cli),
 #if defined(CONFIG_BT_MESH_DFD_SRV)
-	BT_MESH_MODEL_DFD_SRV(&bt_mesh_shell_dfd_srv),
+	BT_MESH_MODEL_DFD_SRV(&dfd_srv),
 #else
 #if defined(CONFIG_BT_MESH_DFU_SRV)
 	BT_MESH_MODEL_DFU_SRV(&bt_mesh_shell_dfu_srv),
