@@ -906,7 +906,8 @@ static int cmd_reset(const struct shell *shell, size_t argc, char *argv[])
 	return 0;
 }
 
-#if defined(CONFIG_BT_MESH_RPR_CLI)
+#if defined(CONFIG_BT_MESH_RPR_CLI) || defined(CONFIG_BT_MESH_PRIV_BEACON_CLI)
+
 static uint8_t str2u8(const char *str)
 {
 	if (isdigit((unsigned char)str[0])) {
@@ -921,6 +922,7 @@ static bool str2bool(const char *str)
 {
 	return str2u8(str);
 }
+
 #endif
 
 #if defined(CONFIG_BT_MESH_LOW_POWER)
@@ -5103,6 +5105,118 @@ static int cmd_sar_rx_set(const struct shell *shell, size_t argc, char *argv[])
 }
 #endif
 
+#ifdef CONFIG_BT_MESH_PRIV_BEACON_CLI
+struct bt_mesh_priv_beacon_cli bt_mesh_shell_priv_beacon_cli;
+
+static int cmd_priv_beacon_get(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct bt_mesh_priv_beacon val;
+	int err;
+
+	err = bt_mesh_priv_beacon_cli_get(&bt_mesh_shell_priv_beacon_cli, net.net_idx, net.dst,
+					  &val);
+	if (err) {
+		shell_error(sh, "Failed to send Private Beacon Get (err %d)", err);
+		return 0;
+	}
+
+	shell_print(sh, "Private Beacon state: %u, %u", val.enabled, val.rand_interval);
+
+	return 0;
+}
+
+static int cmd_priv_beacon_set(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct bt_mesh_priv_beacon val;
+	int err;
+
+	val.enabled = str2bool(argv[1]);
+	val.rand_interval = strtoul(argv[2], NULL, 0);
+
+	err = bt_mesh_priv_beacon_cli_set(&bt_mesh_shell_priv_beacon_cli, net.net_idx, net.dst,
+					  &val);
+	if (err) {
+		shell_error(sh, "Failed to send Private Beacon Set (err %d)", err);
+		return 0;
+	}
+
+	return 0;
+}
+
+static int cmd_priv_gatt_proxy_get(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint8_t state;
+	int err;
+
+	err = bt_mesh_priv_beacon_cli_gatt_proxy_get(&bt_mesh_shell_priv_beacon_cli, net.net_idx,
+						     net.dst, &state);
+	if (err) {
+		shell_error(sh, "Failed to send Private GATT Proxy Get (err %d)", err);
+		return 0;
+	}
+
+	shell_print(sh, "Private GATT Proxy state: %u", state);
+
+	return 0;
+}
+
+static int cmd_priv_gatt_proxy_set(const struct shell *sh, size_t argc, char *argv[])
+{
+	uint8_t state;
+	int err;
+
+	state = str2u8(argv[1]);
+
+	err = bt_mesh_priv_beacon_cli_gatt_proxy_set(&bt_mesh_shell_priv_beacon_cli, net.net_idx,
+						     net.dst, &state);
+	if (err) {
+		shell_error(sh, "Failed to send Private GATT Proxy Set (err %d)", err);
+		return 0;
+	}
+
+	return 0;
+}
+
+static int cmd_priv_node_id_get(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct bt_mesh_priv_node_id val;
+	uint16_t key_net_idx;
+	int err;
+
+	key_net_idx = strtoul(argv[1], NULL, 0);
+
+	err = bt_mesh_priv_beacon_cli_node_id_get(&bt_mesh_shell_priv_beacon_cli, net.net_idx,
+						  net.dst, key_net_idx, &val);
+	if (err) {
+		shell_error(sh, "Failed to send Private Node Identity Get (err %d)", err);
+		return 0;
+	}
+
+	shell_print(sh, "Private Node Identity state: %u %u %u", val.net_idx, val.state,
+		    val.status);
+
+	return 0;
+}
+
+static int cmd_priv_node_id_set(const struct shell *sh, size_t argc, char *argv[])
+{
+	struct bt_mesh_priv_node_id val;
+	int err;
+
+	val.net_idx = strtoul(argv[1], NULL, 0);
+	val.state = strtoul(argv[2], NULL, 0);
+
+	err = bt_mesh_priv_beacon_cli_node_id_set(&bt_mesh_shell_priv_beacon_cli, net.net_idx,
+						  net.dst, &val);
+	if (err) {
+		shell_error(sh, "Failed to send Private Node Identity Set (err %d)", err);
+		return 0;
+	}
+
+	return 0;
+}
+#endif
+
 /* List of Mesh subcommands.
  *
  * Each command is documented in doc/reference/bluetooth/mesh/shell.rst.
@@ -5413,6 +5527,15 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 	SHELL_CMD_ARG(sar-tx-set, NULL, "<7 transmitter state values>", cmd_sar_tx_set, 8, 0),
 	SHELL_CMD_ARG(sar-rx-get, NULL, NULL, cmd_sar_rx_get, 1, 0),
 	SHELL_CMD_ARG(sar-rx-set, NULL, "<5 receiver state values>", cmd_sar_rx_set, 6, 0),
+#endif
+
+#if defined(CONFIG_BT_MESH_PRIV_BEACON_CLI)
+	SHELL_CMD_ARG(priv-beacon-get, NULL, NULL, cmd_priv_beacon_get, 1, 0),
+	SHELL_CMD_ARG(priv-beacon-set, NULL, "<enable> <rand_interval>", cmd_priv_beacon_set, 3, 0),
+	SHELL_CMD_ARG(priv-gatt-proxy-get, NULL, NULL, cmd_priv_gatt_proxy_get, 1, 0),
+	SHELL_CMD_ARG(priv-gatt-proxy-set, NULL, "<state>", cmd_priv_gatt_proxy_set, 2, 0),
+	SHELL_CMD_ARG(priv-node-id-get, NULL, "<net_idx>", cmd_priv_node_id_get, 2, 0),
+	SHELL_CMD_ARG(priv-node-id-set, NULL, "<net_idx> <state>", cmd_priv_node_id_set, 3, 0),
 #endif
 
 	SHELL_SUBCMD_SET_END

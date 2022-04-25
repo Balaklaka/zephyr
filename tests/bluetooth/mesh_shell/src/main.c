@@ -59,6 +59,13 @@ static struct bt_mesh_model root_models[] = {
 #if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_CLI)
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
 #endif
+
+#if defined(CONFIG_BT_MESH_PRIV_BEACON_SRV)
+	BT_MESH_MODEL_PRIV_BEACON_SRV,
+#endif
+#if defined(CONFIG_BT_MESH_PRIV_BEACON_CLI)
+	BT_MESH_MODEL_PRIV_BEACON_CLI(&bt_mesh_shell_priv_beacon_cli),
+#endif
 };
 
 static struct bt_mesh_elem elements[] = {

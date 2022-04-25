@@ -65,6 +65,9 @@ extern struct bt_mesh_prov bt_mesh_shell_prov;
 /** @brief External reference to shell target context. */
 extern struct bt_mesh_shell_target bt_mesh_shell_target_ctx;
 
+/** @brief External reference to Private Beacon Client */
+extern struct bt_mesh_priv_beacon_cli bt_mesh_shell_priv_beacon_cli;
+
 #ifdef __cplusplus
 }
 #endif
