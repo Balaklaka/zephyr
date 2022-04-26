@@ -262,7 +262,7 @@ static void scan_ext_report_send(void)
 		goto send;
 	}
 
-	if (atomic_test_and_clear_bit(srv.dev->flags, BT_MESH_RPR_UNPROV_EXT_ADV_RXD)) {
+	if (srv.dev->flags & BT_MESH_RPR_UNPROV_EXT_ADV_RXD) {
 		net_buf_simple_add_le16(&buf, srv.dev->oob);
 		net_buf_simple_add_mem(&buf, srv.scan.adv_data->data,
 				       srv.scan.adv_data->len);
@@ -270,6 +270,7 @@ static void scan_ext_report_send(void)
 		       bt_hex(srv.scan.adv_data->data, srv.scan.adv_data->len));
 	}
 
+	srv.dev->flags &= ~BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
 send:
 	err = bt_mesh_model_send(srv.mod, &ctx, &buf, NULL, NULL);
 	if (!err) {
