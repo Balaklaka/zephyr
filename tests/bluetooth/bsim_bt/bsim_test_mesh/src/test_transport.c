@@ -135,7 +135,7 @@ static void test_tx_va(void)
 	err = bt_mesh_va_add(test_va_uuid, &virtual_addr);
 	ASSERT_OK(err, "Virtual addr add failed (err %d)", err);
 
-	bt_mesh_test_sync(sync_chan_id);
+	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 4));
 
 	for (int i = 0; i < ARRAY_SIZE(test_vector); i++) {
 		err = bt_mesh_test_send(virtual_addr, test_vector[i].len,
@@ -419,7 +419,7 @@ static void test_rx_va(void)
 	ASSERT_OK(err || status, "Sub add failed (err %d, status %u)", err,
 		  status);
 
-	bt_mesh_test_sync(sync_chan_id);
+	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 4));
 
 	for (int i = 0; i < ARRAY_SIZE(test_vector); i++) {
 		err = bt_mesh_test_recv(test_vector[i].len, virtual_addr,

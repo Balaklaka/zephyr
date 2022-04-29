@@ -504,31 +504,36 @@ uint *bt_mesh_test_sync_init(void)
 	return sync_chan_id;
 }
 
-void bt_mesh_test_sync(uint *sync_chan_id)
+bool bt_mesh_test_sync(uint *sync_chan_id, uint16_t wait_sec)
 {
 	static size_t sync_id;
 	const uint32_t barrier_msg = 0xC0FFEE;
 	uint32_t recv_msg;
 	int size;
+	int wait = wait_sec * MSEC_PER_SEC;
 
 	LOG_INF("sync_id: %u", sync_id);
 	sync_id++;
 
 	bs_bc_send_msg(*sync_chan_id, (uint8_t *)&barrier_msg, sizeof(barrier_msg));
 
-	for (size_t i = 0; i < 40; i++) {
+	while (true) {
 		size = bs_bc_is_msg_received(*sync_chan_id);
 
 		if (size < 0) {
 			FAIL("Sync channel error: %d", size);
-		} else if (size == 0) {
-			k_sleep(K_MSEC(100));
-		} else {
+		} else if (size > 0) {
 			ASSERT_EQUAL(size, sizeof(barrier_msg));
 			break;
+		} else if (wait <= 0) {
+			return false;
 		}
+
+		k_sleep(K_MSEC(100));
+		wait -= 100;
 	}
 
 	bs_bc_receive_msg(*sync_chan_id, (uint8_t *)&recv_msg, sizeof(recv_msg));
 	ASSERT_EQUAL(barrier_msg, recv_msg);
+	return true;
 }
