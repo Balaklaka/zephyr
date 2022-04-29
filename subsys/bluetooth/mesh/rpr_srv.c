@@ -37,6 +37,8 @@ enum {
 	SCAN_REPORT_PENDING,
 	SCAN_EXT_HAS_ADDR,
 	NODE_REFRESH,
+	URI_MATCHED,
+	URI_REQUESTED,
 
 	RPR_SRV_NUM_FLAGS,
 };
@@ -299,11 +301,17 @@ static void scan_report_timeout(struct k_work *work)
 
 static void scan_ext_stop(uint32_t remaining_time)
 {
+	atomic_clear_bit(srv.flags, URI_MATCHED);
+	atomic_clear_bit(srv.flags, URI_REQUESTED);
+
 	if ((remaining_time + srv.scan.additional_time) &&
 	    srv.scan.state != BT_MESH_RPR_SCAN_IDLE) {
 		k_work_reschedule(
 			&srv.scan.timeout,
 			K_MSEC(remaining_time + srv.scan.additional_time));
+	} else if (srv.scan.state == BT_MESH_RPR_SCAN_MULTI) {
+		/* Extended scan might have finished early */
+		scan_ext_report_send();
 	} else if (srv.scan.state != BT_MESH_RPR_SCAN_IDLE) {
 		scan_report_send();
 		scan_stop();
@@ -318,6 +326,9 @@ static void scan_ext_stop(uint32_t remaining_time)
 	bt_mesh_scan_active_set(false);
 	srv.dev = NULL;
 }
+
+static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
+				struct net_buf_simple *buf);
 
 static void scan_timeout(struct k_work *work)
 {
@@ -1093,6 +1104,8 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 	struct net_buf_simple_state initial;
 	struct bt_data ad;
 	bool uri_match = false;
+	bool uri_present = false;
+	bool is_beacon = false;
 
 	if (atomic_test_bit(srv.flags, SCAN_EXT_HAS_ADDR) &&
 	    !bt_addr_le_cmp(&srv.scan.addr, info->addr)) {
@@ -1106,12 +1119,14 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 
 	net_buf_simple_save(buf, &initial);
 	while (pull_ad_data(buf, &ad)) {
-		if (ad.type == BT_DATA_MESH_BEACON && !dev) {
-			dev = adv_handle_beacon(info, &ad);
-			continue;
+		if (ad.type == BT_DATA_URI) {
+			uri_present = true;
 		}
 
-		if (ad.type == BT_DATA_URI && (srv.dev->flags & BT_MESH_RPR_UNPROV_HASH)) {
+		if (ad.type == BT_DATA_MESH_BEACON && !dev) {
+			dev = adv_handle_beacon(info, &ad);
+			is_beacon = true;
+		} else if (ad.type == BT_DATA_URI && (srv.dev->flags & BT_MESH_RPR_UNPROV_HASH)) {
 			uint8_t hash[16];
 
 			if (bt_mesh_s1(ad.data, ad.data_len, hash) ||
@@ -1124,6 +1139,10 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 			dev = srv.dev;
 			srv.dev->flags |= BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
 		}
+	}
+
+	if (uri_match) {
+		atomic_set_bit(srv.flags, URI_MATCHED);
 	}
 
 	if (!dev) {
@@ -1141,6 +1160,18 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 	}
 
 	net_buf_simple_restore(buf, &initial);
+
+	/* The ADTypeFilter field of the Remote Provisioning Extended Scan Start message
+	 * contains only the URI AD Type, and the URI Hash is not available for the device
+	 * with the Device UUID that was requested in the Remote Provisioning Extended Scan
+	 * Start message.
+	 */
+	if (srv.scan.ad_count == 1 &&
+	    get_ad_type(srv.scan.ad, 1, BT_DATA_URI) &&
+	    !uri_match) {
+		goto complete;
+	}
+
 	while (srv.scan.ad_count && pull_ad_data(buf, &ad)) {
 		uint8_t *ad_entry;
 
@@ -1150,8 +1181,9 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 		}
 
 		BT_DBG("AD type 0x%02x", ad.type);
-
-		*ad_entry = srv.scan.ad[--srv.scan.ad_count];
+		if (ad.type == BT_DATA_URI) {
+			atomic_set_bit(srv.flags, URI_REQUESTED);
+		}
 
 		if (ad.data_len + 2 >
 		    net_buf_simple_tailroom(srv.scan.adv_data)) {
@@ -1162,7 +1194,62 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 		net_buf_simple_add_u8(srv.scan.adv_data, ad.data_len + 1);
 		net_buf_simple_add_u8(srv.scan.adv_data, ad.type);
 		net_buf_simple_add_mem(srv.scan.adv_data, ad.data, ad.data_len);
+
+		*ad_entry = srv.scan.ad[--srv.scan.ad_count];
 	}
+
+	/* The Remote Provisioning Server collects AD structures corresponding to all
+	 * AD Types specified in the ADTypeFilter field of the Remote Provisioning Extended
+	 * Scan Start message. The timeout specified in the Timeout field of the Remote
+	 * Provisioning Extended Scan Start message expires.
+	 * OR
+	 * The ADTypeFilter field of the Remote Provisioning Extended Scan Start message
+	 * contains only the URI AD Type, and the Remote Provisioning Server has received
+	 * an advertising report or scan response with the URI corresponding to the URI Hash
+	 * of the device with the Device UUID that was requested in the Remote Provisioning
+	 * Extended Scan Start message.
+	 */
+	if (!srv.scan.ad_count) {
+		goto complete;
+	}
+
+	/* The ADTypeFilter field of the Remote Provisioning Extended Scan Start message does
+	 * not contain the URI AD Type, and the Remote Provisioning Server receives and processes
+	 * the scan response data from the device with Device UUID requested in the Remote
+	 * Provisioning Extended Scan Start message.
+	 */
+	if (!is_beacon && !uri_present &&
+	    info->adv_type == BT_GAP_ADV_TYPE_SCAN_RSP) {
+		goto complete;
+	}
+
+	/* The ADTypeFilter field of the Remote Provisioning Extended Scan Start message contains
+	 * the URI AD Type and at least one different AD Type in the ADTypeFilter field, and the
+	 * Remote Provisioning Server has received an advertising report or scan response with the
+	 * URI corresponding to the URI Hash of the device with the Device UUID that was requested
+	 * in the Remote Provisioning Extended Scan Start message, and the Remote Provisioning
+	 * Server received the scan response from the same device.
+	 * OR
+	 * The ADTypeFilter field of the Remote Provisioning Extended Scan Start message contains
+	 * the URI AD Type and at least one different AD Type in the ADTypeFilter field, and the
+	 * URI Hash is not available for the device with the Device UUID that was requested in the
+	 * Remote Provisioning Extended Scan Start message, and the Remote Provisioning Server
+	 * received the scan response from the same device.
+	 */
+	if (atomic_get(srv.flags) & URI_REQUESTED &&
+	    (atomic_get(srv.flags) & URI_MATCHED ||
+	    (dev->flags & ~BT_MESH_RPR_UNPROV_HASH)) &&
+	    info->adv_type == BT_GAP_ADV_TYPE_SCAN_RSP) {
+		goto complete;
+	}
+
+	return;
+complete:
+	srv.scan.additional_time = 0;
+	if (srv.scan.state != BT_MESH_RPR_SCAN_MULTI) {
+		k_work_cancel_delayable(&srv.scan.timeout);
+	}
+	scan_ext_stop(0);
 }
 
 static void adv_handle_scan(const struct bt_le_scan_recv_info *info,
