@@ -393,7 +393,10 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 		}
 	}
 
-	ctx->send_ttl = srv->state.ttl;
+	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_INACTIVE) {
+		ctx->send_ttl = srv->state.ttl;
+	}
+
 	bt_mesh_model_send(srv->mod, ctx, &buf, NULL, NULL);
 }
 
@@ -801,6 +804,10 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 	net_buf_simple_add_le32(&rsp, CONFIG_BT_MESH_BLOB_SIZE_MAX);
 	net_buf_simple_add_le16(&rsp, MTU_SIZE_MAX);
 	net_buf_simple_add_u8(&rsp, BT_MESH_BLOB_XFER_MODE_ALL);
+
+	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_INACTIVE) {
+		ctx->send_ttl = srv->state.ttl;
+	}
 
 	bt_mesh_model_send(srv->mod, ctx, &rsp, NULL, NULL);
 

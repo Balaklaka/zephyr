@@ -178,6 +178,10 @@ static int handle_info_get(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 		limit--;
 	}
 
+	if (srv->update.phase != BT_MESH_DFU_PHASE_IDLE) {
+		ctx->send_ttl = srv->update.ttl;
+	}
+
 	bt_mesh_model_send(mod, ctx, &rsp, NULL, NULL);
 
 	return 0;
@@ -202,6 +206,10 @@ static int handle_metadata_check(struct bt_mesh_model *mod, struct bt_mesh_msg_c
 	net_buf_simple_add_u8(&rsp, (status & BIT_MASK(3)) | (effect << 3));
 	net_buf_simple_add_u8(&rsp, idx);
 
+	if (srv->update.phase != BT_MESH_DFU_PHASE_IDLE) {
+		ctx->send_ttl = srv->update.ttl;
+	}
+
 	bt_mesh_model_send(mod, ctx, &rsp, NULL, NULL);
 
 	return 0;
@@ -224,6 +232,8 @@ static void update_status_rsp(struct bt_mesh_dfu_srv *srv,
 		net_buf_simple_add_le16(&buf, srv->update.timeout_base);
 		net_buf_simple_add_le64(&buf, srv->blob.state.xfer.id);
 		net_buf_simple_add_u8(&buf, srv->update.idx);
+
+		ctx->send_ttl = srv->update.ttl;
 	}
 
 	bt_mesh_model_send(srv->mod, ctx, &buf, send_cb, srv);
