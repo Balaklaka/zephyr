@@ -877,7 +877,7 @@ static int trans_ack(struct bt_mesh_net_rx *rx, uint8_t hdr,
 
 	tx = seg_tx_lookup(seq_zero, obo, rx->ctx.addr);
 	if (!tx) {
-		BT_WARN("No matching TX context for ack");
+		BT_DBG("No matching TX context for ack");
 		return -ENOENT;
 	}
 
