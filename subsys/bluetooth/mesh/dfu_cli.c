@@ -554,6 +554,8 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 	struct bt_mesh_dfu_target *target;
 	bool success = false;
 
+	cli->req.img_cb = NULL;
+
 	TARGETS_FOR_EACH(cli, target) {
 		if (target->effect == BT_MESH_DFU_EFFECT_UNPROV) {
 			if (!target->blob.acked) {
@@ -790,7 +792,6 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 		it = cli->req.img_cb(cli, ctx, idx, img_cnt, &img,
 				     cli->req.params);
 		if (it != BT_MESH_DFU_ITER_CONTINUE) {
-			cli->req.img_cb = NULL;
 			if (cli->req.type == REQ_IMG) {
 				k_sem_give(&cli->req.sem);
 			}
@@ -808,8 +809,6 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 			 (cli->req.type == REQ_IMG) ? NULL : &send_cb);
 		return 0;
 	}
-
-	cli->req.img_cb = NULL;
 
 	if (cli->req.type == REQ_IMG) {
 		k_sem_give(&cli->req.sem);
