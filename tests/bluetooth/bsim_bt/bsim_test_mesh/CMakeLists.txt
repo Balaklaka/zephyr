@@ -22,6 +22,7 @@ if(CONFIG_SETTINGS)
   src/settings_test_backend.c
   src/test_persistence.c
   src/test_replay_cache.c
+  src/test_dfu.c
  )
 elseif(CONFIG_BT_MESH_GATT_PROXY)
  target_sources(app PRIVATE

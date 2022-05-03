@@ -537,3 +537,8 @@ bool bt_mesh_test_sync(uint *sync_chan_id, uint16_t wait_sec)
 	ASSERT_EQUAL(barrier_msg, recv_msg);
 	return true;
 }
+
+uint16_t bt_mesh_test_own_addr_get(uint16_t start_addr)
+{
+	return start_addr + get_device_nbr();
+}
