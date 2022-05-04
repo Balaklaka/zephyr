@@ -15,6 +15,7 @@
 #include <app_keys.h>
 #include <sar_cfg_internal.h>
 #include <settings/settings.h>
+#include <string.h>
 
 #include <zephyr/logging/log.h>
 #define LOG_MODULE_NAME bttester_mesh
@@ -79,12 +80,10 @@ static int blob_chunk_wr(const struct bt_mesh_blob_io *io,
 			 const struct bt_mesh_blob_block *block,
 			 const struct bt_mesh_blob_chunk *chunk)
 {
-	int i;
-
-	for (i = 0; i < chunk->size; ++i) {
+	for (int i = 0; i < chunk->size; ++i) {
 		blob_rx_sum += chunk->data[i];
 		if (chunk->data[i] !=
-		    blob_data[(i + chunk->offset) % sizeof(blob_data)]) {
+		    blob_data[(i + chunk->offset) % strlen(blob_data)]) {
 			blob_valid = false;
 		}
 	}
@@ -99,7 +98,7 @@ static int blob_chunk_rd(const struct bt_mesh_blob_io *io,
 {
 	for (int i = 0; i < chunk->size; ++i) {
 		chunk->data[i] =
-			blob_data[(i + chunk->offset) % sizeof(blob_data)];
+			blob_data[(i + chunk->offset) % strlen(blob_data)];
 	}
 
 	return 0;
@@ -722,17 +721,15 @@ static struct bt_mesh_model root_models[] = {
 };
 struct model_data *lookup_model_bound(uint16_t id)
 {
-    int i;
+	int i;
 
-    for (i = 0; i < ARRAY_SIZE(model_bound); i++) {
-	    if (model_bound[i].model && model_bound[i].model->id == id) {
-                return &model_bound[i];
-            }
-            break;
-        }
-    }
+	for (i = 0; i < ARRAY_SIZE(model_bound); i++) {
+		if (model_bound[i].model && model_bound[i].model->id == id) {
+			return &model_bound[i];
+		}
+	}
 
-    return NULL;
+	return NULL;
 }
 static struct bt_mesh_model vnd_models[] = {
 	BT_MESH_MODEL_VND(CID_LOCAL, VND_MODEL_ID_1, BT_MESH_MODEL_NO_OPS, NULL,
@@ -3268,7 +3265,7 @@ static void dfu_tx_prepare(void)
 {
 	sys_slist_init(&dfu_tx.inputs.targets);
 
-	for (size_t i = 0; i < dfu_tx.target_cnt; i++) {
+	for (int i = 0; i < dfu_tx.target_cnt; i++) {
 		/* Reset target context. */
 		uint16_t addr = dfu_tx.targets[i].blob.addr;
 		memset(&dfu_tx.targets[i].blob, 0,
@@ -3287,7 +3284,7 @@ static void dfu_target(uint8_t img_idx, uint16_t addr)
 		return;
 	}
 
-	for (size_t i = 0; i < dfu_tx.target_cnt; i++) {
+	for (int i = 0; i < dfu_tx.target_cnt; i++) {
 		if (dfu_tx.targets[i].blob.addr == addr) {
 			LOG_ERR("Target 0x%04x already exists", addr);
 			return;
@@ -3513,10 +3510,6 @@ static void dfu_firmware_update_cancel(uint8_t *data, uint16_t len)
 	ctx.addr = model_bound->addr;
 	ctx.app_idx = model_bound->appkey_idx;
 
-#if defined(CONFIG_BT_MESH_DFU_SRV)
-	bt_mesh_dfu_srv_cancel(&dfu_srv);
-#endif
-
 	err = bt_mesh_dfu_cli_cancel(&dfu_cli, &ctx);
 	if (err) {
 		LOG_ERR("err %d", err);
@@ -3676,15 +3669,10 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 	blob_cli_inputs_prepare(group, model_bound->appkey_idx);
 
 #if defined(CONFIG_BT_MESH_DFU_CLI)
-	err = bt_mesh_blob_cli_caps_get(&(dfu_cli.blob), &blob_cli_xfer.inputs);
+	bt_mesh_blob_cli_caps_get(&(dfu_cli.blob), &blob_cli_xfer.inputs);
 #else
-	err = bt_mesh_blob_cli_caps_get(&blob_cli, &blob_cli_xfer.inputs);
+	bt_mesh_blob_cli_caps_get(&blob_cli, &blob_cli_xfer.inputs);
 #endif
-
-	if (err) {
-		LOG_ERR("ERR %d", err);
-		goto fail;
-	}
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_INFO_GET, CONTROLLER_INDEX,
@@ -3739,17 +3727,12 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 	}
 
 #if defined(CONFIG_BT_MESH_DFU_CLI)
-	err = bt_mesh_blob_cli_send(&(dfu_cli.blob), &blob_cli_xfer.inputs,
+	bt_mesh_blob_cli_send(&(dfu_cli.blob), &blob_cli_xfer.inputs,
 				    &blob_cli_xfer.xfer, blob_io);
 #else
-	err = bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
+	bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
 				    &blob_cli_xfer.xfer, blob_io);
 #endif
-
-	if (err) {
-		LOG_ERR("ERR %d", err);
-		goto fail;
-	}
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_TRANSFER_START,

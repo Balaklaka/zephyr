@@ -1497,6 +1497,7 @@ struct mmdl_dfu_info_get_cmd {
 struct mmdl_blob_info_get_cmd {
 	uint16_t addr;
 } __packed;
+
 #define MMDL_DFU_UPDATE_METADATA_CHECK		0x61
 struct mmdl_dfu_metadata_check_cmd {
 	uint8_t index;
@@ -1506,6 +1507,7 @@ struct mmdl_dfu_metadata_check_cmd {
 	uint8_t metadata_len;
 	uint8_t data[];
 } __packed;
+
 #define MMDL_DFU_FIRMWARE_UPDATE_GET		0x62
 #define MMDL_DFU_FIRMWARE_UPDATE_CANCEL		0x63
 #define MMDL_DFU_FIRMWARE_UPDATE_START		0x64

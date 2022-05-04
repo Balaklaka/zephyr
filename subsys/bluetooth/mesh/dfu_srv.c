@@ -299,8 +299,6 @@ static int handle_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	if (bt_mesh_dfu_srv_is_busy(srv)) {
 		if (is_active_update(srv, idx, timeout_base, &blob_id, ttl,
 				     meta_checksum)) {
-			srv->update.ttl = ttl;
-			srv->blob.state.xfer.id = blob_id;
 			status = BT_MESH_DFU_ERR_WRONG_PHASE;
 		} else {
 			status = BT_MESH_DFU_SUCCESS;
