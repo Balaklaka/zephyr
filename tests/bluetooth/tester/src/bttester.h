@@ -19,6 +19,7 @@
 #define BTP_SERVICE_ID_GATT	2
 #define BTP_SERVICE_ID_L2CAP	3
 #define BTP_SERVICE_ID_MESH	4
+#define BTP_SERVICE_ID_MMDL	5
 
 #define BTP_STATUS_SUCCESS	0x00
 #define BTP_STATUS_FAILED	0x01
@@ -1487,6 +1488,59 @@ struct rpr_reprov_remote_cmd {
 	bool comp_change;
 } __packed;
 
+#define MMDL_DFU_INFO_GET		0x5f
+struct mmdl_dfu_info_get_cmd {
+	uint8_t limit;
+} __packed;
+
+#define MMDL_BLOB_INFO_GET		0x60
+struct mmdl_blob_info_get_cmd {
+	uint16_t addr;
+} __packed;
+#define MMDL_DFU_UPDATE_METADATA_CHECK		0x61
+struct mmdl_dfu_metadata_check_cmd {
+	uint8_t index;
+	uint8_t slot_idx;
+	uint8_t slot_size;
+	uint8_t fwid_len;
+	uint8_t metadata_len;
+	uint8_t data[];
+} __packed;
+#define MMDL_DFU_FIRMWARE_UPDATE_GET		0x62
+#define MMDL_DFU_FIRMWARE_UPDATE_CANCEL		0x63
+#define MMDL_DFU_FIRMWARE_UPDATE_START		0x64
+struct mmdl_dfu_firmware_update_cmd {
+	uint16_t addr;
+	uint8_t slot_idx;
+	uint8_t slot_size;
+	uint8_t fwid_len;
+	uint8_t metadata_len;
+	uint8_t block_size;
+	uint16_t chunk_size;
+	uint8_t data[];
+} __packed;
+
+#define MMDL_BLOB_SRV_RECV		0x65
+struct mmdl_blob_srv_recv_cmd {
+	uint64_t id;
+	uint16_t timeout;
+} __packed;
+
+#define MMDL_BLOB_TRANSFER_START		0x66
+struct mmdl_blob_transfer_start_cmd {
+	uint64_t id;
+	uint16_t size;
+	uint8_t block_size;
+	uint16_t chunk_size;
+	uint16_t timeout;
+	uint16_t addr;
+} __packed;
+
+#define MMDL_BLOB_TRANSFER_CANCEL		0x67
+#define MMDL_BLOB_TRANSFER_GET		0x68
+#define MMDL_BLOB_SRV_CANCEL		0x69
+#define MMDL_DFU_FIRMWARE_UPDATE_APPLY		0x6A
+
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
 struct mesh_out_number_action_ev {
@@ -1614,4 +1668,8 @@ void tester_handle_l2cap(uint8_t opcode, uint8_t index, uint8_t *data,
 uint8_t tester_init_mesh(void);
 uint8_t tester_unregister_mesh(void);
 void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t len);
+uint8_t tester_init_mmdl(void);
+uint8_t tester_unregister_mmdl(void);
+void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
+			uint16_t len);
 #endif /* CONFIG_BT_MESH */
