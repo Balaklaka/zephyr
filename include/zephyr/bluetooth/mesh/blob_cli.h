@@ -315,4 +315,3 @@ extern const struct bt_mesh_model_cb _bt_mesh_blob_cli_cb;
 #endif /* ZEPHYR_INCLUDE_BLUETOOTH_MESH_BLOB_CLI_H_ */
 
 /** @} */
-
