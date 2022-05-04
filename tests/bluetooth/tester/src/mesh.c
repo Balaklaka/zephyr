@@ -182,7 +182,8 @@ const struct bt_mesh_dfu_cli_cb dfu_cli_cb = {
 
 static struct bt_mesh_dfu_cli dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb);
 
-#elif defined(CONFIG_BT_MESH_BLOB_CLI)
+#endif
+#if defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_DFU_CLI)
 
 static struct {
 	struct bt_mesh_blob_cli_inputs inputs;
@@ -191,6 +192,47 @@ static struct {
 	struct bt_mesh_blob_xfer xfer;
 } blob_cli_xfer;
 
+static void blob_cli_inputs_prepare(uint16_t group, uint16_t app_idx)
+{
+	int i;
+
+	blob_cli_xfer.inputs.ttl = BT_MESH_TTL_DEFAULT;
+	blob_cli_xfer.inputs.group = group;
+	blob_cli_xfer.inputs.app_idx = app_idx;
+	sys_slist_init(&blob_cli_xfer.inputs.targets);
+
+	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
+		/* Reset target context. */
+		uint16_t addr = blob_cli_xfer.targets[i].addr;
+		memset(&blob_cli_xfer.targets[i].addr, 0,
+		       sizeof(struct bt_mesh_blob_target));
+		blob_cli_xfer.targets[i].addr = addr;
+
+		sys_slist_append(&blob_cli_xfer.inputs.targets,
+				 &blob_cli_xfer.targets[i].n);
+	}
+}
+
+static int cmd_blob_target(uint16_t addr)
+{
+	struct bt_mesh_blob_target *t;
+
+	if (blob_cli_xfer.target_count == ARRAY_SIZE(blob_cli_xfer.targets)) {
+		LOG_ERR("No more room");
+		return 0;
+	}
+
+	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
+
+	t->addr = addr;
+
+	LOG_DBG("Added target 0x%04x", t->addr);
+
+	blob_cli_xfer.target_count++;
+	return 0;
+}
+#endif /* CONFIG_BT_MESH_DFU_CLI || CONFIG_BT_MESH_BLOB_CLI*/
+#if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFU_CLI)
 static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
 				 struct bt_mesh_blob_target *target,
 				 enum bt_mesh_blob_status reason)
@@ -242,47 +284,6 @@ static const struct bt_mesh_blob_cli_cb blob_cli_handlers = {
 };
 
 static struct bt_mesh_blob_cli blob_cli = { .cb = &blob_cli_handlers };
-
-static void blob_cli_inputs_prepare(uint16_t group, uint16_t app_idx)
-{
-	int i;
-
-	blob_cli_xfer.inputs.ttl = BT_MESH_TTL_DEFAULT;
-	blob_cli_xfer.inputs.group = group;
-	blob_cli_xfer.inputs.app_idx = app_idx;
-	sys_slist_init(&blob_cli_xfer.inputs.targets);
-
-	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
-		/* Reset target context. */
-		uint16_t addr = blob_cli_xfer.targets[i].addr;
-		memset(&blob_cli_xfer.targets[i].addr, 0,
-		       sizeof(struct bt_mesh_blob_target));
-		blob_cli_xfer.targets[i].addr = addr;
-
-		sys_slist_append(&blob_cli_xfer.inputs.targets,
-				 &blob_cli_xfer.targets[i].n);
-	}
-}
-
-static int cmd_blob_target(uint16_t addr)
-{
-	struct bt_mesh_blob_target *t;
-
-	if (blob_cli_xfer.target_count == ARRAY_SIZE(blob_cli_xfer.targets)) {
-		LOG_ERR("No more room");
-		return 0;
-	}
-
-	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
-
-	t->addr = addr;
-
-	LOG_DBG("Added target 0x%04x", t->addr);
-
-	blob_cli_xfer.target_count++;
-	return 0;
-}
-
 #endif /* CONFIG_BT_MESH_BLOB_CLI */
 
 #if defined(CONFIG_BT_MESH_DFU_SRV)
@@ -3641,9 +3642,8 @@ fail:
 		   CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
 }
-
-#elif defined(CONFIG_BT_MESH_BLOB_CLI)
-
+#endif
+#if defined(CONFIG_BT_MESH_DFU_CLI) || defined(CONFIG_BT_MESH_BLOB_CLI)
 static void blob_info_get(uint8_t *data, uint16_t len)
 {
 	struct mmdl_blob_info_get_cmd *cmd = (void *)data;
@@ -3660,7 +3660,7 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-    group = cmd->addr;
+	group = cmd->addr;
 
 	err = cmd_blob_target(group);
 	if (err) {
@@ -3675,7 +3675,11 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 
 	blob_cli_inputs_prepare(group, model_bound->appkey_idx);
 
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	err = bt_mesh_blob_cli_caps_get(&(dfu_cli.blob), &blob_cli_xfer.inputs);
+#else
 	err = bt_mesh_blob_cli_caps_get(&blob_cli, &blob_cli_xfer.inputs);
+#endif
 
 	if (err) {
 		LOG_ERR("ERR %d", err);
@@ -3703,7 +3707,7 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-    group = cmd->addr;
+	group = cmd->addr;
 
 	err = cmd_blob_target(group);
 	if (err) {
@@ -3718,8 +3722,13 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 	blob_cli_xfer.xfer.size = cmd->size;
 	blob_cli_xfer.xfer.block_size_log = cmd->block_size;
 	blob_cli_xfer.xfer.chunk_size = cmd->chunk_size;
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	if (dfu_cli.blob.caps.modes) {
+		blob_cli_xfer.xfer.mode = dfu_cli.blob.caps.modes;
+#else
 	if (blob_cli.caps.modes) {
 		blob_cli_xfer.xfer.mode = blob_cli.caps.modes;
+#endif
 	} else {
 		blob_cli_xfer.xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
 	}
@@ -3729,8 +3738,13 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 		blob_cli_xfer.inputs.timeout_base = cmd->timeout;
 	}
 
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	err = bt_mesh_blob_cli_send(&(dfu_cli.blob), &blob_cli_xfer.inputs,
+				    &blob_cli_xfer.xfer, blob_io);
+#else
 	err = bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
 				    &blob_cli_xfer.xfer, blob_io);
+#endif
 
 	if (err) {
 		LOG_ERR("ERR %d", err);
@@ -3757,7 +3771,11 @@ static void blob_transfer_cancel(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
+#if defined(CONFIG_BT_MESH_DFU_CLI)
+	bt_mesh_blob_cli_cancel(&(dfu_cli.blob));
+#else
 	bt_mesh_blob_cli_cancel(&blob_cli);
+#endif
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_TRANSFER_CANCEL,
@@ -4384,7 +4402,8 @@ void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
 	case MMDL_DFU_FIRMWARE_UPDATE_APPLY:
 		dfu_firmware_update_apply(data, len);
 		break;
-#elif defined(CONFIG_BT_MESH_BLOB_CLI)
+#endif
+#if defined(CONFIG_BT_MESH_BLOB_CLI) || defined(CONFIG_BT_MESH_DFU_CLI)
 	case MMDL_BLOB_INFO_GET:
 		blob_info_get(data, len);
 		break;
