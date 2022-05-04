@@ -3631,12 +3631,13 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 
 	if (!blob_cli_xfer.target_count) {
 		LOG_ERR("Failed: No targets");
+		err = -EINVAL;
 		goto fail;
 	}
 
 	blob_cli_inputs_prepare(group, model_bound->appkey_idx);
 
-	bt_mesh_blob_cli_caps_get(&blob_cli, &blob_cli_xfer.inputs);
+	err = bt_mesh_blob_cli_caps_get(&blob_cli, &blob_cli_xfer.inputs);
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_INFO_GET, CONTROLLER_INDEX,
@@ -3669,6 +3670,8 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 
 	if (!blob_cli_xfer.target_count) {
 		LOG_ERR("Failed: No targets");
+		err = -EINVAL;
+		goto fail;
 	}
 	blob_cli_xfer.xfer.id = cmd->id;
 	blob_cli_xfer.xfer.size = cmd->size;
@@ -3686,7 +3689,7 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 		blob_cli_xfer.inputs.timeout_base = cmd->timeout;
 	}
 
-	bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
+	err = bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
 				    &blob_cli_xfer.xfer, &dummy_blob_io);
 
 fail:
@@ -3697,21 +3700,10 @@ fail:
 
 static void blob_transfer_cancel(uint8_t *data, uint16_t len)
 {
-	struct model_data *model_bound;
-	int err;
-
 	LOG_DBG("");
-
-	model_bound = lookup_model_bound(BT_MESH_MODEL_ID_BLOB_CLI);
-	if (!model_bound) {
-		LOG_ERR("Model not found");
-		err = -EINVAL;
-		goto fail;
-	}
 
 	bt_mesh_blob_cli_cancel(&blob_cli);
 
-fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_TRANSFER_CANCEL,
 		   CONTROLLER_INDEX, BTP_STATUS_SUCCESS);
 }
