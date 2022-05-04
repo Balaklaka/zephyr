@@ -699,7 +699,9 @@ static void caps_collected(struct bt_mesh_blob_cli *cli)
 		cli->caps.max_block_size_log--;
 	}
 
-	cli->cb->caps(cli, success ? &cli->caps : NULL);
+	if (cli->cb && cli->cb->caps) {
+		cli->cb->caps(cli, success ? &cli->caps : NULL);
+	}
 }
 
 static int xfer_start(struct bt_mesh_blob_cli *cli)

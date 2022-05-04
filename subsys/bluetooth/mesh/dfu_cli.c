@@ -627,29 +627,29 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	phase = byte >> 5;
 
 	if (cli->req.type == REQ_STATUS && cli->req.addr == ctx->addr) {
-		struct bt_mesh_dfu_target_status *rsp = cli->req.params;
+		if (cli->req.params) {
+			struct bt_mesh_dfu_target_status *rsp = cli->req.params;
 
-		rsp->status = status;
-		rsp->phase = phase;
-		if (buf->len == 13) {
-			rsp->ttl = net_buf_simple_pull_u8(buf);
-			rsp->effect = net_buf_simple_pull_u8(buf) & BIT_MASK(5);
-			rsp->timeout_base = net_buf_simple_pull_le16(buf);
-			rsp->blob_id = net_buf_simple_pull_le64(buf);
-			rsp->img_idx = net_buf_simple_pull_u8(buf);
-		} else if (buf->len) {
-			return -EINVAL;
+			rsp->status = status;
+			rsp->phase = phase;
+			if (buf->len == 13) {
+				rsp->ttl = net_buf_simple_pull_u8(buf);
+				rsp->effect = net_buf_simple_pull_u8(buf) & BIT_MASK(5);
+				rsp->timeout_base = net_buf_simple_pull_le16(buf);
+				rsp->blob_id = net_buf_simple_pull_le64(buf);
+				rsp->img_idx = net_buf_simple_pull_u8(buf);
+			} else if (buf->len) {
+				return -EINVAL;
+			}
+
+			rsp->ttl = 0U;
+			rsp->effect = BT_MESH_DFU_EFFECT_NONE;
+			rsp->timeout_base = 0U;
+			rsp->blob_id = 0U;
+			rsp->img_idx = 0U;
 		}
-
-		rsp->ttl = 0U;
-		rsp->effect = BT_MESH_DFU_EFFECT_NONE;
-		rsp->timeout_base = 0U;
-		rsp->blob_id = 0U;
-		rsp->img_idx = 0U;
-
 		k_sem_give(&cli->req.sem);
 	}
-
 	if (cli->op != BT_MESH_DFU_OP_UPDATE_STATUS) {
 		return 0;
 	}
