@@ -3532,8 +3532,9 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 	struct mmdl_dfu_firmware_update_cmd *cmd = (void *)data;
 	struct model_data *model_bound;
 	struct bt_mesh_dfu_cli_xfer xfer;
+	uint8_t addr_cnt;
+	uint16_t addr = BT_MESH_ADDR_UNASSIGNED;
 	uint8_t slot_idx;
-	uint16_t group;
 	size_t size;
 	size_t fwid_len;
 	size_t metadata_len;
@@ -3541,6 +3542,7 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 	uint8_t metadata[CONFIG_BT_MESH_DFU_METADATA_MAXLEN];
 	const char *uri = "";
 	int err = 0;
+	int i = 0;
 
 	LOG_DBG("");
 
@@ -3556,7 +3558,7 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 		.chunk_size = cmd->chunk_size,
 	};
 
-	group = cmd->addr;
+	addr_cnt = cmd->addr_cnt;
 	slot_idx = cmd->slot_idx;
 	size = cmd->slot_size;
 	fwid_len = cmd->fwid_len;
@@ -3581,7 +3583,12 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	dfu_target(slot_idx, group);
+	for (i = 0; i < addr_cnt; i++) {
+		addr = cmd->data[metadata_len + 1 + i * sizeof(uint16_t)] |
+			(cmd->data[metadata_len + i * sizeof(uint16_t)] << 8);
+		dfu_target(slot_idx, addr);
+	}
+
 	dfu_tx_prepare();
 
 	if (!dfu_tx.target_cnt) {
@@ -3589,7 +3596,12 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	dfu_tx.inputs.group = group;
+	if (addr_cnt > 1) {
+		dfu_tx.inputs.group = BT_MESH_ADDR_UNASSIGNED;
+	} else {
+		dfu_tx.inputs.group = addr;
+	}
+
 	dfu_tx.inputs.app_idx = model_bound->appkey_idx;
 	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 

@@ -1510,7 +1510,7 @@ struct mmdl_dfu_metadata_check_cmd {
 #define MMDL_DFU_FIRMWARE_UPDATE_CANCEL		0x63
 #define MMDL_DFU_FIRMWARE_UPDATE_START		0x64
 struct mmdl_dfu_firmware_update_cmd {
-	uint16_t addr;
+	uint8_t addr_cnt;
 	uint8_t slot_idx;
 	uint8_t slot_size;
 	uint8_t fwid_len;
