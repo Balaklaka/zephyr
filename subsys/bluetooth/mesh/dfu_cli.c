@@ -188,6 +188,21 @@ static void blob_caps(struct bt_mesh_blob_cli *b,
 	cli->xfer.blob.block_size_log = caps->max_block_size_log;
 	cli->xfer.blob.chunk_size = caps->max_chunk_size;
 
+	/* If mode is not already set and server reported it supports all modes
+	 * default to PUSH, otherwise set value reported by server. If mode
+	 * was set and server supports all modes, keep old value; set
+	 * reported value otherwise.
+	 */
+	if (!(cli->xfer.blob.mode & BT_MESH_BLOB_XFER_MODE_ALL)) {
+		cli->xfer.blob.mode =
+			caps->modes == BT_MESH_BLOB_XFER_MODE_ALL ?
+			BT_MESH_BLOB_XFER_MODE_PUSH : caps->modes;
+	} else {
+		cli->xfer.blob.mode =
+			caps->modes == BT_MESH_BLOB_XFER_MODE_ALL ?
+			cli->xfer.blob.mode : caps->modes;
+	}
+
 	err = bt_mesh_blob_cli_send(b, b->inputs, &cli->xfer.blob, cli->xfer.io);
 	if (err) {
 		BT_ERR("Starting BLOB xfer failed: %d", err);
