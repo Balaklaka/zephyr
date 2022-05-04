@@ -108,8 +108,6 @@ static const struct bt_mesh_blob_io dummy_blob_io = {
 	.wr = blob_chunk_wr,
 };
 
-static const struct bt_mesh_blob_io *blob_io;
-
 /* DFD Model data*/
 static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
 			const struct bt_mesh_dfu_slot *slot,
@@ -117,7 +115,7 @@ static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
 {
 	LOG_DBG("Uploading new firmware image to the distributor.");
 
-	*io = blob_io;
+	*io = &dummy_blob_io;
 
 	return 0;
 }
@@ -134,7 +132,7 @@ static int dfd_srv_send(struct bt_mesh_dfd_srv *srv,
 {
 	LOG_DBG("Starting the firmware distribution.");
 
-	*io = blob_io;
+	*io = &dummy_blob_io;
 
 	return 0;
 }
@@ -313,7 +311,7 @@ static int dfu_start(struct bt_mesh_dfu_srv *srv,
 {
 	LOG_DBG("DFU setup");
 
-	*io = blob_io;
+	*io = &dummy_blob_io;
 
 	return 0;
 }
@@ -1017,8 +1015,6 @@ static void init(uint8_t *data, uint16_t len)
 			status = BTP_STATUS_FAILED;
 		}
 	}
-
-	blob_io = &dummy_blob_io;
 
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_INIT, CONTROLLER_INDEX,
 		   status);
@@ -3572,7 +3568,7 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 	dfu_tx.inputs.app_idx = model_bound->appkey_idx;
 	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 
-	err = bt_mesh_dfu_cli_send(&dfu_cli, &dfu_tx.inputs, blob_io, &xfer);
+	err = bt_mesh_dfu_cli_send(&dfu_cli, &dfu_tx.inputs, &dummy_blob_io, &xfer);
 
 	if (err) {
 		LOG_ERR("err %d", err);
@@ -3691,7 +3687,7 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 	}
 
 	bt_mesh_blob_cli_send(&blob_cli, &blob_cli_xfer.inputs,
-				    &blob_cli_xfer.xfer, blob_io);
+				    &blob_cli_xfer.xfer, &dummy_blob_io);
 
 fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_TRANSFER_START,
@@ -3745,7 +3741,7 @@ static void blob_srv_recv(uint8_t *data, uint16_t len)
 	id = cmd->id;
 	timeout_base = cmd->timeout;
 
-	err = bt_mesh_blob_srv_recv(srv, id, blob_io, BT_MESH_TTL_MAX,
+	err = bt_mesh_blob_srv_recv(srv, id, &dummy_blob_io, BT_MESH_TTL_MAX,
 				    timeout_base);
 
 	if (err) {
