@@ -65,6 +65,7 @@ static struct {
 		struct net_buf_simple *adv_data;
 	} scan;
 	struct {
+		struct k_work report;
 		enum bt_mesh_rpr_link_state state;
 		enum bt_mesh_rpr_status status;
 		uint8_t close_reason;
@@ -427,6 +428,12 @@ static void pb_link_opened(const struct prov_bearer *bearer, void *cb_data)
 	link_report_send();
 }
 
+static void link_report_send_and_clear(struct k_work *work)
+{
+	link_report_send();
+	cli_clear();
+}
+
 static void pb_link_closed(const struct prov_bearer *bearer, void *cb_data,
 			   enum prov_bearer_link_status reason)
 {
@@ -456,8 +463,7 @@ static void pb_link_closed(const struct prov_bearer *bearer, void *cb_data,
 	}
 
 	srv.link.state = BT_MESH_RPR_LINK_IDLE;
-	link_report_send();
-	cli_clear();
+	k_work_submit(&srv.link.report);
 }
 
 static void pb_error(const struct prov_bearer *bearer, void *cb_data,
@@ -1206,6 +1212,7 @@ static int rpr_srv_init(struct bt_mesh_model *mod)
 
 	k_work_init_delayable(&srv.scan.timeout, scan_timeout);
 	k_work_init_delayable(&srv.scan.report, scan_report_timeout);
+	k_work_init(&srv.link.report, link_report_send_and_clear);
 	bt_le_scan_cb_register(&scan_cb);
 	mod->keys[0] = BT_MESH_KEY_DEV_LOCAL;
 
