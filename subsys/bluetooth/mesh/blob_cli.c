@@ -84,6 +84,7 @@ static void cli_state_reset(struct bt_mesh_blob_cli *cli)
 	cli->xfer = NULL;
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
 	cli->tx.ctx = NULL;
+	cli->tx.cli_timestamp = 0ll;
 	cli->tx.sending = 0;
 }
 
@@ -347,6 +348,7 @@ static void broadcast_complete(struct bt_mesh_blob_cli *cli)
 
 	cli->tx.ctx = NULL;
 	k_work_cancel_delayable(&cli->tx.retry);
+
 	if (cli->tx.cancelled) {
 		transfer_cancel(cli);
 	} else {
@@ -406,11 +408,15 @@ static void retry_timeout(struct k_work *work)
 		CONTAINER_OF(work, struct bt_mesh_blob_cli, tx.retry.work);
 
 	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		if (k_uptime_delta(&cli->tx.cli_timestamp) <= 0ll) {
+		if (cli->tx.cli_timestamp && (k_uptime_get() >= cli->tx.cli_timestamp)) {
 			BT_DBG("Set result to failure. Drop target.");
 			drop_remaining_targets(cli);
-			broadcast_complete(cli);
+			cli->tx.cli_timestamp = 0ll;
+		} else {
+			cli->chunk_idx = next_missing_chunk(cli, 0);
 		}
+
+		broadcast_complete(cli);
 		return;
 	}
 
@@ -725,6 +731,7 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 	};
 	struct bt_mesh_blob_target *target;
 
+
 	if (!targets_active(cli)) {
 		if (targets_timedout(cli)) {
 			suspend(cli);
@@ -813,11 +820,10 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 	}
 
 	BT_DBG("Waiting for partial block report...");
-
 	cli->tx.ctx = &ctx;
 	start_retry_timer(cli);
 
-	if (k_uptime_delta(&cli->tx.cli_timestamp) <= 0ll) {
+	if (!cli->tx.cli_timestamp) {
 		cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
 	}
 }
@@ -1089,7 +1095,7 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 		blob_chunk_missing_set(&status.block, idx, true);
 	}
 
-	cli->tx.cli_timestamp = 0ll;
+	cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
 	/* If this fails, the retry timeout handler will fail
 	 * the Pull session and drop target.
 	 */
@@ -1139,6 +1145,9 @@ static int handle_block_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 		BT_DBG("Missing: %s", bt_hex(status.block.missing, len));
 		break;
 	case BT_MESH_BLOB_CHUNKS_MISSING_ENCODED:
+		/** An empty Missing Chunks field entails that there are no
+		 *  missing chunks for this block (Spec 5.3.8)
+		 */
 		if (!buf->len) {
 			status.missing = BT_MESH_BLOB_CHUNKS_MISSING_NONE;
 		}
@@ -1332,7 +1341,7 @@ int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
 	(void)k_work_cancel_delayable(&cli->tx.retry);
 	cli->tx.ctx = NULL;
 	cli->tx.sending = 0;
-
+	cli->tx.cli_timestamp = 0ll;
 	return 0;
 }
 
