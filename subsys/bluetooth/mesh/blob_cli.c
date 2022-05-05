@@ -968,9 +968,16 @@ static void rx_block_status(struct bt_mesh_blob_cli *cli,
 			if (cli->block.number == cli->block_count - 1) {
 				cli->state = BT_MESH_BLOB_CLI_STATE_XFER_CHECK;
 				transfer_complete(cli);
-			}
+			} else {
+				static const struct blob_cli_broadcast_ctx ctx = {
+					.send = NULL,
+					.next = block_start,
+					.acked = true,
+				};
 
-			return;
+				cli->tx.ctx = &ctx;
+				block_set(cli, cli->block.number + 1);
+			}
 		}
 
 	} else if (block->missing == BT_MESH_BLOB_CHUNKS_MISSING_ALL) {
