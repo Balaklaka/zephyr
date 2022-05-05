@@ -1132,6 +1132,10 @@ static int handle_block_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 		BT_DBG("Missing: %s", bt_hex(status.block.missing, len));
 		break;
 	case BT_MESH_BLOB_CHUNKS_MISSING_ENCODED:
+		if (!buf->len) {
+			status.missing = BT_MESH_BLOB_CHUNKS_MISSING_NONE;
+		}
+
 		while (buf->len) {
 			idx = chunk_idx_decode(buf);
 			if (idx < 0 || idx >= status.block.chunk_count) {
