@@ -108,6 +108,7 @@ static const struct bt_mesh_blob_io dummy_blob_io = {
 	.wr = blob_chunk_wr,
 };
 
+#if defined(CONFIG_BT_MESH_DFD_SRV)
 /* DFD Model data*/
 static int dfd_srv_recv(struct bt_mesh_dfd_srv *srv,
 			const struct bt_mesh_dfu_slot *slot,
@@ -144,80 +145,15 @@ static struct bt_mesh_dfd_srv_cb dfd_srv_cb = {
 };
 
 static struct bt_mesh_dfd_srv dfd_srv = BT_MESH_DFD_SRV_INIT(&dfd_srv_cb);
+#endif
 
-/* DFU Model data*/
-static void dfu_cli_ended(struct bt_mesh_dfu_cli *cli,
-			  enum bt_mesh_dfu_status reason)
-{
-	LOG_DBG("DFU ended: %u", reason);
-}
-
-static void dfu_cli_applied(struct bt_mesh_dfu_cli *cli)
-{
-	LOG_DBG("DFU applied.");
-}
-
-static void dfu_cli_lost_target(struct bt_mesh_dfu_cli *cli,
-				struct bt_mesh_dfu_target *target)
-{
-	LOG_DBG("DFU target lost: 0x%04x", target->blob.addr);
-}
-
-const struct bt_mesh_dfu_cli_cb dfu_cli_cb = {
-	.ended = dfu_cli_ended,
-	.applied = dfu_cli_applied,
-	.lost_target = dfu_cli_lost_target,
-};
-
-static struct bt_mesh_dfu_cli dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb);
-
+#if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
 static struct {
 	struct bt_mesh_blob_cli_inputs inputs;
 	struct bt_mesh_blob_target targets[32];
 	uint8_t target_count;
 	struct bt_mesh_blob_xfer xfer;
 } blob_cli_xfer;
-
-static void blob_cli_inputs_prepare(uint16_t group, uint16_t app_idx)
-{
-	int i;
-
-	blob_cli_xfer.inputs.ttl = BT_MESH_TTL_DEFAULT;
-	blob_cli_xfer.inputs.group = group;
-	blob_cli_xfer.inputs.app_idx = app_idx;
-	sys_slist_init(&blob_cli_xfer.inputs.targets);
-
-	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
-		/* Reset target context. */
-		uint16_t addr = blob_cli_xfer.targets[i].addr;
-
-		memset(&blob_cli_xfer.targets[i], 0,
-		       sizeof(struct bt_mesh_blob_target));
-		blob_cli_xfer.targets[i].addr = addr;
-
-		sys_slist_append(&blob_cli_xfer.inputs.targets,
-				 &blob_cli_xfer.targets[i].n);
-	}
-}
-
-static int cmd_blob_target(uint16_t addr)
-{
-	struct bt_mesh_blob_target *t;
-
-	if (blob_cli_xfer.target_count == ARRAY_SIZE(blob_cli_xfer.targets)) {
-		LOG_ERR("No more room");
-		return 0;
-	}
-
-	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
-
-	t->addr = addr;
-
-	LOG_DBG("Added target 0x%04x", t->addr);
-
-	blob_cli_xfer.target_count++;
-	return 0;
-}
 
 static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
 				 struct bt_mesh_blob_target *target,
@@ -270,7 +206,9 @@ static const struct bt_mesh_blob_cli_cb blob_cli_handlers = {
 };
 
 static struct bt_mesh_blob_cli blob_cli = { .cb = &blob_cli_handlers };
+#endif
 
+#if defined(CONFIG_BT_MESH_DFU_SRV)
 const char *metadata_data = "1100000000000011";
 
 static uint8_t dfu_fwid[] = {
@@ -353,38 +291,7 @@ static const struct bt_mesh_dfu_srv_cb dfu_handlers = {
 
 static struct bt_mesh_dfu_srv dfu_srv =
 	BT_MESH_DFU_SRV_INIT(&dfu_handlers, dfu_imgs, ARRAY_SIZE(dfu_imgs));
-
-static int64_t blob_time;
-
-static int blob_srv_start(struct bt_mesh_blob_srv *srv,
-			  struct bt_mesh_msg_ctx *ctx,
-			  struct bt_mesh_blob_xfer *xfer)
-{
-	LOG_DBG("BLOB start");
-	blob_time = k_uptime_get();
-	return 0;
-}
-
-static void blob_srv_end(struct bt_mesh_blob_srv *srv, uint64_t id,
-			 bool success)
-{
-	if (success) {
-		int64_t duration = k_uptime_delta(&blob_time);
-
-		LOG_DBG("BLOB completed in %u.%03u s",
-			(uint32_t)(duration / MSEC_PER_SEC),
-			(uint32_t)(duration % MSEC_PER_SEC));
-	} else {
-		LOG_DBG("BLOB cancelled");
-	}
-}
-
-static const struct bt_mesh_blob_srv_cb blob_srv_cb = {
-	.start = blob_srv_start,
-	.end = blob_srv_end,
-};
-
-static struct bt_mesh_blob_srv blob_srv = { .cb = &blob_srv_cb };
+#endif /* CONFIG_BT_MESH_DFU_SRV */
 
 /* Model Authentication Method */
 #define AUTH_METHOD_STATIC 0x01
@@ -684,11 +591,14 @@ static struct bt_mesh_model root_models[] = {
 #if defined(CONFIG_BT_MESH_RPR_SRV)
 	BT_MESH_MODEL_RPR_SRV,
 #endif
+#if defined(CONFIG_BT_MESH_DFD_SRV)
 	BT_MESH_MODEL_DFD_SRV(&dfd_srv),
+#elif defined(CONFIG_BT_MESH_DFU_SRV)
 	BT_MESH_MODEL_DFU_SRV(&dfu_srv),
-	BT_MESH_MODEL_BLOB_SRV(&blob_srv),
-	BT_MESH_MODEL_DFU_CLI(&dfu_cli),
+#endif
+#if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
 	BT_MESH_MODEL_BLOB_CLI(&blob_cli),
+#endif
 };
 struct model_data *lookup_model_bound(uint16_t id)
 {
@@ -3222,6 +3132,7 @@ fail:
 }
 #endif
 
+#if defined(CONFIG_BT_MESH_DFD_SRV)
 static struct {
 	struct bt_mesh_dfu_target targets[32];
 	size_t target_cnt;
@@ -3337,7 +3248,7 @@ static void dfu_info_get(uint8_t *data, uint16_t len)
 
 	max_count = cmd->limit;
 
-	err = bt_mesh_dfu_cli_imgs_get(&dfu_cli, &ctx, dfu_img_cb, NULL,
+	err = bt_mesh_dfu_cli_imgs_get(&dfd_srv.dfu, &ctx, dfu_img_cb, NULL,
 				       max_count);
 	if (err) {
 		LOG_ERR("ERR %d", err);
@@ -3400,7 +3311,7 @@ static void dfu_update_metadata_check(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	err = bt_mesh_dfu_cli_metadata_check(&dfu_cli, &ctx, img_idx, slot,
+	err = bt_mesh_dfu_cli_metadata_check(&dfd_srv.dfu, &ctx, img_idx, slot,
 					     &rsp);
 
 	if (err) {
@@ -3443,7 +3354,7 @@ static void dfu_firmware_update_get(uint8_t *data, uint16_t len)
 	ctx.addr = model_bound->addr;
 	ctx.app_idx = model_bound->appkey_idx;
 
-	err = bt_mesh_dfu_cli_status_get(&dfu_cli, &ctx, &rsp);
+	err = bt_mesh_dfu_cli_status_get(&dfd_srv.dfu, &ctx, &rsp);
 	if (err) {
 		LOG_ERR("err %d", err);
 		goto fail;
@@ -3479,7 +3390,7 @@ static void dfu_firmware_update_cancel(uint8_t *data, uint16_t len)
 	ctx.addr = model_bound->addr;
 	ctx.app_idx = model_bound->appkey_idx;
 
-	err = bt_mesh_dfu_cli_cancel(&dfu_cli, &ctx);
+	err = bt_mesh_dfu_cli_cancel(&dfd_srv.dfu, &ctx);
 	if (err) {
 		LOG_ERR("err %d", err);
 	}
@@ -3568,7 +3479,7 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 	dfu_tx.inputs.app_idx = model_bound->appkey_idx;
 	dfu_tx.inputs.ttl = BT_MESH_TTL_DEFAULT;
 
-	err = bt_mesh_dfu_cli_send(&dfu_cli, &dfu_tx.inputs, &dummy_blob_io, &xfer);
+	err = bt_mesh_dfu_cli_send(&dfd_srv.dfu, &dfu_tx.inputs, &dummy_blob_io, &xfer);
 
 	if (err) {
 		LOG_ERR("err %d", err);
@@ -3594,7 +3505,7 @@ static void dfu_firmware_update_apply(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	err = bt_mesh_dfu_cli_apply(&dfu_cli);
+	err = bt_mesh_dfu_cli_apply(&dfd_srv.dfu);
 	if (err) {
 		LOG_ERR("err %d", err);
 	}
@@ -3603,6 +3514,49 @@ fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_DFU_FIRMWARE_UPDATE_APPLY,
 		   CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+#endif
+
+#if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
+static void blob_cli_inputs_prepare(uint16_t group, uint16_t app_idx)
+{
+	int i;
+
+	blob_cli_xfer.inputs.ttl = BT_MESH_TTL_DEFAULT;
+	blob_cli_xfer.inputs.group = group;
+	blob_cli_xfer.inputs.app_idx = app_idx;
+	sys_slist_init(&blob_cli_xfer.inputs.targets);
+
+	for (i = 0; i < blob_cli_xfer.target_count; ++i) {
+		/* Reset target context. */
+		uint16_t addr = blob_cli_xfer.targets[i].addr;
+
+		memset(&blob_cli_xfer.targets[i], 0,
+		       sizeof(struct bt_mesh_blob_target));
+		blob_cli_xfer.targets[i].addr = addr;
+
+		sys_slist_append(&blob_cli_xfer.inputs.targets,
+				 &blob_cli_xfer.targets[i].n);
+	}
+}
+
+static int cmd_blob_target(uint16_t addr)
+{
+	struct bt_mesh_blob_target *t;
+
+	if (blob_cli_xfer.target_count == ARRAY_SIZE(blob_cli_xfer.targets)) {
+		LOG_ERR("No more room");
+		return 0;
+	}
+
+	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
+
+	t->addr = addr;
+
+	LOG_DBG("Added target 0x%04x", t->addr);
+
+	blob_cli_xfer.target_count++;
+	return 0;
 }
 
 static void blob_info_get(uint8_t *data, uint16_t len)
@@ -3716,7 +3670,11 @@ static void blob_srv_recv(uint8_t *data, uint16_t len)
 	struct model_data *model_bound;
 	int err;
 
-	struct bt_mesh_blob_srv *srv = &blob_srv;
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	struct bt_mesh_blob_srv *srv = &dfu_srv.blob;
+#elif defined(CONFIG_BT_MESH_DFD_SRV)
+	struct bt_mesh_blob_srv *srv = &dfd_srv.upload.blob;
+#endif
 
 	model_bound = lookup_model_bound(BT_MESH_MODEL_ID_BLOB_SRV);
 	if (!model_bound) {
@@ -3750,7 +3708,11 @@ static void blob_srv_cancel(uint8_t *data, uint16_t len)
 	struct model_data *model_bound;
 	int err;
 
-	struct bt_mesh_blob_srv *srv = &blob_srv;
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	struct bt_mesh_blob_srv *srv = &dfu_srv.blob;
+#elif defined(CONFIG_BT_MESH_DFD_SRV)
+	struct bt_mesh_blob_srv *srv = &dfd_srv.upload.blob;
+#endif
 
 	model_bound = lookup_model_bound(BT_MESH_MODEL_ID_BLOB_SRV);
 	if (!model_bound) {
@@ -3771,6 +3733,7 @@ fail:
 	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_BLOB_SRV_CANCEL, CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
 }
+#endif
 
 void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t len)
 {
@@ -4282,6 +4245,7 @@ void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
 			uint16_t len)
 {
 	switch (opcode) {
+#if defined(CONFIG_BT_MESH_DFD_SRV)
 	case MMDL_DFU_INFO_GET:
 		dfu_info_get(data, len);
 		break;
@@ -4300,6 +4264,8 @@ void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
 	case MMDL_DFU_FIRMWARE_UPDATE_APPLY:
 		dfu_firmware_update_apply(data, len);
 		break;
+#endif
+#if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
 	case MMDL_BLOB_INFO_GET:
 		blob_info_get(data, len);
 		break;
@@ -4317,6 +4283,7 @@ void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
 	case MMDL_BLOB_SRV_CANCEL:
 		blob_srv_cancel(data, len);
 		break;
+#endif
 	default:
 		tester_rsp(BTP_SERVICE_ID_MMDL, opcode, index,
 			   BTP_STATUS_UNKNOWN_CMD);
