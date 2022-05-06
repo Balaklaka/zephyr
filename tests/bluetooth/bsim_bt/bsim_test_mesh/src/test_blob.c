@@ -17,6 +17,23 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME, LOG_LEVEL_INF);
 #define BLOB_CLI_ADDR 0x0001
 #define MODEL_LIST(...) ((struct bt_mesh_model[]){ __VA_ARGS__ })
 
+static bool is_pull_mode;
+
+static void test_args_parse(int argc, char *argv[])
+{
+	bs_args_struct_t args_struct[] = {
+		{
+			.dest = &is_pull_mode,
+			.type = 'b',
+			.name = "{0, 1}",
+			.option = "use-pull-mode",
+			.descript = "Set transfer type to pull mode"
+		},
+	};
+
+	bs_args_parse_all_cmd_line(argc, argv, args_struct);
+}
+
 static int blob_io_open(const struct bt_mesh_blob_io *io,
 			const struct bt_mesh_blob_xfer *xfer,
 			enum bt_mesh_blob_io_mode mode)
@@ -864,8 +881,9 @@ static void test_cli_trans_resume_push(void)
 {
 	int err;
 	uint *sync_chan_id = bt_mesh_test_sync_init();
+	tm_set_phy_max_resync_offset(100000);
 
-	bt_mesh_test_cfg_set(NULL, 500);
+	bt_mesh_test_cfg_set(NULL, 800);
 	bt_mesh_device_setup(&prov, &cli_comp);
 	blob_cli_prov_and_conf(BLOB_CLI_ADDR);
 
@@ -883,7 +901,8 @@ static void test_cli_trans_resume_push(void)
 	 * transfer.
 	 */
 	blob_cli_inputs_prepare(BLOB_GROUP_ADDR);
-	blob_cli_xfer.xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
+	blob_cli_xfer.xfer.mode =
+		is_pull_mode ? BT_MESH_BLOB_XFER_MODE_PULL : BT_MESH_BLOB_XFER_MODE_PUSH;
 	blob_cli_xfer.xfer.size = CONFIG_BT_MESH_BLOB_BLOCK_SIZE_MIN * 2;
 	blob_cli_xfer.xfer.id = 1;
 	blob_cli_xfer.xfer.block_size_log = 12;
@@ -896,7 +915,7 @@ static void test_cli_trans_resume_push(void)
 		FAIL("BLOB send failed (err: %d)", err);
 	}
 
-	if (k_sem_take(&blob_cli_suspend_sem, K_SECONDS(300))) {
+	if (k_sem_take(&blob_cli_suspend_sem, K_SECONDS(500))) {
 		FAIL("Suspend CB did not trigger as expected for the cli");
 	}
 
@@ -927,8 +946,9 @@ static void test_cli_trans_resume_push(void)
 static void test_srv_trans_resume(void)
 {
 	uint *sync_chan_id = bt_mesh_test_sync_init();
+	tm_set_phy_max_resync_offset(100000);
 
-	bt_mesh_test_cfg_set(NULL, 500);
+	bt_mesh_test_cfg_set(NULL, 800);
 	bt_mesh_device_setup(&prov, &srv_comp);
 	blob_srv_prov_and_conf(own_addr_get());
 
@@ -959,7 +979,7 @@ static void test_srv_trans_resume(void)
 	ASSERT_TRUE(blob_srv.phase == BT_MESH_BLOB_XFER_PHASE_SUSPENDED);
 
 	/* Wait for BLOB client to suspend */
-	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 140));
+	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 400));
 
 	bt_mesh_scan_enable();
 	if (k_sem_take(&blob_srv_end_sem, K_SECONDS(180))) {
@@ -982,6 +1002,7 @@ static void test_srv_trans_resume(void)
 	{                                                      \
 		.test_id = "blob_" #role "_" #name,          \
 		.test_descr = description,                     \
+		.test_args_f = test_args_parse, \
 		.test_tick_f = bt_mesh_test_timeout,           \
 		.test_main_f = test_##role##_##name,           \
 	}
