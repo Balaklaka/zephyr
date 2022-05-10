@@ -3575,14 +3575,6 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 		goto fail;
 	}
 
-	group = cmd->addr;
-
-	err = cmd_blob_target(group);
-	if (err) {
-		LOG_ERR("err target %d", err);
-		goto fail;
-	}
-
 	if (!blob_cli_xfer.target_count) {
 		LOG_ERR("Failed: No targets");
 		err = -EINVAL;
@@ -3602,8 +3594,7 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 {
 	struct mmdl_blob_transfer_start_cmd *cmd = (void *)data;
 	struct model_data *model_bound;
-	uint16_t group;
-	int err;
+	int err = 0;
 
 	LOG_DBG("");
 
@@ -3637,7 +3628,6 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 	} else {
 		blob_cli_xfer.xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
 	}
-	blob_cli_inputs_prepare(group, model_bound->appkey_idx);
 
 	if (cmd->timeout) {
 		blob_cli_xfer.inputs.timeout_base = cmd->timeout;

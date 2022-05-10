@@ -1535,7 +1535,6 @@ struct mmdl_blob_transfer_start_cmd {
 	uint8_t block_size;
 	uint16_t chunk_size;
 	uint16_t timeout;
-	uint16_t addr;
 } __packed;
 
 #define MMDL_BLOB_TRANSFER_CANCEL		0x67
