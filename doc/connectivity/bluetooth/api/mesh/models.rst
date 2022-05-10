@@ -18,6 +18,8 @@ used by network administrators to configure and diagnose mesh nodes.
    health_cli
    priv_beacon_srv
    priv_beacon_cli
+   op_agg_cli
+   op_agg_srv
 
 Model specification models
 **************************

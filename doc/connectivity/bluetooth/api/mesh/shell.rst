@@ -1471,3 +1471,26 @@ The Private Beacon Client model is an optional mesh subsystem that can be enable
 
 		* ``0x00``: Stop advertising with the Private Node Identity.
 		* ``0x01``: Start advertising with the Private Node Identity..
+
+
+Opcodes Aggregator Client
+=========================
+
+The Opcodes Aggregator client is an optional Mesh model that can be enabled through the :kconfig:option:`CONFIG_BT_MESH_OP_AGG_CLI` configuration option. The Opcodes Aggregator Client model is used to support the functionality of dispatching a sequence of access layer messages to nodes supporting the Opcodes Aggregator Server model.
+
+``mesh op-agg-seq-start <elem_addr>``
+-------------------------------------
+
+	Start the Opcodes Aggregator Sequence message. This command initiates the context for aggregating messages and sets the destination address for next shell commands to ``elem_addr``.
+
+	* ``elem_addr``: Element address that will process the aggregated opcodes.
+
+``mesh op-agg-seq-send``
+------------------------
+
+	Send the Opcodes Aggregator Sequence message. This command completes the procedure, sends the aggregated sequence message to the target node and clears the context.
+
+``mesh op-agg-seq-abort``
+-------------------------
+
+	Abort the Opcodes Aggregator Sequence message. This command clears the Opcodes Aggregator Client context.
