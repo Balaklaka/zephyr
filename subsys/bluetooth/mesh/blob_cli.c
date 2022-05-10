@@ -974,8 +974,12 @@ static void rx_block_status(struct bt_mesh_blob_cli *cli,
 			}
 
 			if (cli->block.number == cli->block_count - 1) {
+				static const struct blob_cli_broadcast_ctx ctx = {
+					.next = transfer_complete,
+				};
+
+				cli->tx.ctx = &ctx;
 				cli->state = BT_MESH_BLOB_CLI_STATE_XFER_CHECK;
-				transfer_complete(cli);
 			} else {
 				static const struct blob_cli_broadcast_ctx ctx = {
 					.send = NULL,
