@@ -3563,7 +3563,8 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 {
 	struct mmdl_blob_info_get_cmd *cmd = (void *)data;
 	struct model_data *model_bound;
-	uint16_t group;
+	uint16_t addr = BT_MESH_ADDR_UNASSIGNED;
+	uint16_t group = BT_MESH_ADDR_UNASSIGNED;
 	int err;
 
 	LOG_DBG("");
@@ -3573,6 +3574,22 @@ static void blob_info_get(uint8_t *data, uint16_t len)
 		LOG_ERR("Model not found");
 		err = -EINVAL;
 		goto fail;
+	}
+
+	for (int i = 0; i < cmd->addr_cnt; i++) {
+		addr = cmd->addr[1 + i * sizeof(uint16_t)] |
+			(cmd->addr[i * sizeof(uint16_t)] << 8);
+		err = cmd_blob_target(addr);
+		if (err) {
+			LOG_ERR("err target %d", err);
+			goto fail;
+		}
+	}
+
+	if (cmd->addr_cnt > 1) {
+		group = BT_MESH_ADDR_UNASSIGNED;
+	} else {
+		group = addr;
 	}
 
 	if (!blob_cli_xfer.target_count) {
@@ -3602,14 +3619,6 @@ static void blob_transfer_start(uint8_t *data, uint16_t len)
 	if (!model_bound) {
 		LOG_ERR("Model not found");
 		err = -EINVAL;
-		goto fail;
-	}
-
-	group = cmd->addr;
-
-	err = cmd_blob_target(group);
-	if (err) {
-		LOG_ERR("err target %d", err);
 		goto fail;
 	}
 

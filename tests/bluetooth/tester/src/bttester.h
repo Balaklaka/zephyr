@@ -1495,7 +1495,8 @@ struct mmdl_dfu_info_get_cmd {
 
 #define MMDL_BLOB_INFO_GET		0x60
 struct mmdl_blob_info_get_cmd {
-	uint16_t addr;
+	uint8_t addr_cnt;
+	uint8_t addr[];
 } __packed;
 
 #define MMDL_DFU_UPDATE_METADATA_CHECK		0x61
