@@ -1645,6 +1645,8 @@ struct mesh_model_recv_ev {
 	uint8_t payload[];
 } __packed;
 
+#define MESH_EV_BLOB_LOST_TARGET		0x90
+
 void tester_init(void);
 void tester_rsp(uint8_t service, uint8_t opcode, uint8_t index, uint8_t status);
 void tester_send(uint8_t service, uint8_t opcode, uint8_t index, uint8_t *data,

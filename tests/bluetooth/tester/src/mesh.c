@@ -161,6 +161,8 @@ static void blob_cli_lost_target(struct bt_mesh_blob_cli *cli,
 {
 	LOG_DBG("Mesh Blob: Lost target 0x%04x (reason: %u)", target->addr,
 		reason);
+	tester_send(BTP_SERVICE_ID_MESH, MESH_EV_BLOB_LOST_TARGET,
+		    CONTROLLER_INDEX, NULL, 0);
 }
 
 static void blob_cli_caps(struct bt_mesh_blob_cli *cli,
