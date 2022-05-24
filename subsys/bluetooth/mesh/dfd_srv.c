@@ -86,8 +86,7 @@ static bool is_busy(const struct bt_mesh_dfd_srv *srv)
 static bool upload_is_busy(const struct bt_mesh_dfd_srv *srv)
 {
 	return bt_mesh_blob_srv_is_busy(&srv->upload.blob) ||
-	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE ||
-	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ERROR;
+	       srv->upload.phase == BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ACTIVE;
 }
 
 static int slot_del(struct bt_mesh_dfd_srv *srv, const struct bt_mesh_dfu_slot *slot)
@@ -738,15 +737,17 @@ static void upload_end(struct bt_mesh_blob_srv *b, uint64_t id, bool success)
 	srv->upload.phase = BT_MESH_DFD_UPLOAD_PHASE_TRANSFER_ERROR;
 }
 
-static void upload_suspended(struct bt_mesh_blob_srv *b)
+static void upload_timeout(struct bt_mesh_blob_srv *b)
 {
 	BT_DBG("");
+
+	upload_end(b, b->state.xfer.id, false);
 }
 
 const struct bt_mesh_blob_srv_cb _bt_mesh_dfd_srv_blob_cb = {
 	.start = upload_start,
 	.end = upload_end,
-	.suspended = upload_suspended,
+	.suspended = upload_timeout,
 };
 
 static int dfd_srv_init(struct bt_mesh_model *mod)
