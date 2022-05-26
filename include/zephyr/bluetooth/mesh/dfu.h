@@ -46,6 +46,15 @@ enum bt_mesh_dfu_phase {
 	/** The Apply New Firmware procedure is being executed. */
 	BT_MESH_DFU_PHASE_APPLYING,
 
+	/** Firmware transfer has been canceled */
+	BT_MESH_DFU_PHASE_TRANSFER_CANCELED,
+
+	/** Firmware applying succeeded */
+	BT_MESH_DFU_PHASE_APPLY_SUCCESS,
+
+	/** Firmware applying failed */
+	BT_MESH_DFU_PHASE_APPLY_FAIL,
+
 	/** The current phase is unknown.
 	 *
 	 *  This is a metaphase, used by the DFU Client to keep track of

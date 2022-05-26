@@ -50,6 +50,7 @@ enum {
 	FLAG_CANCELLED = BIT(1),
 	FLAG_SKIP_CAPS_GET = BIT(2),
 	FLAG_RESUME = BIT(3),
+	FLAG_COMPLETED = BIT(4),
 };
 
 enum {
@@ -530,7 +531,7 @@ static enum bt_mesh_dfu_iter target_img_cb(struct bt_mesh_dfu_cli *cli,
 	if (target) {
 		BT_DBG("SUCCESS: 0x%04x applied dfu (as image %u)", ctx->addr,
 		       idx);
-		target->phase = BT_MESH_DFU_PHASE_IDLE;
+		target->phase = BT_MESH_DFU_PHASE_APPLY_SUCCESS;
 		blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 	} else {
 		BT_WARN("Target 0x%04x not found", ctx->addr);
@@ -591,7 +592,7 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 
 	if (success) {
 		cli->xfer.state = STATE_IDLE;
-		cli->xfer.flags = 0U;
+		cli->xfer.flags = FLAG_COMPLETED;
 
 		if (cli->cb && cli->cb->confirmed) {
 			cli->cb->confirmed(cli);
@@ -1058,6 +1059,9 @@ uint8_t bt_mesh_dfu_cli_progress(struct bt_mesh_dfu_cli *cli)
 	}
 
 	if (cli->xfer.state == STATE_IDLE) {
+		if (cli->xfer.flags & FLAG_COMPLETED) {
+			return 100U;
+		}
 		return 0U;
 	}
 
