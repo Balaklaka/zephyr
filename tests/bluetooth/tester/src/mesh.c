@@ -595,7 +595,8 @@ static struct bt_mesh_model root_models[] = {
 #endif
 #if defined(CONFIG_BT_MESH_DFD_SRV)
 	BT_MESH_MODEL_DFD_SRV(&dfd_srv),
-#elif defined(CONFIG_BT_MESH_DFU_SRV)
+#endif
+#if defined(CONFIG_BT_MESH_DFU_SRV)
 	BT_MESH_MODEL_DFU_SRV(&dfu_srv),
 #endif
 #if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
