@@ -495,45 +495,77 @@ void bt_mesh_test_ra_cb_setup(void (*cb)(uint8_t *, size_t))
 	ra_cb = cb;
 }
 
-uint *bt_mesh_test_sync_init(void)
+void bt_mesh_test_sync_init(struct bt_mesh_test_sync_ctx *ctx)
 {
-	uint *sync_chan_id = bs_open_back_channel(get_device_nbr(),
-						  (uint[]){(get_device_nbr() + 1) % 2},
-						  (uint[]){0}, 1);
-	ASSERT_OK(sync_chan_id == NULL);
-	return sync_chan_id;
+	ctx->chan_id = bs_open_back_channel(get_device_nbr(),
+						  ctx->dev_nmbr,
+						  ctx->chan_nmbr, ctx->cnt);
 }
 
-bool bt_mesh_test_sync(uint *sync_chan_id, uint16_t wait_sec)
+static bool wait_for_sync(uint32_t channel_id, int *wait, uint8_t msg_len)
 {
-	static size_t sync_id;
-	const uint32_t barrier_msg = 0xC0FFEE;
-	uint32_t recv_msg;
 	int size;
-	int wait = wait_sec * MSEC_PER_SEC;
-
-	LOG_INF("sync_id: %u", sync_id);
-	sync_id++;
-
-	bs_bc_send_msg(*sync_chan_id, (uint8_t *)&barrier_msg, sizeof(barrier_msg));
 
 	while (true) {
-		size = bs_bc_is_msg_received(*sync_chan_id);
+		size = bs_bc_is_msg_received(channel_id);
 
 		if (size < 0) {
 			FAIL("Sync channel error: %d", size);
 		} else if (size > 0) {
-			ASSERT_EQUAL(size, sizeof(barrier_msg));
-			break;
-		} else if (wait <= 0) {
+			ASSERT_EQUAL(size, msg_len);
+			return true;
+		} else if (*wait <= 0) {
 			return false;
 		}
 
 		k_sleep(K_MSEC(100));
-		wait -= 100;
+		*wait -= 100;
+	}
+}
+
+bool bt_mesh_test_sync_multi(struct bt_mesh_test_sync_ctx *ctx, uint32_t channel, uint16_t wait_sec)
+{
+	const uint32_t barrier_msg = 0xC0FFEE;
+	uint32_t recv_msg;
+	int wait = wait_sec * MSEC_PER_SEC;
+
+	for (int i = 0; i < ctx->cnt; i++) {
+		if (ctx->chan_nmbr[i] != channel) {
+			continue;
+		}
+
+		if (!wait_for_sync(ctx->chan_id[i], &wait, sizeof(barrier_msg))) {
+			return false;
+		}
+
+		bs_bc_receive_msg(ctx->chan_id[i], (uint8_t *)&recv_msg, sizeof(recv_msg));
+		ASSERT_EQUAL(barrier_msg, recv_msg);
 	}
 
-	bs_bc_receive_msg(*sync_chan_id, (uint8_t *)&recv_msg, sizeof(recv_msg));
+	for (int i = 0; i < ctx->cnt; i++) {
+		if (ctx->chan_nmbr[i] != channel) {
+			continue;
+		}
+
+		bs_bc_send_msg(ctx->chan_id[i], (uint8_t *)&barrier_msg, sizeof(barrier_msg));
+	}
+
+	return true;
+}
+
+bool bt_mesh_test_sync(uint32_t channel_id, uint16_t wait_sec)
+{
+	const uint32_t barrier_msg = 0xC0FFEE;
+	uint32_t recv_msg;
+	int wait = wait_sec * MSEC_PER_SEC;
+
+	bs_bc_send_msg(channel_id, (uint8_t *)&barrier_msg, sizeof(barrier_msg));
+
+	if (!wait_for_sync(channel_id, &wait, sizeof(barrier_msg))) {
+		return false;
+	}
+
+	bs_bc_receive_msg(channel_id, (uint8_t *)&recv_msg, sizeof(recv_msg));
 	ASSERT_EQUAL(barrier_msg, recv_msg);
 	return true;
 }

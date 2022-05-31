@@ -16,6 +16,9 @@ LOG_MODULE_REGISTER(LOG_MODULE_NAME, LOG_LEVEL_INF);
 #define BLOB_GROUP_ADDR 0xc000
 #define BLOB_CLI_ADDR 0x0001
 #define MODEL_LIST(...) ((struct bt_mesh_model[]){ __VA_ARGS__ })
+#define SYNC_CHAN 0
+#define CLI_DEV 0
+#define SRV1_DEV 1
 
 static bool is_pull_mode;
 
@@ -875,7 +878,13 @@ static void test_cli_broadcast_unicast(void)
 static void test_cli_trans_resume_push(void)
 {
 	int err;
-	uint *sync_chan_id = bt_mesh_test_sync_init();
+	struct bt_mesh_test_sync_ctx sync = {
+		.chan_nmbr = (uint32_t[]){ SYNC_CHAN },
+		.dev_nmbr = (uint32_t[]){ SRV1_DEV },
+		.cnt = 1
+	};
+
+	bt_mesh_test_sync_init(&sync);
 	tm_set_phy_max_resync_offset(100000);
 
 	bt_mesh_test_cfg_set(NULL, 800);
@@ -921,8 +930,7 @@ static void test_cli_trans_resume_push(void)
 	ASSERT_TRUE(blob_cli.state == BT_MESH_BLOB_CLI_STATE_SUSPENDED);
 
 	/* Sync with the server device to enable scanning again. */
-	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 3));
-
+	ASSERT_TRUE(bt_mesh_test_sync(sync.chan_id[0], 3));
 	/* Initiate resumption of BLOB transfer */
 	err = bt_mesh_blob_cli_resume(&blob_cli);
 	if (err) {
@@ -940,7 +948,13 @@ static void test_cli_trans_resume_push(void)
 
 static void test_srv_trans_resume(void)
 {
-	uint *sync_chan_id = bt_mesh_test_sync_init();
+	struct bt_mesh_test_sync_ctx sync = {
+		.chan_nmbr = (uint32_t[]){ SYNC_CHAN },
+		.dev_nmbr = (uint32_t[]){ 0 },
+		.cnt = 1
+	};
+
+	bt_mesh_test_sync_init(&sync);
 	tm_set_phy_max_resync_offset(100000);
 
 	bt_mesh_test_cfg_set(NULL, 800);
@@ -974,7 +988,7 @@ static void test_srv_trans_resume(void)
 	ASSERT_TRUE(blob_srv.phase == BT_MESH_BLOB_XFER_PHASE_SUSPENDED);
 
 	/* Wait for BLOB client to suspend */
-	ASSERT_TRUE(bt_mesh_test_sync(sync_chan_id, 400));
+	ASSERT_TRUE(bt_mesh_test_sync(sync.chan_id[0], 400));
 
 	bt_mesh_scan_enable();
 	if (k_sem_take(&blob_srv_end_sem, K_SECONDS(180))) {

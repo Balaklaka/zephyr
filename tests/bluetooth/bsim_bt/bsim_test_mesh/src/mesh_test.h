@@ -105,6 +105,13 @@ struct bt_mesh_test_msg {
 	struct bt_mesh_msg_ctx ctx;
 };
 
+struct bt_mesh_test_sync_ctx {
+	uint32_t *dev_nmbr;
+	uint32_t *chan_nmbr;
+	uint32_t *chan_id;
+	uint16_t cnt;
+};
+
 extern enum bst_result_t bst_result;
 extern const struct bt_mesh_test_cfg *cfg;
 extern struct bt_mesh_model *test_model;
@@ -135,8 +142,11 @@ int bt_mesh_test_send_ra(uint16_t addr, uint8_t *data, size_t len,
 			 const struct bt_mesh_send_cb *send_cb,
 			 void *cb_data);
 void bt_mesh_test_ra_cb_setup(void (*cb)(uint8_t *, size_t));
-uint *bt_mesh_test_sync_init(void);
-bool bt_mesh_test_sync(uint *sync_chan_id, uint16_t wait_sec);
+
+void bt_mesh_test_sync_init(struct bt_mesh_test_sync_ctx *ctx);
+bool bt_mesh_test_sync_multi(struct bt_mesh_test_sync_ctx *ctx, uint32_t channel,
+			       uint16_t wait_sec);
+bool bt_mesh_test_sync(uint32_t channel_id, uint16_t wait_sec);
 
 uint16_t bt_mesh_test_own_addr_get(uint16_t start_addr);
 
