@@ -1431,6 +1431,62 @@ struct mesh_models_metadata_get_cmd {
 
 #define MESH_SET_COMP_ALT			0x56
 
+#define MESH_RPR_SCAN_START			0x57
+struct rpr_scan_start_cmd {
+	uint16_t dst;
+	uint8_t timeout;
+	uint8_t uuid[16];
+} __packed;
+
+#define MESH_RPR_EXT_SCAN_START			0x58
+struct rpr_ext_scan_start_cmd {
+	uint16_t dst;
+	uint8_t timeout;
+	uint8_t uuid[16];
+	uint8_t ad_count;
+	uint8_t ad_types[];
+} __packed;
+
+#define MESH_RPR_SCAN_CAPS_GET			0x59
+struct rpr_scan_caps_get_cmd {
+	uint16_t dst;
+} __packed;
+
+#define MESH_RPR_SCAN_GET			0x5a
+struct rpr_scan_get_cmd {
+	uint16_t dst;
+} __packed;
+
+#define MESH_RPR_SCAN_STOP			0x5b
+struct rpr_scan_stop_cmd {
+	uint16_t dst;
+} __packed;
+
+#define MESH_RPR_LINK_GET			0x5c
+struct rpr_link_get_cmd {
+	uint16_t dst;
+} __packed;
+
+#define MESH_RPR_LINK_CLOSE			0x5d
+struct rpr_link_close_cmd {
+	uint16_t dst;
+} __packed;
+
+#define MESH_RPR_PROV_REMOTE			0x5e
+struct rpr_prov_remote_cmd {
+	uint16_t dst;
+	uint8_t uuid[16];
+	uint16_t net_idx;
+	uint16_t addr;
+} __packed;
+
+#define MESH_RPR_REPROV_REMOTE			0x5f
+struct rpr_reprov_remote_cmd {
+	uint16_t dst;
+	uint16_t addr;
+	bool comp_change;
+} __packed;
+
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
 struct mesh_out_number_action_ev {
