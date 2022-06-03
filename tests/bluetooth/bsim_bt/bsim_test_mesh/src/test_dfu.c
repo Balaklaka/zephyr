@@ -447,11 +447,11 @@ static void test_dist_dfu(void)
 	if (dfu_fail_confirm) {
 		ASSERT_EQUAL(BT_MESH_DFD_PHASE_FAILED, dfd_srv.phase);
 		expected_status = BT_MESH_DFU_ERR_INTERNAL;
-		expected_phase = BT_MESH_DFU_PHASE_APPLYING;
+		expected_phase = BT_MESH_DFU_PHASE_APPLY_FAIL;
 	} else {
 		ASSERT_EQUAL(BT_MESH_DFD_PHASE_COMPLETED, dfd_srv.phase);
 		expected_status = BT_MESH_DFU_SUCCESS;
-		expected_phase = BT_MESH_DFU_PHASE_IDLE;
+		expected_phase = BT_MESH_DFU_PHASE_APPLY_SUCCESS;
 	}
 
 	for (int i = 0; i < dfu_targets_cnt; i++) {
@@ -462,7 +462,8 @@ static void test_dist_dfu(void)
 			 * change. If phase changes, DFU failed.
 			 */
 			if  (dfu_fail_confirm) {
-				ASSERT_EQUAL(BT_MESH_DFU_PHASE_IDLE, dfd_srv.targets[i].phase);
+				ASSERT_EQUAL(BT_MESH_DFU_PHASE_APPLY_FAIL,
+					     dfd_srv.targets[i].phase);
 			} else {
 				ASSERT_EQUAL(BT_MESH_DFU_PHASE_APPLYING, dfd_srv.targets[i].phase);
 			}

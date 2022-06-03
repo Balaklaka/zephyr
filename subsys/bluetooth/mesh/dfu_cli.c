@@ -581,9 +581,11 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 			}
 
 			BT_DBG("Target 0x%04x still provisioned", target->blob.addr);
+			target->phase = BT_MESH_DFU_PHASE_APPLY_FAIL;
 			target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 		} else if (!target->blob.acked) {
 			BT_DBG("Target 0x%04x failed to respond", target->blob.addr);
+			target->phase = BT_MESH_DFU_PHASE_APPLY_FAIL;
 			target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 		} else if (target->status == BT_MESH_DFU_SUCCESS) {
 			success = true;
@@ -739,6 +741,7 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		if (phase != BT_MESH_DFU_PHASE_IDLE) {
 			BT_WARN("Target 0x%04x in phase %u after apply",
 				target->blob.addr, phase);
+			target->phase = BT_MESH_DFU_PHASE_APPLY_FAIL;
 			target_failed(cli, target, BT_MESH_DFU_ERR_WRONG_PHASE);
 			blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 			return 0;
@@ -841,6 +844,7 @@ static int handle_info_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 	if (target) {
 		BT_WARN("Target 0x%04x failed to apply image: %s", ctx->addr,
 			bt_hex(cli->xfer.slot->fwid, cli->xfer.slot->fwid_len));
+		target->phase = BT_MESH_DFU_PHASE_APPLY_FAIL;
 		target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 		blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 	}
