@@ -576,6 +576,15 @@ static struct bt_mesh_rpr_cli rpr_cli = {
 };
 #endif
 
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+static void dfu_srv_apply(uint8_t *data, uint16_t len)
+{
+	LOG_DBG("Applying image on server");
+	bt_mesh_dfu_srv_applied(&dfu_srv);
+	tester_rsp(BTP_SERVICE_ID_MMDL, MMDL_DFU_SRV_APPLY, CONTROLLER_INDEX, BTP_STATUS_SUCCESS);
+}
+#endif
+
 static struct bt_mesh_model root_models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
@@ -4284,6 +4293,11 @@ void tester_handle_mmdl(uint8_t opcode, uint8_t index, uint8_t *data,
 		break;
 	case MMDL_BLOB_SRV_CANCEL:
 		blob_srv_cancel(data, len);
+		break;
+#endif
+#if defined(CONFIG_BT_MESH_DFU_SRV)
+	case MMDL_DFU_SRV_APPLY:
+		dfu_srv_apply(data, len);
 		break;
 #endif
 	default:

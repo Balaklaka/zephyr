@@ -1542,6 +1542,7 @@ struct mmdl_blob_transfer_start_cmd {
 #define MMDL_BLOB_TRANSFER_GET		0x68
 #define MMDL_BLOB_SRV_CANCEL		0x69
 #define MMDL_DFU_FIRMWARE_UPDATE_APPLY		0x6A
+#define MMDL_DFU_SRV_APPLY		0x6B
 
 /* events */
 #define MESH_EV_OUT_NUMBER_ACTION	0x80
