@@ -395,7 +395,7 @@ static void drop_remaining_targets(struct bt_mesh_blob_cli *cli)
 	cli->tx.pending = 0;
 
 	TARGETS_FOR_EACH(cli, target) {
-		if (!target->acked) {
+		if (!target->acked && !target->timedout) {
 			target->timedout = 1U;
 			target_drop(cli, target, BT_MESH_BLOB_ERR_INTERNAL);
 		}
