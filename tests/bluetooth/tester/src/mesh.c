@@ -595,7 +595,15 @@ static struct bt_mesh_model root_models[] = {
 #if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)
 	BT_MESH_MODEL_LARGE_COMP_DATA_SRV,
 #endif
+#if defined(CONFIG_BT_MESH_LARGE_COMP_DATA_CLI)
 	BT_MESH_MODEL_LARGE_COMP_DATA_CLI,
+#endif
+#if defined(CONFIG_BT_MESH_OP_AGG_SRV)
+	BT_MESH_MODEL_OP_AGG_SRV,
+#endif
+#if defined(CONFIG_BT_MESH_OP_AGG_CLI)
+	BT_MESH_MODEL_OP_AGG_CLI,
+#endif
 #if defined(CONFIG_BT_MESH_RPR_CLI)
 	BT_MESH_MODEL_RPR_CLI(&rpr_cli),
 #endif
@@ -2270,6 +2278,8 @@ static void config_model_app_bind(uint8_t *data, uint16_t len)
 
 	LOG_DBG("");
 
+	bt_mesh_cfg_cli_timeout_set(5000);
+
 	err = bt_mesh_cfg_cli_mod_app_bind(cmd->net_idx, cmd->address,
 				       cmd->elem_address, cmd->app_key_idx,
 				       cmd->mod_id, &status);
@@ -2909,6 +2919,43 @@ static void health_attention_set(uint8_t *data, uint16_t len)
 fail:
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_HEALTH_ATTENTION_SET,
 		   CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void opcodes_aggregator_init(uint8_t *data, uint16_t len)
+{
+	struct mesh_opcodes_aggregator_init_cmd *cmd = (void *) data;
+	uint16_t net_idx, app_idx, dst, elem_addr;
+	int err;
+
+	LOG_DBG("");
+
+	net_idx = sys_cpu_to_le16(cmd->net_idx);
+	app_idx = sys_cpu_to_le16(cmd->app_idx);
+	dst = sys_cpu_to_le16(cmd->dst);
+	elem_addr = sys_cpu_to_le16(cmd->elem_addr);
+
+	err = bt_mesh_op_agg_cli_seq_start(net_idx, app_idx, dst, elem_addr);
+	if (err) {
+		LOG_ERR("Failed to init Opcodes Aggregator Context (err %d)", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_OPCODES_AGGREGATOR_INIT, CONTROLLER_INDEX,
+		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
+}
+
+static void opcodes_aggregator_send(uint8_t *data, uint16_t len)
+{
+	int err;
+
+	LOG_DBG("");
+
+	err = bt_mesh_op_agg_cli_seq_send();
+	if (err) {
+		LOG_ERR("Failed to send Opcodes Aggregator message (err %d)", err);
+	}
+
+	tester_rsp(BTP_SERVICE_ID_MESH, MESH_OPCODES_AGGREGATOR_SEND, CONTROLLER_INDEX,
 		   err ? BTP_STATUS_FAILED : BTP_STATUS_SUCCESS);
 }
 
@@ -3993,6 +4040,12 @@ void tester_handle_mesh(uint8_t opcode, uint8_t index, uint8_t *data, uint16_t l
 		break;
 	case MESH_MODELS_METADATA_GET:
 		models_metadata_get(data, len);
+		break;
+	case MESH_OPCODES_AGGREGATOR_INIT:
+		opcodes_aggregator_init(data, len);
+		break;
+	case MESH_OPCODES_AGGREGATOR_SEND:
+		opcodes_aggregator_send(data, len);
 		break;
 	case MESH_COMP_CHANGE_PREPARE:
 		change_prepare(data, len);

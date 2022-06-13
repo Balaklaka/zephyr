@@ -1428,6 +1428,16 @@ struct mesh_models_metadata_get_cmd {
 	uint16_t offset;
 } __packed;
 
+#define MESH_OPCODES_AGGREGATOR_INIT		0x53
+struct mesh_opcodes_aggregator_init_cmd {
+	uint16_t net_idx;
+	uint16_t app_idx;
+	uint16_t dst;
+	uint16_t elem_addr;
+} __packed;
+
+#define MESH_OPCODES_AGGREGATOR_SEND		0x54
+
 #define MESH_COMP_CHANGE_PREPARE		0x55
 
 #define MESH_SET_COMP_ALT			0x56
