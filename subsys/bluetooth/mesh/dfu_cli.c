@@ -682,9 +682,10 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 
 	target->phase = phase;
 
-	if (status == BT_MESH_DFU_ERR_WRONG_PHASE ||
-	    status == BT_MESH_DFU_ERR_TEMPORARILY_UNAVAILABLE) {
-		BT_DBG("Will try again later");
+	if (cli->xfer.state == STATE_APPLY && phase == BT_MESH_DFU_PHASE_IDLE &&
+	    status == BT_MESH_DFU_ERR_WRONG_PHASE) {
+		BT_DBG("Response received with Idle phase");
+		blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 		return 0;
 	}
 
@@ -732,6 +733,7 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 			return 0;
 		}
+		return 0;
 	} else if (cli->xfer.state == STATE_CONFIRM) {
 		if (phase == BT_MESH_DFU_PHASE_APPLYING) {
 			BT_DBG("Still pending...");
