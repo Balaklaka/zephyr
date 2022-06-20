@@ -699,6 +699,10 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		if (phase == BT_MESH_DFU_PHASE_VERIFY) {
 			BT_DBG("Still pending...");
 			return 0;
+		} else if (phase == BT_MESH_DFU_PHASE_VERIFY_FAIL) {
+			BT_WARN("Verification failed on target 0x%04x",
+				target->blob.addr);
+			target_failed(cli, target, BT_MESH_DFU_ERR_WRONG_PHASE);
 		}
 	} else if (cli->xfer.state == STATE_APPLY) {
 		if (phase != BT_MESH_DFU_PHASE_APPLYING &&
