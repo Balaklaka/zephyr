@@ -84,10 +84,6 @@ static void target_failed(struct bt_mesh_dfu_cli *cli,
 			  struct bt_mesh_dfu_target *target,
 			  enum bt_mesh_dfu_status status)
 {
-	if (target->status != BT_MESH_DFU_SUCCESS) {
-		return;
-	}
-
 	target->status = status;
 
 	BT_ERR("Target 0x%04x failed: %u", target->blob.addr, status);
@@ -214,8 +210,6 @@ static void blob_lost_target(struct bt_mesh_blob_cli *b,
 		target->blob.status = BT_MESH_BLOB_SUCCESS;
 		return;
 	}
-
-	target->phase = BT_MESH_DFU_PHASE_TRANSFER_ERR;
 
 	target_failed(cli, target, BT_MESH_DFU_ERR_INTERNAL);
 }
@@ -557,6 +551,13 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 	cli->req.img_cb = NULL;
 
 	TARGETS_FOR_EACH(cli, target) {
+		if (target->status != BT_MESH_DFU_SUCCESS) {
+			/* Target either failed at earlier stage or during confirmation. In any
+			 * case, the app is already notified. Don't consider the target here.
+			 */
+			continue;
+		}
+
 		if (target->effect == BT_MESH_DFU_EFFECT_UNPROV) {
 			if (!target->blob.acked) {
 				success = true;
