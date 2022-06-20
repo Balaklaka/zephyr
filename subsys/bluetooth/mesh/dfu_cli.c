@@ -746,6 +746,8 @@ static int handle_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 			blob_cli_broadcast_rsp(&cli->blob, &target->blob);
 			return 0;
 		}
+	} else if (cli->xfer.state == STATE_CANCEL) {
+		target->phase = BT_MESH_DFU_PHASE_TRANSFER_CANCELED;
 	}
 
 	blob_cli_broadcast_rsp(&cli->blob, &target->blob);
