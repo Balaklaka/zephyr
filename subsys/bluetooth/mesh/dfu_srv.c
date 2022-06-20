@@ -440,6 +440,7 @@ static int dfu_srv_init(struct bt_mesh_model *mod)
 
 	if (!srv->cb || !srv->cb->start || !srv->imgs || srv->img_count == 0 ||
 	    srv->img_count == UPDATE_IDX_NONE) {
+		BT_ERR("Invalid DFU Server initialization");
 		return -EINVAL;
 	}
 
@@ -565,8 +566,7 @@ void bt_mesh_dfu_srv_cancel(struct bt_mesh_dfu_srv *srv)
 		return;
 	}
 
-	srv->update.phase = BT_MESH_DFU_PHASE_TRANSFER_ERR;
-	xfer_failed(srv);
+	(void)bt_mesh_blob_srv_cancel(&srv->blob);
 }
 
 void bt_mesh_dfu_srv_applied(struct bt_mesh_dfu_srv *srv)
