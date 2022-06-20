@@ -15,6 +15,7 @@ project(bsim_test_mesh)
 target_sources(app PRIVATE
  src/main.c
  src/mesh_test.c
+ src/dfu_blob_common.c
 )
 
 if(CONFIG_SETTINGS)
