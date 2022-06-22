@@ -327,6 +327,16 @@ static int net_keys_create(struct bt_mesh_subnet_keys *keys,
 
 	BT_DBG("BeaconKey %s", bt_hex(keys->beacon, 16));
 
+#if defined(CONFIG_BT_MESH_PRIV_BEACONS)
+	err = bt_mesh_private_beacon_key(key, keys->priv_beacon);
+	if (err) {
+		BT_ERR("Unable to generate private beacon key");
+		return err;
+	}
+
+	BT_DBG("PrivateBeaconKey %s", bt_hex(keys->priv_beacon, 16));
+#endif
+
 	keys->valid = 1U;
 
 	return 0;
