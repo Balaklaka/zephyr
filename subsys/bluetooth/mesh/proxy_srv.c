@@ -431,6 +431,25 @@ int bt_mesh_proxy_identity_enable(void)
 	return 0;
 }
 
+int bt_mesh_proxy_private_identity_enable(void)
+{
+	BT_DBG("");
+
+	if (!IS_ENABLED(CONFIG_BT_MESH_PRIV_BEACONS)) {
+		return -ENOTSUP;
+	}
+
+	if (!bt_mesh_is_provisioned()) {
+		return -EAGAIN;
+	}
+
+	if (bt_mesh_subnet_foreach(private_node_id_start)) {
+		bt_mesh_adv_gatt_update();
+	}
+
+	return 0;
+}
+
 #define ENC_ID_LEN  19
 #define NET_ID_LEN   11
 
