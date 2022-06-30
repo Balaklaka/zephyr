@@ -718,7 +718,7 @@ static void test_cli_fail_on_persistency(void)
 
 	/* This target should complete DFU successfully. */
 	ASSERT_EQUAL(BT_MESH_DFU_SUCCESS, dfu_cli_xfer.targets[5].status);
-	ASSERT_EQUAL(BT_MESH_DFU_PHASE_IDLE, dfu_cli_xfer.targets[5].phase);
+	ASSERT_EQUAL(BT_MESH_DFU_PHASE_APPLY_SUCCESS, dfu_cli_xfer.targets[5].phase);
 
 	if (k_sem_take(&lost_target_sem, K_NO_WAIT)) {
 		FAIL("Lost targets CB did not trigger for all expected lost targets");
