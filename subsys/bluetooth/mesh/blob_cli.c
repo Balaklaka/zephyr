@@ -322,7 +322,7 @@ static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli,
 	}
 
 	while (*current &&
-	       ((*current)->acked || (*current)->procedure_complete ||
+	       ((*current)->acked || (*current)->procedure_complete || (*current)->skip ||
 		(*current)->status != BT_MESH_BLOB_SUCCESS)) {
 		*current = SYS_SLIST_PEEK_NEXT_CONTAINER(*current, n);
 	}
@@ -395,7 +395,7 @@ static void drop_remaining_targets(struct bt_mesh_blob_cli *cli)
 	cli->tx.pending = 0;
 
 	TARGETS_FOR_EACH(cli, target) {
-		if (!target->acked && !target->timedout) {
+		if (!target->acked && !target->timedout && !target->skip) {
 			target->timedout = 1U;
 			target_drop(cli, target, BT_MESH_BLOB_ERR_INTERNAL);
 		}

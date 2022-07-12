@@ -47,7 +47,8 @@ struct bt_mesh_blob_target {
 
 	uint8_t procedure_complete:1, /* Procedure has been completed. */
 		acked:1,              /* Message has been acknowledged. */
-		timedout:1;           /* Target didn't respond after specified timeout. */
+		timedout:1,           /* Target didn't respond after specified timeout. */
+		skip:1;               /* Skip target from broadcast. */
 };
 
 /** BLOB Client transfer inputs. */
