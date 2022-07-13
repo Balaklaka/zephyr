@@ -860,7 +860,7 @@ static void test_cli_broadcast_unicast(void)
 	PASS();
 }
 
-static void test_cli_trans_resume_push(void)
+static void test_cli_trans_resume(void)
 {
 	int err;
 	struct bt_mesh_test_sync_ctx sync = {
@@ -882,6 +882,8 @@ static void test_cli_trans_resume_push(void)
 	k_sem_init(&lost_target_sem, 0, 1);
 	k_sem_init(&blob_cli_end_sem, 0, 1);
 	k_sem_init(&blob_cli_suspend_sem, 0, 1);
+
+	LOG_INF("Running transfer in %s", is_pull_mode ? "Pull mode" : "Push mode");
 
 	/** Test resumption of suspended BLOB transfer (Push).
 	 * Client initiates transfer with two blocks. After
@@ -1234,7 +1236,7 @@ static const struct bst_test_instance test_blob[] = {
 	TEST_CASE(cli, broadcast_trans, "Test all broadcast transmission types"),
 	TEST_CASE(cli, broadcast_unicast_seq, "Test broadcast with unicast addr (Sequential)"),
 	TEST_CASE(cli, broadcast_unicast, "Test broadcast with unicast addr"),
-	TEST_CASE(cli, trans_resume_push, "Resume BLOB transfer after srv suspension (Push)"),
+	TEST_CASE(cli, trans_resume, "Resume BLOB transfer after srv suspension (Default: Push)"),
 	TEST_CASE(cli, fail_on_persistency, "BLOB Client doesn't give up BLOB Transfer"),
 	TEST_CASE(cli, fail_on_no_rsp, "BLOB Client end transfer if no targets rsp to Xfer Get"),
 

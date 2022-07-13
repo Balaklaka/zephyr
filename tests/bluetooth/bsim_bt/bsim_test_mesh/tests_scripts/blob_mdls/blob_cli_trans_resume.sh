@@ -5,7 +5,7 @@
 source $(dirname "${BASH_SOURCE[0]}")/../../_mesh_test.sh
 
 RunTest mesh_blob \
-	blob_cli_trans_resume_push blob_srv_trans_resume
+	blob_cli_trans_resume blob_srv_trans_resume
 
 RunTest mesh_blob \
-	blob_cli_trans_resume_push blob_srv_trans_resume -- -argstest use-pull-mode=1
+	blob_cli_trans_resume blob_srv_trans_resume -- -argstest use-pull-mode=1
