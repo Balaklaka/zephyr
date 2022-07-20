@@ -514,8 +514,31 @@ static uint8_t health_tests[] = {
 	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_NORDIC_SEMI, 3, 0x01, 0x02, 0x03),
 };
 
+static uint8_t zero_metadata[100];
+
 static struct bt_mesh_models_metadata_entry health_srv_meta[] = {
 	BT_MESH_HEALTH_TEST_INFO_METADATA(health_tests),
+	{
+		.len = ARRAY_SIZE(zero_metadata),
+		.id = 0xABCD,
+		.data = zero_metadata,
+	},
+	BT_MESH_MODELS_METADATA_END,
+};
+
+static uint8_t health_tests_alt[] = {
+	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_LF, 6, 0x11, 0x22, 0x33, 0x44, 0x55,
+				 0x66),
+	BT_MESH_HEALTH_TEST_INFO(COMPANY_ID_NORDIC_SEMI, 3, 0x11, 0x22, 0x33),
+};
+
+static struct bt_mesh_models_metadata_entry health_srv_meta_alt[] = {
+	BT_MESH_HEALTH_TEST_INFO_METADATA(health_tests_alt),
+	{
+		.len = ARRAY_SIZE(zero_metadata),
+		.id = 0xFEED,
+		.data = zero_metadata,
+	},
 	BT_MESH_MODELS_METADATA_END,
 };
 #endif
@@ -1567,6 +1590,13 @@ static void change_prepare(uint8_t *data, uint16_t len)
 	if (err < 0) {
 		status = BTP_STATUS_FAILED;
 	}
+
+#if CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+	err = bt_mesh_models_metadata_change_prepare();
+	if (err < 0) {
+		status = BTP_STATUS_FAILED;
+	}
+#endif
 
 	tester_rsp(BTP_SERVICE_ID_MESH, MESH_COMP_CHANGE_PREPARE, BTP_INDEX_NONE,
 		   status);
@@ -4455,6 +4485,9 @@ uint8_t tester_init_mesh(void)
 	if (default_comp) {
 		err = bt_mesh_init(&prov, &comp);
 	} else {
+#ifdef CONFIG_BT_MESH_LARGE_COMP_DATA_SRV
+		health_srv.metadata = health_srv_meta_alt;
+#endif
 		err = bt_mesh_init(&prov, &comp_alt);
 	}
 
