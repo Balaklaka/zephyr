@@ -70,9 +70,20 @@ enum bt_mesh_blob_chunks_missing {
 };
 
 struct blob_cli_broadcast_ctx {
+	/** Called for every target in unicast mode, or once in case of multicast mode. */
 	void (*send)(struct bt_mesh_blob_cli *cli, uint16_t dst);
+	/** Called after every @ref blob_cli_broadcast_ctx::send callback. */
+	void (*send_complete)(struct bt_mesh_blob_cli *cli, uint16_t dst);
+	/** If @ref blob_cli_broadcast_ctx::acked is true, called after all targets have confirmed
+	 * reception by @ref blob_cli_broadcast_rsp. Otherwise, called after transmission has been
+	 * completed.
+	 */
 	void (*next)(struct bt_mesh_blob_cli *cli);
+	/** If true, every transmission needs to be confirmed by @ref blob_cli_broadcast_rsp before
+	 * @ref blob_cli_broadcast_ctx::next is called.
+	 */
 	bool acked;
+	/** If true, non-responsive targets won't be dropped after transfer has timed out. */
 	bool optional;
 };
 
@@ -86,16 +97,16 @@ static inline size_t blob_block_size(size_t xfer_size, uint8_t block_size_log,
 	return xfer_size & BIT_MASK(block_size_log);
 }
 
-static inline void blob_chunk_missing_set(struct bt_mesh_blob_block *block,
+static inline void blob_chunk_missing_set(uint8_t *missing_chunks,
 					  int idx, bool missing)
 {
-	WRITE_BIT(block->missing[idx / 8], idx % 8, missing);
+	WRITE_BIT(missing_chunks[idx / 8], idx % 8, missing);
 }
 
 static inline bool
-blob_chunk_missing_get(const struct bt_mesh_blob_block *block, int idx)
+blob_chunk_missing_get(const uint8_t *missing_chunks, int idx)
 {
-	return !!(block->missing[idx / 8] & BIT(idx % 8));
+	return !!(missing_chunks[idx / 8] & BIT(idx % 8));
 }
 
 static inline void blob_chunk_missing_set_all(struct bt_mesh_blob_block *block)

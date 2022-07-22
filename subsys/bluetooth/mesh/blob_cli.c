@@ -25,9 +25,13 @@
 
 #define CLIENT_TIMEOUT_MSEC(cli) (10 * MSEC_PER_SEC * (cli->inputs->timeout_base + 2) + \
 				  100 * cli->inputs->ttl)
-#define BLOCK_REPORT_TIME K_SECONDS(BLOB_POLL_TIME_MAX_SECS * 2 + 7)
+#define BLOCK_REPORT_TIME_MSEC ((BLOB_POLL_TIME_MAX_SECS * 2 + 7) * 1000)
 
-#define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED)
+/* BLOB Client is running Send Data State Machine from section 6.2.4.2. */
+#define SENDING_CHUNKS_IN_PULL_MODE(cli) ((cli)->state == BT_MESH_BLOB_CLI_STATE_BLOCK_SEND && \
+					  (cli)->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL)
+#define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED || \
+			   SENDING_CHUNKS_IN_PULL_MODE(cli))
 
 BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
 	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
@@ -68,14 +72,29 @@ static void start_retry_timer(struct bt_mesh_blob_cli *cli)
 {
 	k_timeout_t time;
 
-	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		time = BLOCK_REPORT_TIME;
+	if (SENDING_CHUNKS_IN_PULL_MODE(cli)) {
+		int64_t next_timeout = cli->tx.cli_timestamp;
+		struct bt_mesh_blob_target *target = NULL;
+
+		TARGETS_FOR_EACH(cli, target) {
+			if (!target->procedure_complete &&
+			    target->status == BT_MESH_BLOB_SUCCESS &&
+			    target->pull->block_report_timestamp < next_timeout) {
+				next_timeout = target->pull->block_report_timestamp;
+			}
+		}
+
+		/* cli_timestamp and block_report_timestamp represent absolute time, while
+		 * k_work_* functions use relative time.
+		 */
+		next_timeout -= k_uptime_get();
+		time = next_timeout <= 0 ? K_NO_WAIT : K_MSEC(next_timeout);
 	} else {
 		time = K_MSEC(CLIENT_TIMEOUT_MSEC(cli) /
 				CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES);
 	}
 
-	k_work_reschedule(&cli->tx.retry, time);
+	(void)k_work_reschedule(&cli->tx.retry, time);
 }
 
 static void cli_state_reset(struct bt_mesh_blob_cli *cli)
@@ -174,15 +193,37 @@ static void io_close(struct bt_mesh_blob_cli *cli)
 	cli->io->close(cli->io, cli->xfer);
 }
 
-static uint16_t next_missing_chunk(struct bt_mesh_blob_cli *cli, uint16_t idx)
+static uint16_t next_missing_chunk(struct bt_mesh_blob_cli *cli,
+				   const uint8_t *missing_chunks,
+				   uint16_t idx)
 {
-	while (!blob_chunk_missing_get(&cli->block, idx)) {
-		if (++idx >= cli->block.chunk_count) {
+	do {
+		if (blob_chunk_missing_get(missing_chunks, idx)) {
 			break;
 		}
-	}
+	} while (++idx < cli->block.chunk_count);
 
 	return idx;
+}
+
+/* Used in Pull mode to collect all missing chunks from each target in cli->block.missing. */
+static void update_missing_chunks(struct bt_mesh_blob_cli *cli)
+{
+	struct bt_mesh_blob_target *target;
+
+	memset(cli->block.missing, 0, sizeof(cli->block.missing));
+
+	TARGETS_FOR_EACH(cli, target) {
+		if (target->procedure_complete || target->timedout) {
+			continue;
+		}
+
+		for (size_t idx = 0; idx < cli->block.chunk_count; idx++) {
+			bool missing = blob_chunk_missing_get(cli->block.missing, idx) |
+				       blob_chunk_missing_get(target->pull->missing, idx);
+			blob_chunk_missing_set(cli->block.missing, idx, missing);
+		}
+	}
 }
 
 static inline size_t chunk_size(const struct bt_mesh_blob_xfer *xfer,
@@ -243,10 +284,14 @@ static void block_set(struct bt_mesh_blob_cli *cli, uint16_t block_idx)
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
 		blob_chunk_missing_set_all(&cli->block);
 	} else {
-		/* In pull mode, the server will tell us which blocks are
-		 * missing.
-		 */
+		struct bt_mesh_blob_target *target;
+
+		/* In pull mode, the server will tell us which blocks are missing. */
 		memset(cli->block.missing, 0, sizeof(cli->block.missing));
+
+		TARGETS_FOR_EACH(cli, target) {
+			memset(target->pull->missing, 0, sizeof(target->pull->missing));
+		}
 	}
 
 	BT_DBG("%u size: %u chunks: %u", block_idx, cli->block.size,
@@ -321,9 +366,25 @@ static struct bt_mesh_blob_target *next_target(struct bt_mesh_blob_cli *cli,
 			(sys_slist_t *)&cli->inputs->targets, *current, n);
 	}
 
-	while (*current &&
-	       ((*current)->acked || (*current)->procedure_complete || (*current)->skip ||
-		(*current)->status != BT_MESH_BLOB_SUCCESS)) {
+	while (*current) {
+		if ((*current)->acked || (*current)->procedure_complete ||
+		    (*current)->status != BT_MESH_BLOB_SUCCESS || (*current)->timedout ||
+		    (*current)->skip) {
+			goto next;
+		}
+
+		if (SENDING_CHUNKS_IN_PULL_MODE(cli) &&
+		    (k_uptime_get() < (*current)->pull->block_report_timestamp ||
+		     !blob_chunk_missing_get((*current)->pull->missing, cli->chunk_idx))) {
+			/* Skip targets that didn't time out or timed out, but confirmed
+			 * the currently transmitted chunk (cli->chunk_idx).
+			 */
+			goto next;
+		}
+
+		break;
+
+next:
 		*current = SYS_SLIST_PEEK_NEXT_CONTAINER(*current, n);
 	}
 
@@ -373,6 +434,10 @@ static void tx_complete(struct k_work *work)
 		return;
 	}
 
+	if (cli->tx.ctx->send_complete) {
+		cli->tx.ctx->send_complete(cli, cli->tx.target->addr);
+	}
+
 	if (UNICAST_MODE(cli) && next_target(cli, &cli->tx.target)) {
 		send(cli);
 		return;
@@ -395,10 +460,16 @@ static void drop_remaining_targets(struct bt_mesh_blob_cli *cli)
 	cli->tx.pending = 0;
 
 	TARGETS_FOR_EACH(cli, target) {
-		if (!target->acked && !target->timedout && !target->skip) {
+		if (!target->acked && !target->timedout && !target->procedure_complete &&
+		    !target->skip) {
 			target->timedout = 1U;
 			target_drop(cli, target, BT_MESH_BLOB_ERR_INTERNAL);
 		}
+	}
+
+	/* Update missing chunks to exclude chunks from dropped targets. */
+	if (SENDING_CHUNKS_IN_PULL_MODE(cli)) {
+		update_missing_chunks(cli);
 	}
 }
 
@@ -407,13 +478,19 @@ static void retry_timeout(struct k_work *work)
 	struct bt_mesh_blob_cli *cli =
 		CONTAINER_OF(work, struct bt_mesh_blob_cli, tx.retry.work);
 
-	if (cli->xfer && cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		if (cli->tx.cli_timestamp && (k_uptime_get() >= cli->tx.cli_timestamp)) {
-			BT_DBG("Set result to failure. Drop target.");
-			drop_remaining_targets(cli);
-			cli->tx.cli_timestamp = 0ll;
-		} else {
-			cli->chunk_idx = next_missing_chunk(cli, 0);
+	/* When sending chunks in Pull mode, timeout is handled differently. Client will drop all
+	 * non-responsive servers by cli_timestamp. By calling broadcast_complete(), client will
+	 * either retransmit the missing chunks (if any), or proceed to the next block, or suspend
+	 * the transfer if all targets timed out. All this is handled in block_check_end().
+	 * Retry logic for all other procedures in Pull mode is handled as in Push mode.
+	 */
+	if (SENDING_CHUNKS_IN_PULL_MODE(cli)) {
+		if (k_uptime_get() >= cli->tx.cli_timestamp) {
+			BT_DBG("Transfer timed out.");
+
+			if (!cli->tx.ctx->optional) {
+				drop_remaining_targets(cli);
+			}
 		}
 
 		broadcast_complete(cli);
@@ -429,6 +506,8 @@ static void retry_timeout(struct k_work *work)
 	__ASSERT(cli->tx.ctx, "has ctx");
 
 	if (!cli->tx.retries) {
+		BT_DBG("Transfer timed out.");
+
 		if (!cli->tx.ctx->optional) {
 			drop_remaining_targets(cli);
 		}
@@ -463,7 +542,7 @@ void blob_cli_broadcast(struct bt_mesh_blob_cli *cli,
 
 	cli->tx.target = NULL;
 	if (!next_target(cli, &cli->tx.target)) {
-		BT_ERR("No active targets");
+		BT_DBG("No active targets");
 		broadcast_complete(cli);
 		return;
 	}
@@ -483,7 +562,7 @@ void blob_cli_broadcast_rsp(struct bt_mesh_blob_cli *cli,
 		return;
 	}
 
-	BT_DBG("0x%04x", target->addr);
+	BT_DBG("0x%04x, pending: %d", target->addr, cli->tx.pending);
 
 	target->acked = 1U;
 
@@ -633,34 +712,86 @@ static void block_get_tx(struct bt_mesh_blob_cli *cli, uint16_t dst)
 	tx(cli, dst, &buf);
 }
 
-/*******************************************************************************
+/**************************************************************************************************
  * State machine
  *
- * The BLOB Client state machine walks through the steps in the BLOB transfer in
- * the following fashion:
+ * The BLOB Client state machine walks through the steps in the BLOB transfer in the following
+ * fashion:
  *
- *                                                 .----[No]-----.
- *                                                 V             |
- * xfer_start -> block_start -> block_send -> chunk_send ->[block complete?]
- *                                  A                            |
- *                                  |                          [Yes]
- *                                  |                            |
- *                                  |                            V
- *                                  '----[No]------------[Transfer complete?]
+ *                                                 .---------------------------------------.
+ *                                                 V                                       |
+ * xfer_start -> block_set -> block_start -> chunk_send -> chunk_send_end                  |
+ *                   A                                           |                         |
+ *                   |                                           V                         |
+ *                   |                                [more missing chunks?]-----[Yes]-----+
+ *                   |                                           |                         |
+ *                   |                                         [No]                        |
+ *                   |                                           |                         |
+ *                   |                                           V                         |
+ *                   |                                         [mode?]                     |
+ *                   |                             .---[Push]---'   '---[Pull]---.         |
+ *                   |                             |                             |         |
+ *                   |                             V                             V         |
+ *                   |                        block_check               block_report_wait  |
+ *                   |                             |                             |         |
+ *                   |                             '-----------.   .-------------'         |
+ *                   |                                         |   |                       |
+ *                   |                                         V   V                       |
+ *                   |                                    block_check_end                  |
+ *                   |                                           |                         |
+ *                   |                                           V                         |
+ *                   |                                   [block completed?]------[No]------'
+ *                   |                                           |
+ *                   |                                         [Yes]
+ *                   |                                           |
+ *                   |                                           V
+ *                   '-------------------[No]------------[last block sent?]
  *                                                               |
  *                                                             [Yes]
+ *                                                               |
+ *                                                               V
+ *                                                        confirm_transfer
+ *                                                               |
  *                                                               V
  *                                                        transfer_complete
  *
- * In each state, the Client transmits a message to all target nodes, and once
- * all nodes have received the message, it moves on to the next state.
+ * In each state, the Client transmits a message to all target nodes. In each state, except when
+ * sending chunks (chunk_send), the Client expects a response from all target nodes, before
+ * proceeding to the next state.
  *
- ******************************************************************************/
+ * When a target node responds, the Client calls @ref blob_cli_broadcast_rsp for the corresponding
+ * target. Once all target nodes has responded, the Client proceeds to the next state.
+ *
+ * When sending chunks in Push mode, the Client will proceed to the next state (block_check) after
+ * transmitting all missing chunks. In the block_check state, the Client will request a block status
+ * from all target nodes. If any targets have missing chunks, the Client will resend them.
+ *
+ * When sending chunks in Pull mode, the Client addresses each target node individually using
+ * @ref bt_mesh_blob_target_pull structure. The Client uses @ref bt_mesh_blob_cli::block::missing
+ * to keep all missing chunks for the current block. Missing chunks for an individual target
+ * is kept in @ref bt_mesh_blob_target_pull::missing. The Client uses @ref
+ * bt_mesh_blob_target_pull::block_report_timeout to decide if it can send a chunk to this target.
+ *
+ * After sending all reported missing chunks to each target, the Client updates
+ * @ref bt_mesh_blob_target_pull::block_report_timestamp value for every target individually in
+ * chunk_tx_complete. The Client then proceedes to block_report_wait state and uses the earliest of
+ * all block_report_timestamp and cli_timestamp to schedule the retry timer. When the retry
+ * timer expires, the Client proceedes to the block_check_end state.
+ *
+ * In Pull mode, target nodes send a Partial Block Report message to the Client to inform about
+ * missing chunks. The Client doesn't control when these messages are sent by target nodes, and
+ * therefore it can't use @ref blob_cli_broadcast_rsp when it receives them. When the Client
+ * receives the Partial Block Report message, it updates missing chunks, resets
+ * block_report_timestamp, and explicitly calls @ref broadcast_complete to proceed to
+ * block_check_end state.
+ *
+ **************************************************************************************************/
 static void caps_collected(struct bt_mesh_blob_cli *cli);
 static void block_start(struct bt_mesh_blob_cli *cli);
 static void chunk_send(struct bt_mesh_blob_cli *cli);
 static void block_check(struct bt_mesh_blob_cli *cli);
 static void block_check_end(struct bt_mesh_blob_cli *cli);
+static void block_report_wait(struct bt_mesh_blob_cli *cli);
 static void chunk_send_end(struct bt_mesh_blob_cli *cli);
 static void confirm_transfer(struct bt_mesh_blob_cli *cli);
 static void transfer_complete(struct bt_mesh_blob_cli *cli);
@@ -749,9 +880,18 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 
 	cli->chunk_idx = 0;
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_START;
+	/* Client Timeout Timer in Send Data State Machine is initialized initially after
+	 * transmitting the first bunch of chunks (see block_report_wait()). Next time it will be
+	 * updated after every Partial Block Report message.
+	 */
+	cli->tx.cli_timestamp = 0ll;
 
 	TARGETS_FOR_EACH(cli, target) {
 		target->procedure_complete = 0U;
+
+		if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+			target->pull->block_report_timestamp = 0ll;
+		}
 	}
 
 	if (cli->io->block_start) {
@@ -764,10 +904,32 @@ static void block_start(struct bt_mesh_blob_cli *cli)
 	blob_cli_broadcast(cli, &ctx);
 }
 
+static void chunk_tx_complete(struct bt_mesh_blob_cli *cli, uint16_t dst)
+{
+	if (cli->xfer->mode != BT_MESH_BLOB_XFER_MODE_PULL) {
+		return;
+	}
+
+	/* Update Block Report Timer individually for each target after sending out the last chunk
+	 * in current iteration.
+	 */
+	uint16_t chunk_idx = next_missing_chunk(cli, cli->tx.target->pull->missing,
+						cli->chunk_idx + 1);
+	if (chunk_idx < cli->block.chunk_count) {
+		/* Will send more chunks to this target in this iteration. */
+		return;
+	}
+
+	/* This was the last chunk sent for this target. Now start the Block Report Timeout Timer.
+	 */
+	cli->tx.target->pull->block_report_timestamp = k_uptime_get() + BLOCK_REPORT_TIME_MSEC;
+}
+
 static void chunk_send(struct bt_mesh_blob_cli *cli)
 {
 	static const struct blob_cli_broadcast_ctx ctx = {
 		.send = chunk_tx,
+		.send_complete = chunk_tx_complete,
 		.next = chunk_send_end,
 		.acked = false,
 	};
@@ -791,11 +953,6 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 
 static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.next = chunk_send,
-		.acked = false,
-	};
-
 	/* In pull mode, the partial block reports are used to confirm which
 	 * chunks have been received, while in push mode, we just assume that a
 	 * sent chunk has been received.
@@ -806,11 +963,11 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 		if (!next_target(cli, &target)) {
 			blob_chunk_missing_set_none(&cli->block);
 		} else {
-			blob_chunk_missing_set(&cli->block, cli->chunk_idx, false);
+			blob_chunk_missing_set(cli->block.missing, cli->chunk_idx, false);
 		}
 	}
 
-	cli->chunk_idx = next_missing_chunk(cli, cli->chunk_idx + 1);
+	cli->chunk_idx = next_missing_chunk(cli, cli->block.missing, cli->chunk_idx + 1);
 	if (cli->chunk_idx < cli->block.chunk_count) {
 		chunk_send(cli);
 		return;
@@ -818,15 +975,8 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
 		block_check(cli);
-		return;
-	}
-
-	BT_DBG("Waiting for partial block report...");
-	cli->tx.ctx = &ctx;
-	start_retry_timer(cli);
-
-	if (!cli->tx.cli_timestamp) {
-		cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
+	} else {
+		block_report_wait(cli);
 	}
 }
 
@@ -848,6 +998,30 @@ static void block_check(struct bt_mesh_blob_cli *cli)
 	blob_cli_broadcast(cli, &ctx);
 }
 
+static void block_report_wait(struct bt_mesh_blob_cli *cli)
+{
+	static const struct blob_cli_broadcast_ctx ctx = {
+		.next = block_check_end,
+		.acked = false,
+	};
+
+	/* Check if all servers already confirmed all chunks during the transmission. */
+	if (next_missing_chunk(cli, cli->block.missing, 0) >= cli->block.chunk_count) {
+		block_check_end(cli);
+		return;
+	}
+
+	BT_DBG("Waiting for partial block report...");
+	cli->tx.ctx = &ctx;
+
+	/* Start Client Timeout Timer in Send Data sub-procedure for the first time. */
+	if (!cli->tx.cli_timestamp) {
+		cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
+	}
+
+	start_retry_timer(cli);
+}
+
 static void block_check_end(struct bt_mesh_blob_cli *cli)
 {
 	BT_DBG("");
@@ -862,10 +1036,19 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 		return;
 	}
 
-	cli->chunk_idx = next_missing_chunk(cli, 0);
+	cli->chunk_idx = next_missing_chunk(cli, cli->block.missing, 0);
 	if (cli->chunk_idx < cli->block.chunk_count) {
 		chunk_send(cli);
 		return;
+	}
+
+	BT_DBG("No more missing chunks for block %u", cli->block.number);
+
+	if (cli->io->block_end) {
+		cli->io->block_end(cli->io, cli->xfer, &cli->block);
+		if (cli->state == BT_MESH_BLOB_CLI_STATE_NONE) {
+			return;
+		}
 	}
 
 	if (cli->block.number == cli->block_count - 1) {
@@ -877,13 +1060,6 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 
 		confirm_transfer(cli);
 		return;
-	}
-
-	if (cli->io->block_end) {
-		cli->io->block_end(cli->io, cli->xfer, &cli->block);
-		if (cli->state == BT_MESH_BLOB_CLI_STATE_NONE) {
-			return;
-		}
 	}
 
 	block_set(cli, cli->block.number + 1);
@@ -933,11 +1109,9 @@ static void transfer_complete(struct bt_mesh_blob_cli *cli)
  ******************************************************************************/
 
 static void rx_block_status(struct bt_mesh_blob_cli *cli,
-			    struct bt_mesh_msg_ctx *ctx,
+			    struct bt_mesh_blob_target *target,
 			    struct block_status *block)
 {
-	struct bt_mesh_blob_target *target;
-
 	if (cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_START &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_SEND &&
 	    cli->state != BT_MESH_BLOB_CLI_STATE_BLOCK_CHECK) {
@@ -945,12 +1119,7 @@ static void rx_block_status(struct bt_mesh_blob_cli *cli,
 		return;
 	}
 
-	target = target_get(cli, ctx->addr);
-	if (!target) {
-		return;
-	}
-
-	BT_DBG("#%u status: %u", block->block.number, block->status);
+	BT_DBG("0x%04x: block: %u status: %u", target->addr, block->block.number, block->status);
 
 	if (block->status != BT_MESH_BLOB_SUCCESS) {
 		target_drop(cli, target, block->status);
@@ -966,42 +1135,44 @@ static void rx_block_status(struct bt_mesh_blob_cli *cli,
 	if (block->missing == BT_MESH_BLOB_CHUNKS_MISSING_NONE) {
 		target->procedure_complete = 1U;
 
-		BT_DBG("No missed chunks");
-
 		if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-			if (cli->io->block_end) {
-				cli->io->block_end(cli->io, cli->xfer, &cli->block);
-			}
-
-			if (cli->block.number == cli->block_count - 1) {
-				static const struct blob_cli_broadcast_ctx ctx = {
-					.next = transfer_complete,
-				};
-
-				cli->tx.ctx = &ctx;
-				cli->state = BT_MESH_BLOB_CLI_STATE_XFER_CHECK;
-			} else {
-				static const struct blob_cli_broadcast_ctx ctx = {
-					.send = NULL,
-					.next = block_start,
-					.acked = true,
-				};
-
-				cli->tx.ctx = &ctx;
-				block_set(cli, cli->block.number + 1);
-			}
+			memset(target->pull->missing, 0, sizeof(target->pull->missing));
+			update_missing_chunks(cli);
 		}
 
+		BT_DBG("Target 0x%04x received all chunks", target->addr);
 	} else if (block->missing == BT_MESH_BLOB_CHUNKS_MISSING_ALL) {
 		blob_chunk_missing_set_all(&cli->block);
 	} else if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
-		memcpy(cli->block.missing, block->block.missing,
-		       sizeof(cli->block.missing));
-		cli->chunk_idx = next_missing_chunk(cli, 0);
+		memcpy(target->pull->missing, block->block.missing, sizeof(block->block.missing));
+
+		BT_DBG("Missing: %s", bt_hex(target->pull->missing, cli->block.chunk_count));
+
+		update_missing_chunks(cli);
+
+		/* Target has responded. Reset the timestamp so that client can start transmitting
+		 * missing chunks to it.
+		 */
+		target->pull->block_report_timestamp = 0ll;
 	} else {
 		for (int i = 0; i < ARRAY_SIZE(block->block.missing); ++i) {
 			cli->block.missing[i] |= block->block.missing[i];
 		}
+	}
+
+	if (SENDING_CHUNKS_IN_PULL_MODE(cli)) {
+		if (!cli->tx.sending) {
+			/* If not sending, then the retry timer is running. Call
+			 * broadcast_complete() to proceed to block_check_end() and start
+			 * transmitting missing chunks.
+			 */
+			broadcast_complete(cli);
+		}
+
+		/* When sending chunks in Pull mode, we don't confirm transaction when receiving
+		 * Partial Block Report message.
+		 */
+		return;
 	}
 
 	blob_cli_broadcast_rsp(cli, target);
@@ -1082,6 +1253,11 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 		.missing = (buf->len ? BT_MESH_BLOB_CHUNKS_MISSING_ENCODED :
 				       BT_MESH_BLOB_CHUNKS_MISSING_NONE),
 	};
+	struct bt_mesh_blob_target *target;
+
+	if (!cli->xfer) {
+		return -EINVAL;
+	}
 
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
 		BT_WARN("Unexpected encoded block report in push mode");
@@ -1089,6 +1265,11 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 	}
 
 	BT_DBG("");
+
+	target = target_get(cli, ctx->addr);
+	if (!target) {
+		return -ENOENT;
+	}
 
 	while (buf->len) {
 		int idx;
@@ -1098,16 +1279,20 @@ static int handle_block_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 			return idx;
 		}
 
-		blob_chunk_missing_set(&status.block, idx, true);
+		blob_chunk_missing_set(status.block.missing, idx, true);
+	}
+
+	/* If all chunks were already confirmed by this target, Send Data State Machine is in Final
+	 * state for this target. Therefore, the message should be ignored.
+	 */
+	if (next_missing_chunk(cli, target->pull->missing, 0) >= cli->block.chunk_count) {
+		BT_DBG("All chunks already confirmed");
+		return 0;
 	}
 
 	cli->tx.cli_timestamp = k_uptime_get() + CLIENT_TIMEOUT_MSEC(cli);
-	/* If this fails, the retry timeout handler will fail
-	 * the Pull session and drop target.
-	 */
-	(void)k_work_cancel_delayable(&cli->tx.retry);
 
-	rx_block_status(cli, ctx, &status);
+	rx_block_status(cli, target, &status);
 
 	return 0;
 }
@@ -1116,11 +1301,17 @@ static int handle_block_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 			       struct net_buf_simple *buf)
 {
 	struct bt_mesh_blob_cli *cli = mod->user_data;
+	struct bt_mesh_blob_target *target;
 	struct block_status status = { 0 };
 	uint8_t status_and_format;
 	uint16_t chunk_size;
 	size_t len;
 	int idx;
+
+	target = target_get(cli, ctx->addr);
+	if (!target) {
+		return -ENOENT;
+	}
 
 	status_and_format = net_buf_simple_pull_u8(buf);
 	status.status = status_and_format & BIT_MASK(4);
@@ -1167,12 +1358,12 @@ static int handle_block_status(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx
 
 			BT_DBG("Missing %d", idx);
 
-			blob_chunk_missing_set(&status.block, idx, true);
+			blob_chunk_missing_set(status.block.missing, idx, true);
 		}
 		break;
 	}
 
-	rx_block_status(cli, ctx, &status);
+	rx_block_status(cli, target, &status);
 
 	return 0;
 }

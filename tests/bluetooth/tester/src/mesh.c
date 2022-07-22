@@ -151,6 +151,7 @@ static struct bt_mesh_dfd_srv dfd_srv = BT_MESH_DFD_SRV_INIT(&dfd_srv_cb);
 static struct {
 	struct bt_mesh_blob_cli_inputs inputs;
 	struct bt_mesh_blob_target targets[32];
+	struct bt_mesh_blob_target_pull pull[32];
 	uint8_t target_count;
 	struct bt_mesh_blob_xfer xfer;
 } blob_cli_xfer;
@@ -3194,6 +3195,7 @@ fail:
 #if defined(CONFIG_BT_MESH_DFD_SRV)
 static struct {
 	struct bt_mesh_dfu_target targets[32];
+	struct bt_mesh_blob_target_pull pull[32];
 	size_t target_cnt;
 	struct bt_mesh_blob_cli_inputs inputs;
 } dfu_tx;
@@ -3208,7 +3210,10 @@ static void dfu_tx_prepare(void)
 
 		memset(&dfu_tx.targets[i].blob, 0,
 		       sizeof(struct bt_mesh_blob_target));
+		memset(&dfu_tx.pull[i], 0,
+		       sizeof(struct bt_mesh_blob_target_pull));
 		dfu_tx.targets[i].blob.addr = addr;
+		dfu_tx.targets[i].blob.pull = &dfu_tx.pull[i];
 
 		sys_slist_append(&dfu_tx.inputs.targets,
 				 &dfu_tx.targets[i].blob.n);
@@ -3592,7 +3597,10 @@ static void blob_cli_inputs_prepare(uint16_t group, uint16_t app_idx)
 
 		memset(&blob_cli_xfer.targets[i], 0,
 		       sizeof(struct bt_mesh_blob_target));
+		memset(&blob_cli_xfer.pull[i], 0,
+		       sizeof(struct bt_mesh_blob_target_pull));
 		blob_cli_xfer.targets[i].addr = addr;
+		blob_cli_xfer.targets[i].pull = &blob_cli_xfer.pull[i];
 
 		sys_slist_append(&blob_cli_xfer.inputs.targets,
 				 &blob_cli_xfer.targets[i].n);

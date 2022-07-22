@@ -192,7 +192,7 @@ static void block_report(struct bt_mesh_blob_srv *srv)
 	count = pull_req_max(srv);
 
 	for (i = 0; i < srv->block.chunk_count && count; ++i) {
-		if (blob_chunk_missing_get(&srv->block, i)) {
+		if (blob_chunk_missing_get(srv->block.missing, i)) {
 			buf_chunk_index_add(&buf, i);
 			count--;
 		}
@@ -385,7 +385,7 @@ static void block_status_rsp(struct bt_mesh_blob_srv *srv,
 		int count = pull_req_max(srv);
 
 		for (i = 0; (i < srv->block.chunk_count) && count; ++i) {
-			if (blob_chunk_missing_get(&srv->block, i)) {
+			if (blob_chunk_missing_get(srv->block.missing, i)) {
 				BT_DBG("Missing %u", i);
 				buf_chunk_index_add(&buf, i);
 				count--;
@@ -734,13 +734,12 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 	BT_DBG("%u/%u (%u bytes)", idx + 1, srv->block.chunk_count,
 	       chunk.size);
 
-
 	reset_timer(srv);
 	if (srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		k_work_reschedule(&srv->pull.report, REPORT_TIMER_TIMEOUT);
 	}
 
-	if (!blob_chunk_missing_get(&srv->block, idx)) {
+	if (!blob_chunk_missing_get(srv->block.missing, idx)) {
 		BT_DBG("Duplicate chunk %u", idx);
 		return -EALREADY;
 	}
@@ -750,7 +749,7 @@ static int handle_chunk(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ctx,
 		return err;
 	}
 
-	blob_chunk_missing_set(&srv->block, idx, false);
+	blob_chunk_missing_set(srv->block.missing, idx, false);
 	if (missing_chunks(&srv->block)) {
 		return 0;
 	}

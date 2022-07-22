@@ -34,6 +34,15 @@ struct bt_mesh_blob_cli;
 	BT_MESH_MODEL_CB(BT_MESH_MODEL_ID_BLOB_CLI, _bt_mesh_blob_cli_op,      \
 			 NULL, _cli, &_bt_mesh_blob_cli_cb)
 
+/** Target's Pull mode context used while sending chunks to the target. */
+struct bt_mesh_blob_target_pull {
+	/** Timestamp when the Block Report Timeout Timer expires for this target. */
+	int64_t block_report_timestamp;
+
+	/** Missing chunks reported by this target. */
+	uint8_t missing[ceiling_fraction(CONFIG_BT_MESH_BLOB_CHUNK_COUNT_MAX, 8)];
+};
+
 /** BLOB Client target node */
 struct bt_mesh_blob_target {
 	/** Linked list node */
@@ -42,11 +51,14 @@ struct bt_mesh_blob_target {
 	/** Target node address. */
 	uint16_t addr;
 
+	/** Target's Pull mode context. Needs to be initialized when sending a BLOB in Pull mode. */
+	struct bt_mesh_blob_target_pull *pull;
+
 	/** BLOB transfer status, see @ref bt_mesh_blob_status. */
 	uint8_t status;
 
 	uint8_t procedure_complete:1, /* Procedure has been completed. */
-		acked:1,              /* Message has been acknowledged. */
+		acked:1,              /* Message has been acknowledged. Not used when sending. */
 		timedout:1,           /* Target didn't respond after specified timeout. */
 		skip:1;               /* Skip target from broadcast. */
 };
@@ -198,6 +210,7 @@ struct bt_mesh_blob_cli {
 		struct bt_mesh_blob_target *target;
 		const struct blob_cli_broadcast_ctx *ctx;
 		struct k_work_delayable retry;
+		/* Represents Client Timeout timer in a timestamp. Used in Pull mode only. */
 		int64_t cli_timestamp;
 		struct k_work complete;
 		uint16_t pending;

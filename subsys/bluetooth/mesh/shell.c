@@ -369,6 +369,7 @@ struct bt_mesh_dfu_cli bt_mesh_shell_dfu_cli = BT_MESH_DFU_CLI_INIT(&dfu_cli_cb)
 static struct {
 	struct bt_mesh_blob_cli_inputs inputs;
 	struct bt_mesh_blob_target targets[32];
+	struct bt_mesh_blob_target_pull pull[32];
 	uint8_t target_count;
 	struct bt_mesh_blob_xfer xfer;
 } blob_cli_xfer;
@@ -4232,6 +4233,7 @@ static int cmd_dfu_slot_get(const struct shell *shell, size_t argc,
 
 static struct {
 	struct bt_mesh_dfu_target targets[32];
+	struct bt_mesh_blob_target_pull pull[32];
 	size_t target_cnt;
 	struct bt_mesh_blob_cli_inputs inputs;
 } dfu_tx;
@@ -4244,7 +4246,9 @@ static void dfu_tx_prepare(void)
 		/* Reset target context. */
 		uint16_t addr = dfu_tx.targets[i].blob.addr;
 		memset(&dfu_tx.targets[i].blob, 0, sizeof(struct bt_mesh_blob_target));
+		memset(&dfu_tx.pull[i], 0, sizeof(struct bt_mesh_blob_target_pull));
 		dfu_tx.targets[i].blob.addr = addr;
+		dfu_tx.targets[i].blob.pull = &dfu_tx.pull[i];
 
 		sys_slist_append(&dfu_tx.inputs.targets, &dfu_tx.targets[i].blob.n);
 	}
@@ -4559,7 +4563,9 @@ static void blob_cli_inputs_prepare(uint16_t group)
 		/* Reset target context. */
 		uint16_t addr = blob_cli_xfer.targets[i].addr;
 		memset(&blob_cli_xfer.targets[i], 0, sizeof(struct bt_mesh_blob_target));
+		memset(&blob_cli_xfer.pull[i], 0, sizeof(struct bt_mesh_blob_target_pull));
 		blob_cli_xfer.targets[i].addr = addr;
+		blob_cli_xfer.targets[i].pull = &blob_cli_xfer.pull[i];
 
 		sys_slist_append(&blob_cli_xfer.inputs.targets,
 				 &blob_cli_xfer.targets[i].n);
