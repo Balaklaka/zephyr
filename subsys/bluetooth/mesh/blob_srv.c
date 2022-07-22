@@ -268,35 +268,13 @@ static void report_timeout(struct k_work *work)
 
 	BT_DBG("");
 
-	block_report(srv);
-}
-
-static void lpn_poll_visit(struct bt_mesh_model *mod, struct bt_mesh_elem *elem,
-			   bool vnd, bool primary, void *user_data)
-{
-	struct bt_mesh_blob_srv *srv;
-
-	if (vnd || mod->id != BT_MESH_MODEL_ID_BLOB_SRV) {
-		return;
-	}
-
-	srv = mod->user_data;
-
-	if (srv->state.xfer.mode != BT_MESH_BLOB_XFER_MODE_PULL) {
+	if (srv->phase != BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_BLOCK &&
+	    srv->phase != BT_MESH_BLOB_XFER_PHASE_WAITING_FOR_CHUNK) {
 		return;
 	}
 
 	block_report(srv);
 }
-
-static void lpn_polled(uint16_t net_idx, uint16_t friend_addr, bool retry)
-{
-	bt_mesh_model_foreach(lpn_poll_visit, NULL);
-}
-
-BT_MESH_LPN_CB_DEFINE(blob_srv_lpn_cb) = {
-	.polled = lpn_polled,
-};
 
 /*******************************************************************************
  * Message handling
