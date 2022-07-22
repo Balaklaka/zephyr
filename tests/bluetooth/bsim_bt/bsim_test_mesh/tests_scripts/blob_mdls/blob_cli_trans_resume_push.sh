@@ -4,4 +4,5 @@
 
 source $(dirname "${BASH_SOURCE[0]}")/../../_mesh_test.sh
 
+# Test that BLOB Client can resume a suspended BLOB Transfer in Push mode
 RunTest mesh_blob blob_cli_trans_resume blob_srv_trans_resume
