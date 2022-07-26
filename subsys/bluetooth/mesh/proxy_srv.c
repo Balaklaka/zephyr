@@ -725,10 +725,10 @@ static int gatt_proxy_advertise(struct bt_mesh_subnet *sub)
 					remaining = PROXY_RANDOM_UPDATE_INTERVAL;
 				}
 
-				priv_net_id_adv(sub, remaining);
+				err = priv_net_id_adv(sub, remaining);
 				planned = true;
 			} else if (bt_mesh_gatt_proxy_get() == BT_MESH_FEATURE_ENABLED) {
-				net_id_adv(sub, remaining);
+				err = net_id_adv(sub, remaining);
 				planned = true;
 			}
 		}
