@@ -6,7 +6,10 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <zephyr/bluetooth/mesh.h>
 
 bool lost_target_find_and_remove(uint16_t addr);
 void lost_target_add(uint16_t addr);
 int lost_targets_rem(void);
+
+void common_sar_conf(struct bt_mesh_sar_cfg_cli *cli, uint16_t addr);

@@ -324,46 +324,6 @@ static void common_app_bind(uint16_t addr, struct bind_params *params, size_t nu
 	}
 }
 
-static void common_sar_conf(uint16_t addr)
-{
-	int err;
-
-	/** SAR Configuration models are used to reconfigure the default SAR configuration together
-	 * with configuration set in prj.conf file as the default configuration is not suitable for
-	 * DFU.
-	 */
-
-	struct bt_mesh_sar_tx tx_set = {
-		.seg_int_step = 1,
-		.unicast_retrans_count = 2,
-		.unicast_retrans_without_prog_count = 2,
-		.unicast_retrans_int_step = 7,
-		.unicast_retrans_int_inc = 1,
-		.multicast_retrans_count = 2,
-		.multicast_retrans_int = 3,
-	};
-	struct bt_mesh_sar_tx tx_rsp;
-
-	err = bt_mesh_sar_cfg_cli_transmitter_set(&sar_cfg_cli, 0, addr, &tx_set, &tx_rsp);
-	if (err) {
-		FAIL("Failed to configure SAR Transmitter state (err %d)", err);
-	}
-
-	struct bt_mesh_sar_rx rx_set = {
-		.seg_thresh = 0x1f,
-		.ack_delay_inc = 7,
-		.discard_timeout = 1,
-		.rx_seg_int_step = 1,
-		.ack_retrans_count = 1,
-	};
-	struct bt_mesh_sar_rx rx_rsp;
-
-	err = bt_mesh_sar_cfg_cli_receiver_set(&sar_cfg_cli, 0, addr, &rx_set, &rx_rsp);
-	if (err) {
-		FAIL("Failed to configure SAR Receiver state (err %d)", err);
-	}
-}
-
 static void dist_prov_and_conf(uint16_t addr)
 {
 	provision(addr);
@@ -375,7 +335,7 @@ static void dist_prov_and_conf(uint16_t addr)
 	};
 
 	common_app_bind(addr, &bind_params[0], ARRAY_SIZE(bind_params));
-	common_sar_conf(addr);
+	common_sar_conf(&sar_cfg_cli, addr);
 }
 
 static void dist_self_update_prov_and_conf(uint16_t addr)
@@ -391,7 +351,7 @@ static void dist_self_update_prov_and_conf(uint16_t addr)
 	};
 
 	common_app_bind(addr, &bind_params[0], ARRAY_SIZE(bind_params));
-	common_sar_conf(addr);
+	common_sar_conf(&sar_cfg_cli, addr);
 }
 
 static void target_prov_and_conf(uint16_t addr, struct bind_params *params, size_t len)
@@ -401,7 +361,7 @@ static void target_prov_and_conf(uint16_t addr, struct bind_params *params, size
 	common_configure(addr);
 
 	common_app_bind(addr, params, len);
-	common_sar_conf(addr);
+	common_sar_conf(&sar_cfg_cli, addr);
 }
 
 static void target_prov_and_conf_default(void)
