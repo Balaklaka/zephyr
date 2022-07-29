@@ -4597,6 +4597,12 @@ static int cmd_blob_tx(const struct shell *shell, size_t argc, char *argv[])
 		return -EINVAL;
 	}
 
+	if (argc >= 8) {
+		blob_cli_xfer.inputs.timeout_base = strtoul(argv[7], NULL, 0);
+	} else {
+		blob_cli_xfer.inputs.timeout_base = 0;
+	}
+
 	if (!blob_cli_xfer.target_count) {
 		shell_print(shell, "Failed: No targets");
 		return 0;
@@ -4652,6 +4658,12 @@ static int cmd_blob_caps(const struct shell *shell, size_t argc, char *argv[])
 		group = strtoul(argv[1], NULL, 0);
 	} else {
 		group = BT_MESH_ADDR_UNASSIGNED;
+	}
+
+	if (argc > 2) {
+		blob_cli_xfer.inputs.timeout_base = strtoul(argv[2], NULL, 0);
+	} else {
+		blob_cli_xfer.inputs.timeout_base = 0;
 	}
 
 	if (!blob_cli_xfer.target_count) {
@@ -5524,10 +5536,10 @@ SHELL_STATIC_SUBCMD_SET_CREATE(mesh_cmds,
 #elif defined(CONFIG_BT_MESH_BLOB_CLI)
 	/* BLOB Client Model Operations */
 	SHELL_CMD_ARG(blob-target, NULL, "<addr>", cmd_blob_target, 2, 0),
-	SHELL_CMD_ARG(blob-caps, NULL, "[<group>]", cmd_blob_caps, 1, 1),
+	SHELL_CMD_ARG(blob-caps, NULL, "[<group> [<timeout base>]]", cmd_blob_caps, 1, 2),
 	SHELL_CMD_ARG(blob-tx, NULL, "<id> <size> <block size log> "
-		      "<chunk size> [<group> [<mode: push, pull>]]",
-		      cmd_blob_tx, 5, 2),
+		      "<chunk size> [<group> [<mode: push, pull> "
+		      "[<timeout base>]]]", cmd_blob_tx, 5, 3),
 	SHELL_CMD_ARG(blob-tx-cancel, NULL, NULL, cmd_blob_tx_cancel, 1, 0),
 	SHELL_CMD_ARG(blob-tx-suspend, NULL, NULL, cmd_blob_tx_suspend, 1, 0),
 	SHELL_CMD_ARG(blob-tx-resume, NULL, NULL, cmd_blob_tx_resume, 1, 0),
