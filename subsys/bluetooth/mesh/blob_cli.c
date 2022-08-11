@@ -796,13 +796,14 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli);
 static void confirm_transfer(struct bt_mesh_blob_cli *cli);
 static void transfer_complete(struct bt_mesh_blob_cli *cli);
 
+static struct blob_cli_broadcast_ctx ctx;
+
 static void caps_get(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = info_get_tx,
-		.next = caps_collected,
-		.acked = true,
-	};
+	ctx.send = info_get_tx;
+	ctx.next = caps_collected;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_CAPS_GET;
 	blob_cli_broadcast(cli, &ctx);
@@ -837,12 +838,12 @@ static void caps_collected(struct bt_mesh_blob_cli *cli)
 
 static int xfer_start(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = xfer_start_tx,
-		.next = block_start,
-		.acked = true,
-	};
 	int err;
+
+	ctx.send = xfer_start_tx;
+	ctx.next = block_start;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	err = io_open(cli);
 	if (err) {
@@ -857,13 +858,12 @@ static int xfer_start(struct bt_mesh_blob_cli *cli)
 
 static void block_start(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = block_start_tx,
-		.next = chunk_send,
-		.acked = true,
-	};
 	struct bt_mesh_blob_target *target;
 
+	ctx.send = block_start_tx;
+	ctx.next = chunk_send;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	if (!targets_active(cli)) {
 		if (targets_timedout(cli)) {
@@ -927,12 +927,10 @@ static void chunk_tx_complete(struct bt_mesh_blob_cli *cli, uint16_t dst)
 
 static void chunk_send(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = chunk_tx,
-		.send_complete = chunk_tx_complete,
-		.next = chunk_send_end,
-		.acked = false,
-	};
+	ctx.send = chunk_tx;
+	ctx.send_complete = chunk_tx_complete;
+	ctx.next = chunk_send_end;
+	ctx.acked = false;
 
 	if (!targets_active(cli)) {
 		if (targets_timedout(cli)) {
@@ -985,11 +983,10 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
  */
 static void block_check(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = block_get_tx,
-		.next = block_check_end,
-		.acked = true,
-	};
+	ctx.send = block_get_tx;
+	ctx.next = block_check_end;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_CHECK;
 
@@ -1000,10 +997,10 @@ static void block_check(struct bt_mesh_blob_cli *cli)
 
 static void block_report_wait(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.next = block_check_end,
-		.acked = false,
-	};
+	ctx.send = NULL;
+	ctx.next = block_check_end;
+	ctx.acked = false;
+	ctx.send_complete = NULL;
 
 	/* Check if all servers already confirmed all chunks during the transmission. */
 	if (next_missing_chunk(cli, cli->block.missing, 0) >= cli->block.chunk_count) {
@@ -1068,11 +1065,10 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 
 static void confirm_transfer(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = xfer_get_tx,
-		.next = transfer_complete,
-		.acked = true,
-	};
+	ctx.send = xfer_get_tx;
+	ctx.next = transfer_complete;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	BT_DBG("");
 
@@ -1083,11 +1079,10 @@ static void confirm_transfer(struct bt_mesh_blob_cli *cli)
 
 static void transfer_cancel(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
-		.send = xfer_cancel_tx,
-		.next = transfer_complete,
-		.acked = true,
-	};
+	ctx.send = xfer_cancel_tx;
+	ctx.next = transfer_complete;
+	ctx.acked = true;
+	ctx.send_complete = NULL;
 
 	BT_DBG("");
 
