@@ -70,6 +70,22 @@ static void async_send_end(int err, void *data)
 	}
 }
 
+static void rx_sar_conf(void)
+{
+	/* Reconfigure SAR Receiver state so that the transport layer does
+	 * generate Segmented Acks as rarely as possible.
+	 */
+	struct bt_mesh_sar_rx rx_set = {
+		.seg_thresh = 0x1f,
+		.ack_delay_inc = CONFIG_BT_MESH_SAR_RX_ACK_DELAY_INC,
+		.discard_timeout = CONFIG_BT_MESH_SAR_RX_DISCARD_TIMEOUT,
+		.rx_seg_int_step = CONFIG_BT_MESH_SAR_RX_SEG_INT_STEP,
+		.ack_retrans_count = CONFIG_BT_MESH_SAR_RX_ACK_RETRANS_COUNT,
+	};
+
+	bt_mesh_test_sar_conf_set(NULL, &rx_set);
+}
+
 static const struct bt_mesh_send_cb async_send_cb = {
 	.end = async_send_end,
 };
@@ -376,6 +392,7 @@ static void test_rx_unicast(void)
 	int err;
 
 	bt_mesh_test_setup();
+	rx_sar_conf();
 
 	for (int i = 0; i < ARRAY_SIZE(test_vector); i++) {
 		err = bt_mesh_test_recv(test_vector[i].len, cfg->addr,
@@ -501,6 +518,7 @@ static void test_rx_seg_concurrent(void)
 static void test_rx_seg_ivu(void)
 {
 	bt_mesh_test_setup();
+	rx_sar_conf();
 
 	ASSERT_OK(bt_mesh_test_recv(255, cfg->addr, K_SECONDS(5)), "RX fail");
 	ASSERT_OK(bt_mesh_test_recv(255, cfg->addr, K_SECONDS(5)), "RX fail");

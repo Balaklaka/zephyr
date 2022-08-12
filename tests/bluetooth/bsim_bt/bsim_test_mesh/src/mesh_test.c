@@ -159,11 +159,15 @@ static struct bt_mesh_model_pub health_pub = {
 	.msg = NET_BUF_SIMPLE(BT_MESH_TX_SDU_MAX),
 };
 
+static struct bt_mesh_sar_cfg_cli sar_cfg_cli;
+
 static struct bt_mesh_model models[] = {
 	BT_MESH_MODEL_CFG_SRV,
 	BT_MESH_MODEL_CFG_CLI(&cfg_cli),
 	BT_MESH_MODEL_CB(TEST_MOD_ID, model_op, &pub, NULL, &test_model_cb),
 	BT_MESH_MODEL_HEALTH_SRV(&health_srv, &health_pub),
+	BT_MESH_MODEL_SAR_CFG_SRV,
+	BT_MESH_MODEL_SAR_CFG_CLI(&sar_cfg_cli),
 };
 
 struct bt_mesh_model *test_model = &models[2];
@@ -573,4 +577,29 @@ bool bt_mesh_test_sync(uint32_t channel_id, uint16_t wait_sec)
 uint16_t bt_mesh_test_own_addr_get(uint16_t start_addr)
 {
 	return start_addr + get_device_nbr();
+}
+
+void bt_mesh_test_sar_conf_set(struct bt_mesh_sar_tx *tx_set, struct bt_mesh_sar_rx *rx_set)
+{
+	int err;
+
+	if (tx_set) {
+		struct bt_mesh_sar_tx tx_rsp;
+
+		err = bt_mesh_sar_cfg_cli_transmitter_set(&sar_cfg_cli, 0, cfg->addr,
+							  tx_set, &tx_rsp);
+		if (err) {
+			FAIL("Failed to configure SAR Transmitter state (err %d)", err);
+		}
+	}
+
+	if (rx_set) {
+		struct bt_mesh_sar_rx rx_rsp;
+
+		err = bt_mesh_sar_cfg_cli_receiver_set(&sar_cfg_cli, 0, cfg->addr,
+						       rx_set, &rx_rsp);
+		if (err) {
+			FAIL("Failed to configure SAR Receiver state (err %d)", err);
+		}
+	}
 }
