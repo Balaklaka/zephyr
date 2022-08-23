@@ -329,7 +329,15 @@ static void send_update_start(struct bt_mesh_blob_cli *b, uint16_t dst)
 {
 	struct bt_mesh_dfu_cli *cli = DFU_CLI(b);
 	struct bt_mesh_msg_ctx ctx = MSG_CTX(cli, dst);
-	struct bt_mesh_dfu_target *target = target_get(cli, dst);
+	struct bt_mesh_dfu_target *target;
+
+	if (b->tx.ctx->force_unicast) {
+		target = target_get(cli, dst);
+	} else {
+		target = SYS_SLIST_PEEK_HEAD_CONTAINER(
+						(sys_slist_t *)&((cli)->blob.inputs)->targets,
+						target, blob.n);
+	}
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, BT_MESH_DFU_OP_UPDATE_START,
 				 DFU_UPDATE_START_MSG_MAXLEN);
@@ -389,18 +397,39 @@ static void cancelled(struct bt_mesh_blob_cli *b);
 
 static void initiate(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx = {
+	static const struct blob_cli_broadcast_ctx tx_multicast = {
 		.send = send_update_start,
 		.next = transfer,
 		.acked = true,
 	};
+	static const struct blob_cli_broadcast_ctx tx_unicast = {
+		.send = send_update_start,
+		.next = transfer,
+		.acked = true,
+		.force_unicast = true,
+	};
+	const struct blob_cli_broadcast_ctx *tx = &tx_multicast;
+	struct bt_mesh_dfu_target *target;
+	int img_idx = -1;
+
+	/** If firmware img index is the same for all targets, we can send Firmware Update Start
+	 * message using multicast address. Otherwise, it has to be send in a unicast way.
+	 */
+	TARGETS_FOR_EACH(cli, target) {
+		if (img_idx == -1) {
+			img_idx = target->img_idx;
+		} else if (target->img_idx != img_idx) {
+			tx = &tx_unicast;
+			break;
+		}
+	}
 
 	BT_DBG("");
 
 	cli->op = BT_MESH_DFU_OP_UPDATE_STATUS;
 	cli->xfer.state = STATE_TRANSFER;
 
-	blob_cli_broadcast(&cli->blob, &tx);
+	blob_cli_broadcast(&cli->blob, tx);
 }
 
 static void skip_cli_from_broadcast(struct bt_mesh_dfu_cli *cli, bool skip)

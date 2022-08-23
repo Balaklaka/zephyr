@@ -83,6 +83,8 @@ struct blob_cli_broadcast_ctx {
 	 * @ref blob_cli_broadcast_ctx::next is called.
 	 */
 	bool acked;
+	/** If true, the message is always send in a unicast way. */
+	bool force_unicast;
 	/** If true, non-responsive targets won't be dropped after transfer has timed out. */
 	bool optional;
 };

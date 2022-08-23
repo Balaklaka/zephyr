@@ -31,6 +31,7 @@
 #define SENDING_CHUNKS_IN_PULL_MODE(cli) ((cli)->state == BT_MESH_BLOB_CLI_STATE_BLOCK_SEND && \
 					  (cli)->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL)
 #define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED || \
+			   (cli)->tx.ctx->force_unicast || \
 			   SENDING_CHUNKS_IN_PULL_MODE(cli))
 
 BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
