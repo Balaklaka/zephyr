@@ -31,8 +31,7 @@
 #define SENDING_CHUNKS_IN_PULL_MODE(cli) ((cli)->state == BT_MESH_BLOB_CLI_STATE_BLOCK_SEND && \
 					  (cli)->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL)
 #define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED || \
-			   (cli)->tx.ctx->force_unicast || \
-			   SENDING_CHUNKS_IN_PULL_MODE(cli))
+			   (cli)->tx.ctx->force_unicast)
 
 BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
 	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
@@ -928,12 +927,21 @@ static void chunk_tx_complete(struct bt_mesh_blob_cli *cli, uint16_t dst)
 
 static void chunk_send(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	static const struct blob_cli_broadcast_ctx ctx_push = {
 		.send = chunk_tx,
 		.send_complete = chunk_tx_complete,
 		.next = chunk_send_end,
 		.acked = false,
 	};
+	static const struct blob_cli_broadcast_ctx ctx_pull = {
+		.send = chunk_tx,
+		.send_complete = chunk_tx_complete,
+		.next = chunk_send_end,
+		.acked = false,
+		.force_unicast = true,
+	};
+	const struct blob_cli_broadcast_ctx *ctx = cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL ?
+		&ctx_pull : &ctx_push;
 
 	if (!targets_active(cli)) {
 		if (targets_timedout(cli)) {
@@ -949,7 +957,7 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 	       chunk_size(cli->xfer, &cli->block, cli->chunk_idx));
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_SEND;
-	blob_cli_broadcast(cli, &ctx);
+	blob_cli_broadcast(cli, ctx);
 }
 
 static void chunk_send_end(struct bt_mesh_blob_cli *cli)
