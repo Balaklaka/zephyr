@@ -331,7 +331,7 @@ static void send_update_start(struct bt_mesh_blob_cli *b, uint16_t dst)
 	struct bt_mesh_msg_ctx ctx = MSG_CTX(cli, dst);
 	struct bt_mesh_dfu_target *target;
 
-	if (b->tx.ctx->force_unicast) {
+	if (b->tx.ctx.force_unicast) {
 		target = target_get(cli, dst);
 	} else {
 		target = SYS_SLIST_PEEK_HEAD_CONTAINER(
@@ -397,18 +397,11 @@ static void cancelled(struct bt_mesh_blob_cli *b);
 
 static void initiate(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx_multicast = {
+	struct blob_cli_broadcast_ctx tx = {
 		.send = send_update_start,
 		.next = transfer,
 		.acked = true,
 	};
-	static const struct blob_cli_broadcast_ctx tx_unicast = {
-		.send = send_update_start,
-		.next = transfer,
-		.acked = true,
-		.force_unicast = true,
-	};
-	const struct blob_cli_broadcast_ctx *tx = &tx_multicast;
 	struct bt_mesh_dfu_target *target;
 	int img_idx = -1;
 
@@ -419,7 +412,7 @@ static void initiate(struct bt_mesh_dfu_cli *cli)
 		if (img_idx == -1) {
 			img_idx = target->img_idx;
 		} else if (target->img_idx != img_idx) {
-			tx = &tx_unicast;
+			tx.force_unicast = true;
 			break;
 		}
 	}
@@ -429,7 +422,7 @@ static void initiate(struct bt_mesh_dfu_cli *cli)
 	cli->op = BT_MESH_DFU_OP_UPDATE_STATUS;
 	cli->xfer.state = STATE_TRANSFER;
 
-	blob_cli_broadcast(&cli->blob, tx);
+	blob_cli_broadcast(&cli->blob, &tx);
 }
 
 static void skip_cli_from_broadcast(struct bt_mesh_dfu_cli *cli, bool skip)
@@ -518,7 +511,7 @@ static void refreshed(struct bt_mesh_blob_cli *b)
 
 static void refresh(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx = {
+	const struct blob_cli_broadcast_ctx tx = {
 		.send = send_update_get,
 		.next = refreshed,
 		.acked = true
@@ -539,7 +532,7 @@ static void refresh(struct bt_mesh_dfu_cli *cli)
 
 static void apply(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx = {
+	const struct blob_cli_broadcast_ctx tx = {
 		.send = send_update_apply,
 		.next = applied,
 		.acked = true
@@ -593,7 +586,7 @@ static enum bt_mesh_dfu_iter target_img_cb(struct bt_mesh_dfu_cli *cli,
 
 static void confirm(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx = {
+	const struct blob_cli_broadcast_ctx tx = {
 		.send = send_info_get,
 		.next = confirmed,
 		.acked = true,
@@ -657,7 +650,7 @@ static void confirmed(struct bt_mesh_blob_cli *b)
 
 static void cancel(struct bt_mesh_dfu_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx tx = {
+	const struct blob_cli_broadcast_ctx tx = {
 		.send = send_update_cancel,
 		.next = cancelled,
 		.acked = true

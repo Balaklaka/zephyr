@@ -31,7 +31,7 @@
 #define SENDING_CHUNKS_IN_PULL_MODE(cli) ((cli)->state == BT_MESH_BLOB_CLI_STATE_BLOCK_SEND && \
 					  (cli)->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL)
 #define UNICAST_MODE(cli) ((cli)->inputs->group == BT_MESH_ADDR_UNASSIGNED || \
-			   (cli)->tx.ctx->force_unicast)
+			   (cli)->tx.ctx.force_unicast)
 
 BUILD_ASSERT((BLOB_XFER_STATUS_MSG_MAXLEN + BT_MESH_MODEL_OP_LEN(BT_MESH_BLOB_OP_XFER_STATUS) +
 	      BT_MESH_MIC_SHORT) <= BT_MESH_RX_SDU_MAX,
@@ -102,7 +102,7 @@ static void cli_state_reset(struct bt_mesh_blob_cli *cli)
 	k_work_cancel_delayable(&cli->tx.retry);
 	cli->xfer = NULL;
 	cli->state = BT_MESH_BLOB_CLI_STATE_NONE;
-	cli->tx.ctx = NULL;
+	cli->tx.ctx.is_inited = 0;
 	cli->tx.cli_timestamp = 0ll;
 	cli->tx.sending = 0;
 }
@@ -395,26 +395,24 @@ static void send(struct bt_mesh_blob_cli *cli)
 {
 	cli->tx.sending = 1U;
 	if (UNICAST_MODE(cli)) {
-		cli->tx.ctx->send(cli, cli->tx.target->addr);
+		cli->tx.ctx.send(cli, cli->tx.target->addr);
 	} else {
-		cli->tx.ctx->send(cli, cli->inputs->group);
+		cli->tx.ctx.send(cli, cli->inputs->group);
 	}
 }
 
 static void broadcast_complete(struct bt_mesh_blob_cli *cli)
 {
-	const struct blob_cli_broadcast_ctx *ctx = cli->tx.ctx;
-
 	BT_DBG("%s", cli->tx.cancelled ? "cancelling" : "continuing");
 
-	cli->tx.ctx = NULL;
+	cli->tx.ctx.is_inited = 0;
 	k_work_cancel_delayable(&cli->tx.retry);
 
 	if (cli->tx.cancelled) {
 		transfer_cancel(cli);
 	} else {
-		__ASSERT(ctx && ctx->next, "NULL ctx");
-		ctx->next(cli);
+		__ASSERT(cli->tx.ctx.next, "No next callback");
+		cli->tx.ctx.next(cli);
 	}
 }
 
@@ -423,7 +421,7 @@ static void tx_complete(struct k_work *work)
 	struct bt_mesh_blob_cli *cli =
 		CONTAINER_OF(work, struct bt_mesh_blob_cli, tx.complete);
 
-	if (!cli->tx.ctx || !cli->tx.sending) {
+	if (!cli->tx.ctx.is_inited || !cli->tx.sending) {
 		return;
 	}
 
@@ -434,8 +432,8 @@ static void tx_complete(struct k_work *work)
 		return;
 	}
 
-	if (cli->tx.ctx->send_complete) {
-		cli->tx.ctx->send_complete(cli, cli->tx.target->addr);
+	if (cli->tx.ctx.send_complete) {
+		cli->tx.ctx.send_complete(cli, cli->tx.target->addr);
 	}
 
 	if (UNICAST_MODE(cli) && next_target(cli, &cli->tx.target)) {
@@ -443,7 +441,7 @@ static void tx_complete(struct k_work *work)
 		return;
 	}
 
-	if (cli->tx.ctx->acked && cli->tx.pending) {
+	if (cli->tx.ctx.acked && cli->tx.pending) {
 		start_retry_timer(cli);
 		return;
 	}
@@ -488,7 +486,7 @@ static void retry_timeout(struct k_work *work)
 		if (k_uptime_get() >= cli->tx.cli_timestamp) {
 			BT_DBG("Transfer timed out.");
 
-			if (!cli->tx.ctx->optional) {
+			if (!cli->tx.ctx.optional) {
 				drop_remaining_targets(cli);
 			}
 		}
@@ -503,12 +501,12 @@ static void retry_timeout(struct k_work *work)
 	cli->tx.target = NULL;
 
 	__ASSERT(!cli->tx.sending, "still sending");
-	__ASSERT(cli->tx.ctx, "has ctx");
+	__ASSERT(cli->tx.ctx.is_inited, "ctx is not initialized");
 
 	if (!cli->tx.retries) {
 		BT_DBG("Transfer timed out.");
 
-		if (!cli->tx.ctx->optional) {
+		if (!cli->tx.ctx.optional) {
 			drop_remaining_targets(cli);
 		}
 
@@ -516,7 +514,7 @@ static void retry_timeout(struct k_work *work)
 		return;
 	}
 
-	if (!cli->tx.ctx->acked || !next_target(cli, &cli->tx.target) || cli->tx.cancelled) {
+	if (!cli->tx.ctx.acked || !next_target(cli, &cli->tx.target) || cli->tx.cancelled) {
 		broadcast_complete(cli);
 		return;
 	}
@@ -527,14 +525,15 @@ static void retry_timeout(struct k_work *work)
 void blob_cli_broadcast(struct bt_mesh_blob_cli *cli,
 			const struct blob_cli_broadcast_ctx *ctx)
 {
-	if (cli->tx.ctx || cli->tx.sending) {
+	if (cli->tx.ctx.is_inited || cli->tx.sending) {
 		BT_ERR("BLOB cli busy");
 		return;
 	}
 
 	cli->tx.cancelled = 0U;
 	cli->tx.retries = CONFIG_BT_MESH_BLOB_CLI_BLOCK_RETRIES;
-	cli->tx.ctx = ctx;
+	cli->tx.ctx = *ctx;
+	cli->tx.ctx.is_inited = 1U;
 
 	cli->tx.pending = targets_reset(cli);
 
@@ -573,7 +572,7 @@ void blob_cli_broadcast_rsp(struct bt_mesh_blob_cli *cli,
 
 void blob_cli_broadcast_abort(struct bt_mesh_blob_cli *cli)
 {
-	if (!cli->tx.ctx) {
+	if (!cli->tx.ctx.is_inited) {
 		return;
 	}
 
@@ -623,7 +622,7 @@ static void send_end(int err, void *user_data)
 {
 	struct bt_mesh_blob_cli *cli = user_data;
 
-	if (!cli->tx.ctx) {
+	if (!cli->tx.ctx.is_inited) {
 		return;
 	}
 
@@ -798,7 +797,7 @@ static void transfer_complete(struct bt_mesh_blob_cli *cli);
 
 static void caps_get(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = info_get_tx,
 		.next = caps_collected,
 		.acked = true,
@@ -837,7 +836,7 @@ static void caps_collected(struct bt_mesh_blob_cli *cli)
 
 static int xfer_start(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = xfer_start_tx,
 		.next = block_start,
 		.acked = true,
@@ -857,7 +856,7 @@ static int xfer_start(struct bt_mesh_blob_cli *cli)
 
 static void block_start(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = block_start_tx,
 		.next = chunk_send,
 		.acked = true,
@@ -927,21 +926,16 @@ static void chunk_tx_complete(struct bt_mesh_blob_cli *cli, uint16_t dst)
 
 static void chunk_send(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx_push = {
+	struct blob_cli_broadcast_ctx ctx = {
 		.send = chunk_tx,
-		.send_complete = chunk_tx_complete,
 		.next = chunk_send_end,
 		.acked = false,
 	};
-	static const struct blob_cli_broadcast_ctx ctx_pull = {
-		.send = chunk_tx,
-		.send_complete = chunk_tx_complete,
-		.next = chunk_send_end,
-		.acked = false,
-		.force_unicast = true,
-	};
-	const struct blob_cli_broadcast_ctx *ctx = cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL ?
-		&ctx_pull : &ctx_push;
+
+	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
+		ctx.send_complete = chunk_tx_complete;
+		ctx.force_unicast = true;
+	}
 
 	if (!targets_active(cli)) {
 		if (targets_timedout(cli)) {
@@ -957,7 +951,7 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 	       chunk_size(cli->xfer, &cli->block, cli->chunk_idx));
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_BLOCK_SEND;
-	blob_cli_broadcast(cli, ctx);
+	blob_cli_broadcast(cli, &ctx);
 }
 
 static void chunk_send_end(struct bt_mesh_blob_cli *cli)
@@ -994,7 +988,7 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
  */
 static void block_check(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = block_get_tx,
 		.next = block_check_end,
 		.acked = true,
@@ -1009,7 +1003,7 @@ static void block_check(struct bt_mesh_blob_cli *cli)
 
 static void block_report_wait(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.next = block_check_end,
 		.acked = false,
 	};
@@ -1021,7 +1015,7 @@ static void block_report_wait(struct bt_mesh_blob_cli *cli)
 	}
 
 	BT_DBG("Waiting for partial block report...");
-	cli->tx.ctx = &ctx;
+	cli->tx.ctx = ctx;
 
 	/* Start Client Timeout Timer in Send Data sub-procedure for the first time. */
 	if (!cli->tx.cli_timestamp) {
@@ -1077,7 +1071,7 @@ static void block_check_end(struct bt_mesh_blob_cli *cli)
 
 static void confirm_transfer(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = xfer_get_tx,
 		.next = transfer_complete,
 		.acked = true,
@@ -1092,7 +1086,7 @@ static void confirm_transfer(struct bt_mesh_blob_cli *cli)
 
 static void transfer_cancel(struct bt_mesh_blob_cli *cli)
 {
-	static const struct blob_cli_broadcast_ctx ctx = {
+	const struct blob_cli_broadcast_ctx ctx = {
 		.send = xfer_cancel_tx,
 		.next = transfer_complete,
 		.acked = true,
@@ -1545,7 +1539,7 @@ int bt_mesh_blob_cli_suspend(struct bt_mesh_blob_cli *cli)
 
 	cli->state = BT_MESH_BLOB_CLI_STATE_SUSPENDED;
 	(void)k_work_cancel_delayable(&cli->tx.retry);
-	cli->tx.ctx = NULL;
+	cli->tx.ctx.is_inited = 0;
 	cli->tx.sending = 0;
 	cli->tx.cli_timestamp = 0ll;
 	return 0;

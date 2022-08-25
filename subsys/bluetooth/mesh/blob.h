@@ -69,26 +69,6 @@ enum bt_mesh_blob_chunks_missing {
 	BT_MESH_BLOB_CHUNKS_MISSING_ENCODED,
 };
 
-struct blob_cli_broadcast_ctx {
-	/** Called for every target in unicast mode, or once in case of multicast mode. */
-	void (*send)(struct bt_mesh_blob_cli *cli, uint16_t dst);
-	/** Called after every @ref blob_cli_broadcast_ctx::send callback. */
-	void (*send_complete)(struct bt_mesh_blob_cli *cli, uint16_t dst);
-	/** If @ref blob_cli_broadcast_ctx::acked is true, called after all targets have confirmed
-	 * reception by @ref blob_cli_broadcast_rsp. Otherwise, called after transmission has been
-	 * completed.
-	 */
-	void (*next)(struct bt_mesh_blob_cli *cli);
-	/** If true, every transmission needs to be confirmed by @ref blob_cli_broadcast_rsp before
-	 * @ref blob_cli_broadcast_ctx::next is called.
-	 */
-	bool acked;
-	/** If true, the message is always sent in a unicast way. */
-	bool force_unicast;
-	/** If true, non-responsive targets won't be dropped after transfer has timed out. */
-	bool optional;
-};
-
 static inline size_t blob_block_size(size_t xfer_size, uint8_t block_size_log,
 				     uint32_t idx)
 {

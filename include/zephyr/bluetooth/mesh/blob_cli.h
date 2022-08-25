@@ -198,6 +198,31 @@ struct bt_mesh_blob_cli_cb {
 		    const struct bt_mesh_blob_xfer *xfer, bool success);
 };
 
+/** @cond INTERNAL_HIDDEN */
+struct blob_cli_broadcast_ctx {
+	/** Called for every target in unicast mode, or once in case of multicast mode. */
+	void (*send)(struct bt_mesh_blob_cli *cli, uint16_t dst);
+	/** Called after every @ref blob_cli_broadcast_ctx::send callback. */
+	void (*send_complete)(struct bt_mesh_blob_cli *cli, uint16_t dst);
+	/** If @ref blob_cli_broadcast_ctx::acked is true, called after all targets have confirmed
+	 * reception by @ref blob_cli_broadcast_rsp. Otherwise, called after transmission has been
+	 * completed.
+	 */
+	void (*next)(struct bt_mesh_blob_cli *cli);
+	/** If true, every transmission needs to be confirmed by @ref blob_cli_broadcast_rsp before
+	 * @ref blob_cli_broadcast_ctx::next is called.
+	 */
+	bool acked;
+	/** If true, the message is always sent in a unicast way. */
+	bool force_unicast;
+	/** If true, non-responsive targets won't be dropped after transfer has timed out. */
+	bool optional;
+	/** Set to true by the BLOB client between blob_cli_broadcast and broadcast_complete calls.
+	 */
+	bool is_inited;
+};
+/** INTERNAL_HIDDEN @endcond */
+
 /** BLOB Client model instance. */
 struct bt_mesh_blob_cli {
 	/** Event handler callbacks */
@@ -208,7 +233,7 @@ struct bt_mesh_blob_cli {
 
 	struct {
 		struct bt_mesh_blob_target *target;
-		const struct blob_cli_broadcast_ctx *ctx;
+		struct blob_cli_broadcast_ctx ctx;
 		struct k_work_delayable retry;
 		/* Represents Client Timeout timer in a timestamp. Used in Pull mode only. */
 		int64_t cli_timestamp;
