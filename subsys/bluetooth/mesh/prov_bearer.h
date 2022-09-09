@@ -18,7 +18,7 @@
 #define PROV_BEARER_BUF_HEADROOM 0
 #endif
 
-/** @def PROV_BEARER_BUF_TAILROOM
+/**
  *
  *  @brief Required tailroom for the bearer packet buffers.
  */

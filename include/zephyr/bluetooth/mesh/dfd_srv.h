@@ -31,7 +31,7 @@ extern "C" {
 
 struct bt_mesh_dfd_srv;
 
-/** @def BT_MESH_DFD_SRV_INIT
+/**
  *
  *  @brief Initialization parameters for the @ref bt_mesh_dfd_srv.
  */
@@ -44,7 +44,7 @@ struct bt_mesh_dfd_srv;
 		},                                                             \
 	}
 
-/** @def BT_MESH_MODEL_DFD_SRV
+/**
  *
  *  @brief DFD Server model composition data entry.
  *

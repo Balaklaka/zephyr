@@ -23,7 +23,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_SAR_CFG_SRV
+/**
  *
  *  @brief Transport SAR Configuration Server model composition data entry.
  */

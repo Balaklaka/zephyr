@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_OP_AGG_SRV
+/**
  *
  *  @brief Opcodes Aggretator Server model composition data entry.
  *

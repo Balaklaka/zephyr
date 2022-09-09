@@ -25,7 +25,7 @@ extern "C" {
 
 struct bt_mesh_dfu_srv;
 
-/** @def BT_MESH_DFU_SRV_INIT
+/**
  *
  * @brief Initialization parameters for @ref bt_mesh_dfu_srv.
  *
@@ -39,7 +39,7 @@ struct bt_mesh_dfu_srv;
 		.imgs = _imgs, .img_count = _img_count,                        \
 	}
 
-/** @def BT_MESH_MODEL_DFU_SRV
+/**
  *
  *  @brief DFU Server model entry.
  *

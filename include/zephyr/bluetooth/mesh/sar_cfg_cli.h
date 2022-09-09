@@ -35,7 +35,7 @@ struct bt_mesh_sar_cfg_cli {
 	struct bt_mesh_msg_ack_ctx ack_ctx;
 };
 
-/** @def BT_MESH_MODEL_SAR_CFG_CLI
+/**
  *
  * @brief SAR Configuration Client model composition data entry.
  *

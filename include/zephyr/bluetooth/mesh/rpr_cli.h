@@ -34,7 +34,7 @@ extern "C" {
 
 struct bt_mesh_rpr_cli;
 
-/** @def BT_MESH_MODEL_RPR_CLI
+/**
  *
  * @brief Remote Provisioning Client model composition data entry.
  *

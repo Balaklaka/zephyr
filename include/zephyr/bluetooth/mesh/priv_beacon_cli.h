@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_PRIV_BEACON_CLI
+/**
  *
  *  @brief Private Beacon Client model composition data entry.
  *

@@ -181,7 +181,7 @@ struct bt_mesh_health_srv {
 			 pub, srv, &bt_mesh_health_srv_cb)
 #endif
 
-/** @def BT_MESH_HEALTH_TEST_INFO_METADATA
+/**
  *
  *  Health Test Information Metadata ID.
  */
@@ -194,7 +194,7 @@ struct bt_mesh_health_srv {
 		.data = tests,                                                 \
 	}
 
-/** @def BT_MESH_HEALTH_TEST_INFO
+/**
  *
  *  Define a Health Test Info Metadata array.
  *

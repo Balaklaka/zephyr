@@ -292,7 +292,7 @@ struct bt_mesh_model_op {
 	BT_MESH_MODEL_CB(_id, _op, _pub, _user_data, _cb)
 #endif
 
-/** @def BT_MESH_MODEL_VND_CB
+/**
  *
  *  @brief Composition data vendor model entry with callback functions.
  *
@@ -315,7 +315,7 @@ struct bt_mesh_model_op {
 	.cb = _cb,                                                           \
 }
 
-/** @def BT_MESH_MODEL_VND_METADATA_CB
+/**
  *
  *  @brief Composition data vendor model entry with callback functions and metadata.
  *
@@ -532,7 +532,7 @@ struct bt_mesh_models_metadata_entry {
 	void *data;
 };
 
-/** @def BT_MESH_MODELS_METADATA_ENTRY
+/**
  *
  *  Initialize a Models Metadata entry structure in a list.
  *

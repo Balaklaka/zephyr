@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_PRIV_BEACON_SRV
+/**
  *
  *  @brief Private Beacon Server model composition data entry.
  */

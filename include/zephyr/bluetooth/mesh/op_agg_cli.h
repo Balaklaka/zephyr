@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_OP_AGG_CLI
+/**
  *
  *  @brief Opcodes Aggregator Client model composition data entry.
  */

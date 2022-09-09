@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_RPR_SRV
+/**
  *
  * @brief Remote Provisioning Server model composition data entry.
  */

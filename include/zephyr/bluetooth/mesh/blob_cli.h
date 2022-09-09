@@ -24,7 +24,7 @@ extern "C" {
 
 struct bt_mesh_blob_cli;
 
-/** @def BT_MESH_MODEL_BLOB_CLI
+/**
  *
  * @brief BLOB Client model composition data entry.
  *

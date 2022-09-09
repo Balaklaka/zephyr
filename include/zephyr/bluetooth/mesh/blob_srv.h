@@ -23,7 +23,7 @@ extern "C" {
 
 struct bt_mesh_blob_srv;
 
-/** @def BT_MESH_BLOB_BLOCKS_MAX
+/**
  *
  *  @brief Max number of blocks in a single transfer.
  */
@@ -35,7 +35,7 @@ struct bt_mesh_blob_srv;
 #define BT_MESH_BLOB_BLOCKS_MAX 1
 #endif
 
-/** @def BT_MESH_MODEL_BLOB_SRV
+/**
  *
  *  @brief BLOB Server model composition data entry.
  *

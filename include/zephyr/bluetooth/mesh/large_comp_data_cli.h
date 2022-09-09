@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_LARGE_COMP_DATA_CLI
+/**
  *
  *  @brief Large Composition Data Client model composition data entry.
  */

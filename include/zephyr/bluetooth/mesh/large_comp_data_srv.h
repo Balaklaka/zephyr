@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-/** @def BT_MESH_MODEL_LARGE_COMP_DATA_SRV
+/**
  *
  *  @brief Large Composition Data Server model composition data entry.
  */

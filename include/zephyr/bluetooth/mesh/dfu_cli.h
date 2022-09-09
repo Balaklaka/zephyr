@@ -25,7 +25,7 @@ extern "C" {
 
 struct bt_mesh_dfu_cli;
 
-/** @def BT_MESH_DFU_CLI_INIT
+/**
  *
  *  @brief Initialization parameters for the @ref bt_mesh_dfu_cli.
  *
@@ -39,7 +39,7 @@ struct bt_mesh_dfu_cli;
 		.blob = { .cb = &_bt_mesh_dfu_cli_blob_handlers },             \
 	}
 
-/** @def BT_MESH_MODEL_DFU_CLI
+/**
  *
  *  @brief DFU Client model composition data entry.
  *
