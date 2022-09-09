@@ -15,11 +15,11 @@
 #ifndef ZEPHYR_INCLUDE_BLUETOOTH_MESH_DFD_SRV_H__
 #define ZEPHYR_INCLUDE_BLUETOOTH_MESH_DFD_SRV_H__
 
-#include <bluetooth/mesh/access.h>
-#include <bluetooth/mesh/dfd.h>
-#include <bluetooth/mesh/blob_srv.h>
-#include <bluetooth/mesh/blob_cli.h>
-#include <bluetooth/mesh/dfu_cli.h>
+#include <zephyr/bluetooth/mesh/access.h>
+#include <zephyr/bluetooth/mesh/dfd.h>
+#include <zephyr/bluetooth/mesh/blob_srv.h>
+#include <zephyr/bluetooth/mesh/blob_cli.h>
+#include <zephyr/bluetooth/mesh/dfu_cli.h>
 
 #ifdef __cplusplus
 extern "C" {

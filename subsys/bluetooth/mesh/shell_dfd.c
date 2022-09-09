@@ -5,8 +5,8 @@
  */
 
 #include <stdlib.h>
-#include <bluetooth/mesh.h>
-#include <shell/shell.h>
+#include <zephyr/bluetooth/mesh.h>
+#include <zephyr/shell/shell.h>
 
 #include "dfu_slot.h"
 #include "dfd_srv_internal.h"

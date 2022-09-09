@@ -5,12 +5,12 @@
  */
 
 #include <stdlib.h>
-#include <sys/slist.h>
-#include <random/rand32.h>
-#include <sys/byteorder.h>
-#include <bluetooth/hci.h>
-#include <bluetooth/mesh/rpr_srv.h>
-#include <bluetooth/mesh/sar_cfg.h>
+#include <zephyr/sys/slist.h>
+#include <zephyr/random/rand32.h>
+#include <zephyr/sys/byteorder.h>
+#include <zephyr/bluetooth/hci.h>
+#include <zephyr/bluetooth/mesh/rpr_srv.h>
+#include <zephyr/bluetooth/mesh/sar_cfg.h>
 #include "adv.h"
 #include "host/ecc.h"
 #include "prov.h"

@@ -15,9 +15,9 @@
 #ifndef ZEPHYR_INCLUDE_BLUETOOTH_MESH_DFU_SRV_H__
 #define ZEPHYR_INCLUDE_BLUETOOTH_MESH_DFU_SRV_H__
 
-#include <bluetooth/mesh/dfu.h>
-#include <bluetooth/mesh/blob_srv.h>
-#include <bluetooth/mesh/access.h>
+#include <zephyr/bluetooth/mesh/dfu.h>
+#include <zephyr/bluetooth/mesh/blob_srv.h>
+#include <zephyr/bluetooth/mesh/access.h>
 
 #ifdef __cplusplus
 extern "C" {

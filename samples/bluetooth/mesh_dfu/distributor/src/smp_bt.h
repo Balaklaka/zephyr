@@ -7,7 +7,7 @@
 #ifndef SMP_BT_H__
 #define SMP_BT_H__
 
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #ifdef __cplusplus
 extern "C" {

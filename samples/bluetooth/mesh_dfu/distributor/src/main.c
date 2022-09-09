@@ -7,16 +7,16 @@
 /** @file
  *  @brief Bluetooth Mesh DFU Distributor role sample
  */
-#include <zephyr.h>
-#include <devicetree.h>
-#include <drivers/gpio.h>
-#include <drivers/hwinfo.h>
+#include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/hwinfo.h>
 
-#include <storage/flash_map.h>
+#include <zephyr/storage/flash_map.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/mesh.h>
-#include <bluetooth/mesh/shell.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh/shell.h>
 
 #include <img_mgmt/img_mgmt.h>
 #include <shell_mgmt/shell_mgmt.h>

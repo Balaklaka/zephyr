@@ -15,7 +15,7 @@
 
 #define LOG_MODULE_NAME test_dfu
 
-#include <logging/log.h>
+#include <zephyr/logging/log.h>
 LOG_MODULE_REGISTER(LOG_MODULE_NAME, LOG_LEVEL_INF);
 
 #define WAIT_TIME 420 /* seconds */

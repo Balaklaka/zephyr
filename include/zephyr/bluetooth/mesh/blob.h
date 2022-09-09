@@ -14,7 +14,7 @@
 #ifndef ZEPHYR_INCLUDE_BLUETOOTH_MESH_BLOB_H__
 #define ZEPHYR_INCLUDE_BLUETOOTH_MESH_BLOB_H__
 
-#include <zephyr.h>
+#include <zephyr/kernel.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus

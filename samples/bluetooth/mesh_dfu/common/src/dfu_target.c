@@ -8,16 +8,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <zephyr.h>
-#include <sys/reboot.h>
-#include <sys/util.h>
+#include <zephyr/kernel.h>
+#include <zephyr/sys/reboot.h>
+#include <zephyr/sys/util.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
 
-#include <storage/flash_map.h>
+#include <zephyr/storage/flash_map.h>
 
-#include <dfu/mcuboot.h>
+#include <zephyr/dfu/mcuboot.h>
 
 static struct bt_mesh_blob_io_flash *blob_flash_stream;
 static enum bt_mesh_dfu_effect img_effect = BT_MESH_DFU_EFFECT_NONE;

@@ -7,7 +7,7 @@
 #ifndef DFU_DIST_H__
 #define DFU_DIST_H__
 
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #ifdef __cplusplus
 extern "C" {

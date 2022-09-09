@@ -10,7 +10,7 @@
 #ifndef BT_MESH_SAR_CFG_SRV_H__
 #define BT_MESH_SAR_CFG_SRV_H__
 
-#include <bluetooth/mesh/sar_cfg.h>
+#include <zephyr/bluetooth/mesh/sar_cfg.h>
 
 /**
  * @brief Bluetooth Mesh

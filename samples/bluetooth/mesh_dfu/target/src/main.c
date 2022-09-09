@@ -7,15 +7,15 @@
 /** @file
  *  @brief Bluetooth Mesh DFU Target role sample
  */
-#include <zephyr.h>
-#include <devicetree.h>
-#include <drivers/gpio.h>
-#include <drivers/hwinfo.h>
+#include <zephyr/kernel.h>
+#include <zephyr/devicetree.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/drivers/hwinfo.h>
 
-#include <storage/flash_map.h>
+#include <zephyr/storage/flash_map.h>
 
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/bluetooth.h>
+#include <zephyr/bluetooth/mesh.h>
 
 #include "dfu_target.h"
 

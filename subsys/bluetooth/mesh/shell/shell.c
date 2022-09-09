@@ -16,9 +16,9 @@
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/bluetooth/mesh/shell.h>
-#include <dfu/mcuboot.h>
-#include <storage/flash_map.h>
-#include <sys/reboot.h>
+#include <zephyr/dfu/mcuboot.h>
+#include <zephyr/storage/flash_map.h>
+#include <zephyr/sys/reboot.h>
 
 /* Private includes for raw Network & Transport layer access */
 #include "mesh/mesh.h"

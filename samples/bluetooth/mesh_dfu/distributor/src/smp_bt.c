@@ -6,10 +6,10 @@
 
 #include "smp_bt.h"
 
-#include <bluetooth/conn.h>
-#include <bluetooth/gatt.h>
+#include <zephyr/bluetooth/conn.h>
+#include <zephyr/bluetooth/gatt.h>
 
-#include <mgmt/mcumgr/smp_bt.h>
+#include <zephyr/mgmt/mcumgr/smp_bt.h>
 
 static struct k_work advertise_work;
 

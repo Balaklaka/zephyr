@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <bluetooth/mesh.h>
-#include <bluetooth/mesh/access.h>
+#include <zephyr/bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh/access.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_MODEL)
 #define LOG_MODULE_NAME bt_mesh_sar_cfg_cli

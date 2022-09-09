@@ -5,12 +5,12 @@
  */
 
 #include <string.h>
-#include <bluetooth/mesh.h>
-#include <settings/settings.h>
+#include <zephyr/bluetooth/mesh.h>
+#include <zephyr/settings/settings.h>
 #include "access.h"
 #include "dfu.h"
 #include "blob.h"
-#include <random/rand32.h>
+#include <zephyr/random/rand32.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_DFU)
 #define LOG_MODULE_NAME bt_mesh_dfu_cli

@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <settings/settings.h>
+#include <zephyr/settings/settings.h>
 #include "dfu_slot.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <sys/util.h>
+#include <zephyr/sys/util.h>
 
 #define BT_DBG_ENABLED IS_ENABLED(CONFIG_BT_MESH_DEBUG_DFU)
 #define LOG_MODULE_NAME bt_mesh_dfu_slot

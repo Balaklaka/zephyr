@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include <net/buf.h>
-#include <sys/byteorder.h>
+#include <zephyr/net/buf.h>
+#include <zephyr/sys/byteorder.h>
 #include <string.h>
 
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh.h>
 #include "crypto.h"
 #include "access.h"
 

@@ -5,7 +5,7 @@
  */
 
 #include <string.h>
-#include <bluetooth/mesh.h>
+#include <zephyr/bluetooth/mesh.h>
 #include "dfu_slot.h"
 #include "dfd.h"
 #include "dfu.h"

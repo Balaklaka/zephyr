@@ -5,7 +5,7 @@
  */
 
 #include "subnet.h"
-#include <bluetooth/mesh/sar_cfg.h>
+#include <zephyr/bluetooth/mesh/sar_cfg.h>
 
 #define BT_MESH_IV_UPDATE(flags)   ((flags >> 1) & 0x01)
 #define BT_MESH_KEY_REFRESH(flags) (flags & 0x01)
