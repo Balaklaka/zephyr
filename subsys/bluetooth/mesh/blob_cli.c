@@ -961,13 +961,7 @@ static void chunk_send_end(struct bt_mesh_blob_cli *cli)
 	 * sent chunk has been received.
 	 */
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PUSH) {
-		struct bt_mesh_blob_target *target = cli->tx.target;
-
-		if (!next_target(cli, &target)) {
-			blob_chunk_missing_set_none(&cli->block);
-		} else {
-			blob_chunk_missing_set(cli->block.missing, cli->chunk_idx, false);
-		}
+		blob_chunk_missing_set(cli->block.missing, cli->chunk_idx, false);
 	}
 
 	cli->chunk_idx = next_missing_chunk(cli, cli->block.missing, cli->chunk_idx + 1);
