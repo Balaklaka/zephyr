@@ -301,7 +301,7 @@ static void common_configure(uint16_t addr)
 	uint8_t status;
 	int err;
 
-	err = bt_mesh_cfg_app_key_add(0, addr, 0, 0, test_app_key, &status);
+	err = bt_mesh_cfg_cli_app_key_add(0, addr, 0, 0, test_app_key, &status);
 	if (err || status) {
 		FAIL("AppKey add failed (err %d, status %u)", err, status);
 		return;
@@ -314,8 +314,8 @@ static void common_app_bind(uint16_t addr, struct bind_params *params, size_t nu
 	int err;
 
 	for (size_t i = 0; i < num; i++) {
-		err = bt_mesh_cfg_mod_app_bind(0, addr, params[i].addr, 0, params[i].model_id,
-					       &status);
+		err = bt_mesh_cfg_cli_mod_app_bind(0, addr, params[i].addr, 0, params[i].model_id,
+						   &status);
 		if (err || status) {
 			FAIL("Model %#4x bind failed (err %d, status %u)", params[i].model_id,
 			     err, status);

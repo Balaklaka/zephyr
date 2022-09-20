@@ -276,7 +276,7 @@ static void common_configure(uint16_t addr)
 	uint8_t status;
 	int err;
 
-	err = bt_mesh_cfg_app_key_add(0, addr, 0, 0, app_key, &status);
+	err = bt_mesh_cfg_cli_app_key_add(0, addr, 0, 0, app_key, &status);
 	if (err || status) {
 		FAIL("AppKey add failed (err %d, status %u)", err, status);
 		return;
@@ -291,15 +291,15 @@ static void blob_srv_prov_and_conf(uint16_t addr)
 	provision(addr);
 	common_configure(addr);
 
-	err = bt_mesh_cfg_mod_app_bind(0, addr, addr, 0, BT_MESH_MODEL_ID_BLOB_SRV, &status);
+	err = bt_mesh_cfg_cli_mod_app_bind(0, addr, addr, 0, BT_MESH_MODEL_ID_BLOB_SRV, &status);
 	if (err || status) {
 		FAIL("Model %#4x bind failed (err %d, status %u)", BT_MESH_MODEL_ID_BLOB_SRV, err,
 		     status);
 		return;
 	}
 
-	err = bt_mesh_cfg_mod_sub_add(0, addr, addr, BLOB_GROUP_ADDR, BT_MESH_MODEL_ID_BLOB_SRV,
-				      &status);
+	err = bt_mesh_cfg_cli_mod_sub_add(0, addr, addr, BLOB_GROUP_ADDR, BT_MESH_MODEL_ID_BLOB_SRV,
+					  &status);
 	if (err || status) {
 		FAIL("Model %#4x sub add failed (err %d, status %u)", BT_MESH_MODEL_ID_BLOB_SRV,
 		     err, status);
@@ -317,7 +317,7 @@ static void blob_cli_prov_and_conf(uint16_t addr)
 	provision(addr);
 	common_configure(addr);
 
-	err = bt_mesh_cfg_mod_app_bind(0, addr, addr, 0, BT_MESH_MODEL_ID_BLOB_CLI, &status);
+	err = bt_mesh_cfg_cli_mod_app_bind(0, addr, addr, 0, BT_MESH_MODEL_ID_BLOB_CLI, &status);
 	if (err || status) {
 		FAIL("Model %#4x bind failed (err %d, status %u)", BT_MESH_MODEL_ID_BLOB_CLI, err,
 		     status);
