@@ -130,14 +130,14 @@ struct bt_mesh_elem {
 #define BT_MESH_MODEL_ID_HEALTH_CLI                0x0003
 #define BT_MESH_MODEL_ID_REMOTE_PROV_SRV           0x0004
 #define BT_MESH_MODEL_ID_REMOTE_PROV_CLI           0x0005
-#define BT_MESH_MODEL_ID_SAR_CFG_SRV               0xbf52
-#define BT_MESH_MODEL_ID_SAR_CFG_CLI               0xbf53
-#define BT_MESH_MODEL_ID_OP_AGG_SRV                0xbf54
-#define BT_MESH_MODEL_ID_OP_AGG_CLI                0xbf55
-#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_SRV       0xbf56
-#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_CLI       0xbf57
-#define BT_MESH_MODEL_ID_PRIV_BEACON_SRV           0xbf40
-#define BT_MESH_MODEL_ID_PRIV_BEACON_CLI           0xbf41
+#define BT_MESH_MODEL_ID_PRIV_BEACON_SRV           0x000a
+#define BT_MESH_MODEL_ID_PRIV_BEACON_CLI           0x000b
+#define BT_MESH_MODEL_ID_SAR_CFG_SRV               0x000e
+#define BT_MESH_MODEL_ID_SAR_CFG_CLI               0x000f
+#define BT_MESH_MODEL_ID_OP_AGG_SRV                0x0010
+#define BT_MESH_MODEL_ID_OP_AGG_CLI                0x0011
+#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_SRV       0x0012
+#define BT_MESH_MODEL_ID_LARGE_COMP_DATA_CLI       0x0013
 
 /* Models from the Mesh Model Specification */
 #define BT_MESH_MODEL_ID_GEN_ONOFF_SRV             0x1000
@@ -192,12 +192,12 @@ struct bt_mesh_elem {
 #define BT_MESH_MODEL_ID_LIGHT_LC_SRV              0x130f
 #define BT_MESH_MODEL_ID_LIGHT_LC_SETUPSRV         0x1310
 #define BT_MESH_MODEL_ID_LIGHT_LC_CLI              0x1311
-#define BT_MESH_MODEL_ID_BLOB_SRV                  0xBF42 // TBD
-#define BT_MESH_MODEL_ID_BLOB_CLI                  0xBF43 // TBD
-#define BT_MESH_MODEL_ID_DFU_SRV                   0xBF44 // TBD
-#define BT_MESH_MODEL_ID_DFU_CLI                   0xBF45 // TBD
-#define BT_MESH_MODEL_ID_DFD_SRV                   0xBF46 // TBD
-#define BT_MESH_MODEL_ID_DFD_CLI                   0xBF47 // TBD
+#define BT_MESH_MODEL_ID_BLOB_SRV                  0x1400
+#define BT_MESH_MODEL_ID_BLOB_CLI                  0x1401
+#define BT_MESH_MODEL_ID_DFU_SRV                   0x1402
+#define BT_MESH_MODEL_ID_DFU_CLI                   0x1403
+#define BT_MESH_MODEL_ID_DFD_SRV                   0x1404
+#define BT_MESH_MODEL_ID_DFD_CLI                   0x1405
 
 /** Model opcode handler. */
 struct bt_mesh_model_op {
