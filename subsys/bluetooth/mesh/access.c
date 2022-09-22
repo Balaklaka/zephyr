@@ -328,7 +328,7 @@ static int comp_add_elem(struct net_buf_simple *buf, struct bt_mesh_elem *elem,
 		return 0;
 	}
 
-	if (net_buf_simple_tailroom(buf) < elem_size) {
+	if (net_buf_simple_tailroom(buf) < (elem_size + BT_MESH_MIC_SHORT)) {
 		if (IS_ENABLED(CONFIG_BT_MESH_LARGE_COMP_DATA_SRV)) {
 			/* Mesh Profile 1.1 Section 4.4.1.2.2:
 			 * If the complete list of models does not fit in the Data field,
