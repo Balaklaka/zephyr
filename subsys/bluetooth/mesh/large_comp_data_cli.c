@@ -98,7 +98,7 @@ static int large_comp_data_cli_init(struct bt_mesh_model *model)
 		return -EINVAL;
 	}
 
-	model->keys[0] = BT_MESH_KEY_DEV;
+	model->keys[0] = BT_MESH_KEY_DEV_ANY;
 	model->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	cli.model = model;
@@ -124,7 +124,7 @@ int bt_mesh_large_comp_data_get(uint16_t net_idx, uint16_t addr, uint8_t page,
 	BT_MESH_MODEL_BUF_DEFINE(msg, OP_LARGE_COMP_DATA_GET, 3);
 	struct bt_mesh_msg_ctx ctx = {
 		.net_idx = net_idx,
-		.app_idx = BT_MESH_KEY_DEV,
+		.app_idx = BT_MESH_KEY_DEV_REMOTE,
 		.addr = addr,
 		.send_ttl = BT_MESH_TTL_DEFAULT,
 	};
@@ -155,7 +155,7 @@ int bt_mesh_models_metadata_get(uint16_t net_idx, uint16_t addr, uint8_t page,
 	BT_MESH_MODEL_BUF_DEFINE(msg, OP_MODELS_METADATA_STATUS, 3);
 	struct bt_mesh_msg_ctx ctx = {
 		.net_idx = net_idx,
-		.app_idx = BT_MESH_KEY_DEV,
+		.app_idx = BT_MESH_KEY_DEV_REMOTE,
 		.addr = addr,
 		.send_ttl = BT_MESH_TTL_DEFAULT,
 	};
