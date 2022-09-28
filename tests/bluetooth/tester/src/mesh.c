@@ -14,7 +14,7 @@
 #include <zephyr/sys/byteorder.h>
 #include <app_keys.h>
 #include <sar_cfg_internal.h>
-#include <settings/settings.h>
+#include <zephyr/settings/settings.h>
 #include <string.h>
 
 #include <zephyr/logging/log.h>
@@ -3498,11 +3498,9 @@ static void dfu_update_metadata_check(uint8_t *data, uint16_t len)
 	fwid_len = cmd->fwid_len;
 	metadata_len = cmd->metadata_len;
 
-	if (cmd->data) {
-		if ((metadata_len > 0) &&
-		    (metadata_len < CONFIG_BT_MESH_DFU_METADATA_MAXLEN)) {
-			memcpy(&metadata, cmd->data, metadata_len);
-		}
+	if ((metadata_len > 0) &&
+		(metadata_len < CONFIG_BT_MESH_DFU_METADATA_MAXLEN)) {
+		memcpy(&metadata, cmd->data, metadata_len);
 	}
 
 	dfu_slot_add(size, fwid, fwid_len, metadata, metadata_len, uri);
@@ -3642,11 +3640,9 @@ static void dfu_firmware_update_start(uint8_t *data, uint16_t len)
 	xfer.mode = BT_MESH_BLOB_XFER_MODE_PUSH;
 	xfer.blob_params = &blob;
 
-	if (cmd->data) {
-		if ((metadata_len > 0) &&
-		    (metadata_len < CONFIG_BT_MESH_DFU_METADATA_MAXLEN)) {
-			memcpy(&metadata, cmd->data, metadata_len);
-		}
+	if ((metadata_len > 0) &&
+		(metadata_len < CONFIG_BT_MESH_DFU_METADATA_MAXLEN)) {
+		memcpy(&metadata, cmd->data, metadata_len);
 	}
 
 	err = bt_mesh_dfu_slot_del_all();
