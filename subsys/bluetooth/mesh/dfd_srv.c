@@ -59,7 +59,7 @@ static void dfd_phase_set(struct bt_mesh_dfd_srv *srv,
 {
 	srv->phase = new_phase;
 
-	if (srv->cb->phase) {
+	if (srv->cb && srv->cb->phase) {
 		srv->cb->phase(srv, srv->phase);
 	}
 }
