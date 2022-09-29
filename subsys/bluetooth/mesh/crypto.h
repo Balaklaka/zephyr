@@ -100,10 +100,10 @@ static inline int bt_mesh_dev_key(const uint8_t dhkey[32],
 }
 
 int bt_mesh_prov_salt(uint8_t algorithm,
-				const uint8_t conf_salt[32],
-				const uint8_t prov_rand[32],
-				const uint8_t dev_rand[32],
-				uint8_t prov_salt[16]);
+				const uint8_t *conf_salt,
+				const uint8_t *prov_rand,
+				const uint8_t *dev_rand,
+				uint8_t *prov_salt);
 
 int bt_mesh_net_obfuscate(uint8_t *pdu, uint32_t iv_index,
 			  const uint8_t privacy_key[16]);
@@ -145,8 +145,8 @@ int bt_mesh_prov_conf_salt(uint8_t algorithm, const uint8_t conf_inputs[145],
 int bt_mesh_prov_conf_key(uint8_t algorithm, const uint8_t *k_input,
 		const uint8_t *conf_salt, uint8_t *conf_key);
 
-int bt_mesh_prov_conf(uint8_t algorithm, const uint8_t conf_key[32],
-	const uint8_t rand[32], const uint8_t auth[16], uint8_t conf[32]);
+int bt_mesh_prov_conf(uint8_t algorithm, const uint8_t *conf_key,
+	const uint8_t *prov_rand, const uint8_t *auth, uint8_t *conf);
 
 int bt_mesh_prov_decrypt(const uint8_t key[16], uint8_t nonce[13],
 			 const uint8_t data[25 + 8], uint8_t out[25]);

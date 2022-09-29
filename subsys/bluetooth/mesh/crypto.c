@@ -577,10 +577,10 @@ int bt_mesh_virtual_addr(const uint8_t virtual_label[16], uint16_t *addr)
 }
 
 int bt_mesh_prov_salt(uint8_t algorithm,
-			const uint8_t conf_salt[32],
-			const uint8_t prov_rand[32],
-			const uint8_t dev_rand[32],
-			uint8_t prov_salt[16])
+			const uint8_t *conf_salt,
+			const uint8_t *prov_rand,
+			const uint8_t *dev_rand,
+			uint8_t *prov_salt)
 {
 	uint8_t size = algorithm ? 32 : 16;
 	const uint8_t prov_salt_key[16] = { 0 };
@@ -629,24 +629,24 @@ int bt_mesh_prov_conf_key(uint8_t algorithm, const uint8_t *k_input,
 	return -EINVAL;
 }
 
-int bt_mesh_prov_conf(uint8_t algorithm, const uint8_t conf_key[32],
-	const uint8_t rand[32], const uint8_t auth[16], uint8_t conf[32])
+int bt_mesh_prov_conf(uint8_t algorithm, const uint8_t *conf_key,
+	const uint8_t *prov_rand, const uint8_t *auth, uint8_t *conf)
 {
 	uint8_t auth_size = algorithm ? 32 : 16;
 
 	BT_DBG("ConfirmationKey %s", bt_hex(conf_key, auth_size));
-	BT_DBG("RandomDevice %s", bt_hex(rand, auth_size));
+	BT_DBG("RandomDevice %s", bt_hex(prov_rand, auth_size));
 	BT_DBG("AuthValue %s", bt_hex(auth, auth_size));
 
 	if (algorithm == BT_MESH_PROV_AUTH_HMAC_SHA256_AES_CCM &&
 		IS_ENABLED(CONFIG_BT_MESH_ECDH_P256_HMAC_SHA256_AES_CCM)) {
 
-		return bt_mesh_sha256_hmac_one(conf_key, rand, 32, conf);
+		return bt_mesh_sha256_hmac_one(conf_key, prov_rand, 32, conf);
 	}
 
 	if (algorithm == BT_MESH_PROV_AUTH_CMAC_AES128_AES_CCM &&
 		IS_ENABLED(CONFIG_BT_MESH_ECDH_P256_CMAC_AES128_AES_CCM)) {
-		struct bt_mesh_sg sg[] = { { rand, 16 }, { auth, 16 } };
+		struct bt_mesh_sg sg[] = { { prov_rand, 16 }, { auth, 16 } };
 
 		return bt_mesh_aes_cmac(conf_key, sg, ARRAY_SIZE(sg), conf);
 	}
