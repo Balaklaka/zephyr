@@ -17,13 +17,12 @@
 #include "mesh.h"
 #include "sar_cfg_internal.h"
 
-static int32_t msg_timeout;
+static struct bt_mesh_sar_cfg_cli *cli;
 
 static int transmitter_status(struct bt_mesh_model *model,
 			       struct bt_mesh_msg_ctx *ctx,
 			       struct net_buf_simple *buf)
 {
-	struct bt_mesh_sar_cfg_cli *cli = model->user_data;
 	struct bt_mesh_sar_tx *rsp;
 
 	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_SAR_CFG_TX_STATUS,
@@ -48,7 +47,6 @@ static int receiver_status(struct bt_mesh_model *model,
 			    struct bt_mesh_msg_ctx *ctx,
 			    struct net_buf_simple *buf)
 {
-	struct bt_mesh_sar_cfg_cli *cli = model->user_data;
 	struct bt_mesh_sar_rx *rsp;
 
 	BT_DBG("net_idx 0x%04x app_idx 0x%04x src 0x%04x len %u: %s",
@@ -77,26 +75,18 @@ const struct bt_mesh_model_op _bt_mesh_sar_cfg_cli_op[] = {
 	BT_MESH_MODEL_OP_END,
 };
 
-static int cli_prepare(struct bt_mesh_sar_cfg_cli *cli, void *param,
-		       uint32_t op, uint16_t addr)
-{
-	return bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, op, addr, param);
-}
-
 int32_t bt_mesh_sar_cfg_cli_timeout_get(void)
 {
-	return msg_timeout;
+	return cli->timeout;
 }
 
 void bt_mesh_sar_cfg_cli_timeout_set(int32_t timeout)
 {
-	msg_timeout = timeout;
+	cli->timeout = timeout;
 }
 
 static int bt_mesh_sar_cfg_cli_init(struct bt_mesh_model *model)
 {
-	struct bt_mesh_sar_cfg_cli *cli;
-
 	if (!bt_mesh_model_in_primary(model)) {
 		BT_ERR("SAR Configuration Client only allowed in primary element");
 		return -EINVAL;
@@ -109,7 +99,7 @@ static int bt_mesh_sar_cfg_cli_init(struct bt_mesh_model *model)
 
 	cli = model->user_data;
 	cli->model = model;
-	msg_timeout = 2 * MSEC_PER_SEC;
+	cli->timeout = 2 * MSEC_PER_SEC;
 
 	model->keys[0] = BT_MESH_KEY_DEV_ANY;
 	model->flags |= BT_MESH_MOD_DEVKEY_ONLY;
@@ -133,8 +123,7 @@ const struct bt_mesh_model_cb _bt_mesh_sar_cfg_cli_cb = {
 	.reset = bt_mesh_sar_cfg_cli_reset,
 };
 
-int bt_mesh_sar_cfg_cli_transmitter_get(struct bt_mesh_sar_cfg_cli *cli,
-					uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_transmitter_get(uint16_t net_idx, uint16_t addr,
 					struct bt_mesh_sar_tx *rsp)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, OP_SAR_CFG_TX_GET, 0);
@@ -146,7 +135,7 @@ int bt_mesh_sar_cfg_cli_transmitter_get(struct bt_mesh_sar_cfg_cli *cli,
 	};
 	int err;
 
-	err = cli_prepare(cli, rsp, OP_SAR_CFG_TX_STATUS, addr);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_SAR_CFG_TX_STATUS, addr, rsp);
 	if (err) {
 		return err;
 	}
@@ -160,11 +149,10 @@ int bt_mesh_sar_cfg_cli_transmitter_get(struct bt_mesh_sar_cfg_cli *cli,
 		return err;
 	}
 
-	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_sar_cfg_cli_transmitter_set(struct bt_mesh_sar_cfg_cli *cli,
-					uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_transmitter_set(uint16_t net_idx, uint16_t addr,
 					const struct bt_mesh_sar_tx *set,
 					struct bt_mesh_sar_tx *rsp)
 {
@@ -177,7 +165,7 @@ int bt_mesh_sar_cfg_cli_transmitter_set(struct bt_mesh_sar_cfg_cli *cli,
 	};
 	int err;
 
-	err = cli_prepare(cli, rsp, OP_SAR_CFG_TX_STATUS, addr);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_SAR_CFG_TX_STATUS, addr, rsp);
 	if (err) {
 		return err;
 	}
@@ -192,11 +180,10 @@ int bt_mesh_sar_cfg_cli_transmitter_set(struct bt_mesh_sar_cfg_cli *cli,
 		return err;
 	}
 
-	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_sar_cfg_cli_receiver_get(struct bt_mesh_sar_cfg_cli *cli,
-				     uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_receiver_get(uint16_t net_idx, uint16_t addr,
 				     struct bt_mesh_sar_rx *rsp)
 {
 	BT_MESH_MODEL_BUF_DEFINE(msg, OP_SAR_CFG_RX_GET, 0);
@@ -208,7 +195,7 @@ int bt_mesh_sar_cfg_cli_receiver_get(struct bt_mesh_sar_cfg_cli *cli,
 	};
 	int err;
 
-	err = cli_prepare(cli, rsp, OP_SAR_CFG_RX_STATUS, addr);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_SAR_CFG_RX_STATUS, addr, rsp);
 	if (err) {
 		return err;
 	}
@@ -222,11 +209,10 @@ int bt_mesh_sar_cfg_cli_receiver_get(struct bt_mesh_sar_cfg_cli *cli,
 		return err;
 	}
 
-	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_sar_cfg_cli_receiver_set(struct bt_mesh_sar_cfg_cli *cli,
-				     uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_receiver_set(uint16_t net_idx, uint16_t addr,
 				     const struct bt_mesh_sar_rx *set,
 				     struct bt_mesh_sar_rx *rsp)
 {
@@ -239,7 +225,7 @@ int bt_mesh_sar_cfg_cli_receiver_set(struct bt_mesh_sar_cfg_cli *cli,
 	};
 	int err;
 
-	err = cli_prepare(cli, rsp, OP_SAR_CFG_RX_STATUS, addr);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_SAR_CFG_RX_STATUS, addr, rsp);
 	if (err) {
 		return err;
 	}
@@ -254,5 +240,5 @@ int bt_mesh_sar_cfg_cli_receiver_set(struct bt_mesh_sar_cfg_cli *cli,
 		return err;
 	}
 
-	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(msg_timeout));
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }

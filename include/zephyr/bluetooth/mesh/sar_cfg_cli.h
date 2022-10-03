@@ -31,6 +31,9 @@ struct bt_mesh_sar_cfg_cli {
 	/* Publication structure instance */
 	struct bt_mesh_model_pub pub;
 
+	/* Synchronous message timeout in milliseconds. */
+	int32_t timeout;
+
 	/* Internal parameters for tracking message responses. */
 	struct bt_mesh_msg_ack_ctx ack_ctx;
 };
@@ -48,20 +51,17 @@ struct bt_mesh_sar_cfg_cli {
 
 /** @brief Get the SAR Transmitter state of the target node.
  *
- *  @param cli     Client model to send on.
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param rsp     Status response parameter.
  *
  *  @return 0 on success, or (negative) error code on failure.
  */
-int bt_mesh_sar_cfg_cli_transmitter_get(struct bt_mesh_sar_cfg_cli *cli,
-					uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_transmitter_get(uint16_t net_idx, uint16_t addr,
 					struct bt_mesh_sar_tx *rsp);
 
 /** @brief Set the SAR Transmitter state of the target node.
  *
- *  @param cli     Client model to send on.
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param set     New SAR Transmitter state to set on the target node.
@@ -69,27 +69,23 @@ int bt_mesh_sar_cfg_cli_transmitter_get(struct bt_mesh_sar_cfg_cli *cli,
  *
  *  @return 0 on success, or (negative) error code on failure.
  */
-int bt_mesh_sar_cfg_cli_transmitter_set(struct bt_mesh_sar_cfg_cli *cli,
-					uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_transmitter_set(uint16_t net_idx, uint16_t addr,
 					const struct bt_mesh_sar_tx *set,
 					struct bt_mesh_sar_tx *rsp);
 
 /** @brief Get the SAR Receiver state of the target node.
  *
- *  @param cli     Client model to send on.
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param rsp     Status response parameter.
  *
  *  @return 0 on success, or (negative) error code on failure.
  */
-int bt_mesh_sar_cfg_cli_receiver_get(struct bt_mesh_sar_cfg_cli *cli,
-				     uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_receiver_get(uint16_t net_idx, uint16_t addr,
 				     struct bt_mesh_sar_rx *rsp);
 
 /** @brief Set the SAR Receiver state of the target node.
  *
- *  @param cli     Client model to send on.
  *  @param net_idx Network index to encrypt with.
  *  @param addr    Target node address.
  *  @param set     New SAR Receiver state to set on the target node.
@@ -97,8 +93,7 @@ int bt_mesh_sar_cfg_cli_receiver_get(struct bt_mesh_sar_cfg_cli *cli,
  *
  *  @return 0 on success, or (negative) error code on failure.
  */
-int bt_mesh_sar_cfg_cli_receiver_set(struct bt_mesh_sar_cfg_cli *cli,
-				     uint16_t net_idx, uint16_t addr,
+int bt_mesh_sar_cfg_cli_receiver_set(uint16_t net_idx, uint16_t addr,
 				     const struct bt_mesh_sar_rx *set,
 				     struct bt_mesh_sar_rx *rsp);
 

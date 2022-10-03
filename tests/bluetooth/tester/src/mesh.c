@@ -1420,7 +1420,7 @@ static void sar_transmitter_get(uint8_t *data, uint16_t len)
 	bt_mesh_sar_cfg_cli_timeout_set(5000);
 
 	err = bt_mesh_sar_cfg_cli_transmitter_get(
-		&sar_cfg_cli, net_key_idx, sys_le16_to_cpu(cmd->dst), &rsp);
+		net_key_idx, sys_le16_to_cpu(cmd->dst), &rsp);
 	if (err) {
 		LOG_ERR("err=%d", err);
 	}
@@ -1449,7 +1449,7 @@ static void sar_transmitter_set(uint8_t *data, uint16_t len)
 	set.multicast_retrans_count = cmd->tx.multicast_retrans_count;
 	set.multicast_retrans_int = cmd->tx.multicast_retrans_int;
 
-	err = bt_mesh_sar_cfg_cli_transmitter_set(&sar_cfg_cli, net_key_idx,
+	err = bt_mesh_sar_cfg_cli_transmitter_set(net_key_idx,
 						  sys_le16_to_cpu(cmd->dst),
 						  &set, &rsp);
 	if (err) {
@@ -1469,7 +1469,7 @@ static void sar_receiver_get(uint8_t *data, uint16_t len)
 
 	LOG_DBG("");
 
-	err = bt_mesh_sar_cfg_cli_receiver_get(&sar_cfg_cli, net_key_idx,
+	err = bt_mesh_sar_cfg_cli_receiver_get(net_key_idx,
 					       sys_le16_to_cpu(cmd->dst), &rsp);
 	if (err) {
 		LOG_ERR("err=%d", err);
@@ -1493,7 +1493,7 @@ static void sar_receiver_set(uint8_t *data, uint16_t len)
 	set.seg_thresh = cmd->rx.seg_thresh;
 	set.rx_seg_int_step = cmd->rx.rx_seg_int_step;
 
-	err = bt_mesh_sar_cfg_cli_receiver_set(&sar_cfg_cli, net_key_idx,
+	err = bt_mesh_sar_cfg_cli_receiver_set(net_key_idx,
 					       sys_le16_to_cpu(cmd->dst), &set,
 					       &rsp);
 	if (err) {

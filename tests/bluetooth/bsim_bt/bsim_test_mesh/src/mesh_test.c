@@ -586,8 +586,7 @@ void bt_mesh_test_sar_conf_set(struct bt_mesh_sar_tx *tx_set, struct bt_mesh_sar
 	if (tx_set) {
 		struct bt_mesh_sar_tx tx_rsp;
 
-		err = bt_mesh_sar_cfg_cli_transmitter_set(&sar_cfg_cli, 0, cfg->addr,
-							  tx_set, &tx_rsp);
+		err = bt_mesh_sar_cfg_cli_transmitter_set(0, cfg->addr, tx_set, &tx_rsp);
 		if (err) {
 			FAIL("Failed to configure SAR Transmitter state (err %d)", err);
 		}
@@ -596,8 +595,7 @@ void bt_mesh_test_sar_conf_set(struct bt_mesh_sar_tx *tx_set, struct bt_mesh_sar
 	if (rx_set) {
 		struct bt_mesh_sar_rx rx_rsp;
 
-		err = bt_mesh_sar_cfg_cli_receiver_set(&sar_cfg_cli, 0, cfg->addr,
-						       rx_set, &rx_rsp);
+		err = bt_mesh_sar_cfg_cli_receiver_set(0, cfg->addr, rx_set, &rx_rsp);
 		if (err) {
 			FAIL("Failed to configure SAR Receiver state (err %d)", err);
 		}

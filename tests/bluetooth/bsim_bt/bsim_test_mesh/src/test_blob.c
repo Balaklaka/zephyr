@@ -306,7 +306,7 @@ static void blob_srv_prov_and_conf(uint16_t addr)
 		return;
 	}
 
-	common_sar_conf(&sar_cfg_cli, addr);
+	common_sar_conf(addr);
 }
 
 static void blob_cli_prov_and_conf(uint16_t addr)
@@ -324,7 +324,7 @@ static void blob_cli_prov_and_conf(uint16_t addr)
 		return;
 	}
 
-	common_sar_conf(&sar_cfg_cli, addr);
+	common_sar_conf(addr);
 }
 
 static void blob_cli_inputs_prepare(uint16_t group)

@@ -335,7 +335,7 @@ static void dist_prov_and_conf(uint16_t addr)
 	};
 
 	common_app_bind(addr, &bind_params[0], ARRAY_SIZE(bind_params));
-	common_sar_conf(&sar_cfg_cli, addr);
+	common_sar_conf(addr);
 }
 
 static void dist_self_update_prov_and_conf(uint16_t addr)
@@ -351,7 +351,7 @@ static void dist_self_update_prov_and_conf(uint16_t addr)
 	};
 
 	common_app_bind(addr, &bind_params[0], ARRAY_SIZE(bind_params));
-	common_sar_conf(&sar_cfg_cli, addr);
+	common_sar_conf(addr);
 }
 
 static void target_prov_and_conf(uint16_t addr, struct bind_params *params, size_t len)
@@ -361,7 +361,7 @@ static void target_prov_and_conf(uint16_t addr, struct bind_params *params, size
 	common_configure(addr);
 
 	common_app_bind(addr, params, len);
-	common_sar_conf(&sar_cfg_cli, addr);
+	common_sar_conf(addr);
 }
 
 static void target_prov_and_conf_default(void)

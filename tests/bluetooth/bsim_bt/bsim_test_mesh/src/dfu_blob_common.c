@@ -43,7 +43,7 @@ int lost_targets_rem(void)
 	return lost_targets.rem_cnt;
 }
 
-void common_sar_conf(struct bt_mesh_sar_cfg_cli *cli, uint16_t addr)
+void common_sar_conf(uint16_t addr)
 {
 	int err;
 
@@ -61,7 +61,7 @@ void common_sar_conf(struct bt_mesh_sar_cfg_cli *cli, uint16_t addr)
 	};
 	struct bt_mesh_sar_tx tx_rsp;
 
-	err = bt_mesh_sar_cfg_cli_transmitter_set(cli, 0, addr, &tx_set, &tx_rsp);
+	err = bt_mesh_sar_cfg_cli_transmitter_set(0, addr, &tx_set, &tx_rsp);
 	if (err) {
 		FAIL("Failed to configure SAR Transmitter state (err %d)", err);
 	}
@@ -78,7 +78,7 @@ void common_sar_conf(struct bt_mesh_sar_cfg_cli *cli, uint16_t addr)
 	};
 	struct bt_mesh_sar_rx rx_rsp;
 
-	err = bt_mesh_sar_cfg_cli_receiver_set(cli, 0, addr, &rx_set, &rx_rsp);
+	err = bt_mesh_sar_cfg_cli_receiver_set(0, addr, &rx_set, &rx_rsp);
 	if (err) {
 		FAIL("Failed to configure SAR Receiver state (err %d)", err);
 	}
