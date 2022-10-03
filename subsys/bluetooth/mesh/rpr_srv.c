@@ -11,6 +11,7 @@
 #include <zephyr/bluetooth/hci.h>
 #include <zephyr/bluetooth/mesh/rpr_srv.h>
 #include <zephyr/bluetooth/mesh/sar_cfg.h>
+#include "access.h"
 #include "adv.h"
 #include "host/ecc.h"
 #include "prov.h"
@@ -1310,6 +1311,7 @@ static int rpr_srv_init(struct bt_mesh_model *mod)
 	k_work_init(&srv.link.report, link_report_send_and_clear);
 	bt_le_scan_cb_register(&scan_cb);
 	mod->keys[0] = BT_MESH_KEY_DEV_LOCAL;
+	mod->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	return 0;
 }

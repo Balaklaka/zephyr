@@ -7,6 +7,7 @@
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/bluetooth/conn.h>
 #include "host/ecc.h"
+#include "access.h"
 #include "prov.h"
 #include "rpr.h"
 
@@ -371,7 +372,8 @@ static int rpr_cli_init(struct bt_mesh_model *mod)
 
 	bt_mesh_msg_ack_ctx_init(&cli->ack_ctx);
 	k_work_init_delayable(&cli->link.timeout, link_timeout);
-	mod->keys[0] = BT_MESH_KEY_DEV_REMOTE;
+	mod->keys[0] = BT_MESH_KEY_DEV_ANY;
+	mod->flags |= BT_MESH_MOD_DEVKEY_ONLY;
 
 	return 0;
 }
