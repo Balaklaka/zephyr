@@ -56,17 +56,11 @@ extern struct bt_mesh_blob_cli bt_mesh_shell_blob_cli;
 /** @brief External reference to Remote Provisioning Client */
 extern struct bt_mesh_rpr_cli bt_mesh_shell_rpr_cli;
 
-/** @brief External reference to SAR Configuration Client */
-extern struct bt_mesh_sar_cfg_cli bt_mesh_shell_sar_cfg_cli;
-
 /** @brief External reference to provisioning handler. */
 extern struct bt_mesh_prov bt_mesh_shell_prov;
 
 /** @brief External reference to shell target context. */
 extern struct bt_mesh_shell_target bt_mesh_shell_target_ctx;
-
-/** @brief External reference to Private Beacon Client */
-extern struct bt_mesh_priv_beacon_cli bt_mesh_shell_priv_beacon_cli;
 
 #ifdef __cplusplus
 }

@@ -8,25 +8,13 @@
 #include <zephyr/bluetooth/mesh.h>
 #include <zephyr/shell/shell.h>
 
-#include "dfu_slot.h"
-#include "dfd_srv_internal.h"
-#include "access.h"
+#include "utils.h"
+
+#include "../dfu_slot.h"
+#include "../dfd_srv_internal.h"
+#include "../access.h"
 
 static struct bt_mesh_model *mod;
-
-static bool shell_model_first_get(uint16_t id, struct bt_mesh_model **mod)
-{
-	const struct bt_mesh_comp *comp = bt_mesh_comp_get();
-
-	for (int i = 0; i < comp->elem_count; i++) {
-		*mod = bt_mesh_model_find(&comp->elem[i], id);
-		if (*mod) {
-			return true;
-		}
-	}
-
-	return false;
-}
 
 static void print_receivers_status(const struct shell *sh, struct bt_mesh_dfd_srv *srv,
 				   enum bt_mesh_dfd_status status)
@@ -76,9 +64,9 @@ static enum bt_mesh_dfu_iter slot_space_cb(const struct bt_mesh_dfu_slot *slot,
 	return BT_MESH_DFU_ITER_CONTINUE;
 }
 
-int cmd_dfd_receivers_add(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_receivers_add(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -122,9 +110,9 @@ int cmd_dfd_receivers_add(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_receivers_delete_all(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_receivers_delete_all(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -142,9 +130,9 @@ int cmd_dfd_receivers_delete_all(const struct shell *sh, size_t argc, char *argv
 	return 0;
 }
 
-int cmd_dfd_receivers_get(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_receivers_get(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -175,7 +163,7 @@ int cmd_dfd_receivers_get(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_capabilities_get(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_capabilities_get(const struct shell *sh, size_t argc, char *argv[])
 {
 	size_t size = 0;
 	/* Remaining size */
@@ -191,10 +179,9 @@ int cmd_dfd_capabilities_get(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-
-int cmd_dfd_get(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_get(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -205,9 +192,9 @@ int cmd_dfd_get(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -257,9 +244,9 @@ int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_suspend(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_suspend(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -275,9 +262,9 @@ int cmd_dfd_suspend(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_cancel(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_cancel(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -293,9 +280,9 @@ int cmd_dfd_cancel(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_apply(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_apply(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -311,7 +298,7 @@ int cmd_dfd_apply(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_fw_get(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_fw_get(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint8_t fwid[CONFIG_BT_MESH_DFU_FWID_MAXLEN];
 	size_t hexlen = strlen(argv[1]);
@@ -334,7 +321,7 @@ int cmd_dfd_fw_get(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_fw_get_by_idx(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_fw_get_by_idx(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t idx = (uint16_t)strtoul(argv[1], NULL, 0);
 	const struct bt_mesh_dfu_slot *slot = bt_mesh_dfu_slot_at(idx);
@@ -349,9 +336,9 @@ int cmd_dfd_fw_get_by_idx(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_fw_delete(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_fw_delete(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -379,9 +366,9 @@ int cmd_dfd_fw_delete(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_fw_delete_all(const struct shell *sh, size_t argc, char *argv[])
+static int cmd_dfd_fw_delete_all(const struct shell *sh, size_t argc, char *argv[])
 {
-	if (!mod && !shell_model_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
+	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_DFD_SRV, &mod)) {
 		return -ENODEV;
 	}
 
@@ -398,47 +385,29 @@ int cmd_dfd_fw_delete_all(const struct shell *sh, size_t argc, char *argv[])
 	return 0;
 }
 
-int cmd_dfd_instance_get_all(const struct shell *sh, size_t argc, char *argv[])
-{
-	const struct bt_mesh_comp *comp = bt_mesh_comp_get();
-	struct bt_mesh_model *mod;
+BT_MESH_SHELL_MDL_INSTANCE_CMDS(instance_cmds, BT_MESH_MODEL_ID_DFD_SRV, mod);
 
-	for (int i = 0; i < comp->elem_count; i++) {
-		mod = bt_mesh_model_find(&comp->elem[i], BT_MESH_MODEL_ID_DFD_SRV);
-		if (mod) {
-			shell_fprintf(sh, SHELL_NORMAL,
-				      "Server instance found at element index %d.",
-				      mod->elem_idx);
-			if (comp->elem[i].addr) {
-				shell_print(sh, " Address: 0x%04x", comp->elem[i].addr);
-			} else {
-				shell_print(sh, " Address not set.");
-			}
-		}
-	}
+SHELL_STATIC_SUBCMD_SET_CREATE(
+	dfd_cmds,
+	SHELL_CMD_ARG(receivers-add, NULL, "<addr>,<fw_idx>[;<addr>,<fw_idx>]...",
+		      cmd_dfd_receivers_add, 2, 0),
+	SHELL_CMD_ARG(receivers-delete-all, NULL, NULL, cmd_dfd_receivers_delete_all, 1, 0),
+	SHELL_CMD_ARG(receivers-get, NULL, "<first> <count>", cmd_dfd_receivers_get, 3, 0),
+	SHELL_CMD_ARG(capabilities-get, NULL, NULL, cmd_dfd_capabilities_get, 1, 0),
+	SHELL_CMD_ARG(get, NULL, NULL, cmd_dfd_get, 1, 0),
+	SHELL_CMD_ARG(start, NULL,
+		      "<app_idx> <slot_idx> [<group> [<policy_apply> [<ttl> "
+		      "[<timeout_base> [<xfer_mode>]]]]]",
+		      cmd_dfd_start, 3, 5),
+	SHELL_CMD_ARG(suspend, NULL, NULL, cmd_dfd_suspend, 1, 0),
+	SHELL_CMD_ARG(cancel, NULL, NULL, cmd_dfd_cancel, 1, 0),
+	SHELL_CMD_ARG(apply, NULL, NULL, cmd_dfd_apply, 1, 0),
+	SHELL_CMD_ARG(fw-get, NULL, "<fwid>", cmd_dfd_fw_get, 2, 0),
+	SHELL_CMD_ARG(fw-get-by-idx, NULL, "<idx>", cmd_dfd_fw_get_by_idx, 2, 0),
+	SHELL_CMD_ARG(fw-delete, NULL, "<fwid>", cmd_dfd_fw_delete, 2, 0),
+	SHELL_CMD_ARG(fw-delete-all, NULL, NULL, cmd_dfd_fw_delete_all, 1, 0),
+	SHELL_CMD(instance, &instance_cmds, "Instance commands", bt_mesh_shell_mdl_cmds_help),
+	SHELL_SUBCMD_SET_END);
 
-	return 0;
-}
-
-int cmd_dfd_instance_set(const struct shell *sh, size_t argc, char *argv[])
-{
-	uint8_t elem_idx = (uint8_t)strtoul(argv[1], NULL, 0);
-	struct bt_mesh_model *mod_temp;
-	const struct bt_mesh_comp *comp = bt_mesh_comp_get();
-
-	if (elem_idx >= comp->elem_count) {
-		shell_error(sh, "Invalid element index");
-		return -EINVAL;
-	}
-
-	mod_temp = bt_mesh_model_find(&comp->elem[elem_idx], BT_MESH_MODEL_ID_DFD_SRV);
-
-	if (mod_temp) {
-		mod = mod_temp;
-	} else {
-		shell_error(sh, "Unable to find model instance for element index %d", elem_idx);
-		return -ENODEV;
-	}
-
-	return 0;
-}
+SHELL_SUBCMD_ADD((mesh, models), dfd, &dfd_cmds, "Distributor commands",
+		 bt_mesh_shell_mdl_cmds_help, 1, 1);
