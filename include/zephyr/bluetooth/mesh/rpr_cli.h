@@ -83,12 +83,7 @@ struct bt_mesh_rpr_cli {
 
 	/* Internal parameters */
 
-	struct {
-		struct k_sem sync;
-		uint32_t rsp;
-		void *ctx;
-		const struct bt_mesh_rpr_node *srv;
-	} tx;
+	struct bt_mesh_msg_ack_ctx ack_ctx;
 
 	struct {
 		struct k_work_delayable timeout;
