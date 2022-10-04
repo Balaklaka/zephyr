@@ -13,11 +13,12 @@
 #define LOG_MODULE_NAME bt_mesh_priv_beacon_cli
 #include "common/log.h"
 
+static struct bt_mesh_priv_beacon_cli *cli;
+
 static int handle_beacon_status(struct bt_mesh_model *mod,
 				struct bt_mesh_msg_ctx *ctx,
 				struct net_buf_simple *buf)
 {
-	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
 	struct bt_mesh_priv_beacon *rsp;
 	uint8_t beacon, rand_int;
 
@@ -49,7 +50,6 @@ static int handle_gatt_proxy_status(struct bt_mesh_model *mod,
 				    struct bt_mesh_msg_ctx *ctx,
 				    struct net_buf_simple *buf)
 {
-	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
 	uint8_t *rsp;
 	uint8_t proxy;
 
@@ -78,7 +78,6 @@ static int handle_node_id_status(struct bt_mesh_model *mod,
 				 struct bt_mesh_msg_ctx *ctx,
 				 struct net_buf_simple *buf)
 {
-	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
 	struct bt_mesh_priv_node_id *rsp;
 	uint8_t status, node_id;
 	uint16_t net_idx;
@@ -117,13 +116,12 @@ const struct bt_mesh_model_op bt_mesh_priv_beacon_cli_op[] = {
 
 static int priv_beacon_cli_init(struct bt_mesh_model *mod)
 {
-	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
-
 	if (!bt_mesh_model_in_primary(mod)) {
 		BT_ERR("Private Beacon Client only allowed in primary element");
 		return -EINVAL;
 	}
 
+	cli = mod->user_data;
 	cli->mod = mod;
 	cli->timeout = 2 * MSEC_PER_SEC;
 	mod->keys[0] = BT_MESH_KEY_DEV_ANY;
@@ -151,8 +149,7 @@ static int send(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
 	return bt_mesh_model_send(cli->mod, &ctx, buf, NULL, NULL);
 }
 
-int bt_mesh_priv_beacon_cli_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
-				uint16_t addr, struct bt_mesh_priv_beacon *val)
+int bt_mesh_priv_beacon_cli_set(uint16_t net_idx, uint16_t addr, struct bt_mesh_priv_beacon *val)
 {
 	int err;
 
@@ -178,8 +175,7 @@ int bt_mesh_priv_beacon_cli_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t ne
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_priv_beacon_cli_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
-				uint16_t addr, struct bt_mesh_priv_beacon *val)
+int bt_mesh_priv_beacon_cli_get(uint16_t net_idx, uint16_t addr, struct bt_mesh_priv_beacon *val)
 {
 	int err;
 
@@ -200,9 +196,7 @@ int bt_mesh_priv_beacon_cli_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t ne
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_priv_beacon_cli_gatt_proxy_set(struct bt_mesh_priv_beacon_cli *cli,
-					   uint16_t net_idx, uint16_t addr,
-					   uint8_t *val)
+int bt_mesh_priv_beacon_cli_gatt_proxy_set(uint16_t net_idx, uint16_t addr, uint8_t *val)
 {
 	int err;
 
@@ -230,8 +224,7 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_set(struct bt_mesh_priv_beacon_cli *cli,
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_priv_beacon_cli_gatt_proxy_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
-					   uint16_t addr, uint8_t *val)
+int bt_mesh_priv_beacon_cli_gatt_proxy_get(uint16_t net_idx, uint16_t addr, uint8_t *val)
 {
 	int err;
 
@@ -252,8 +245,8 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_get(struct bt_mesh_priv_beacon_cli *cli, 
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_priv_beacon_cli_node_id_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
-					uint16_t addr, struct bt_mesh_priv_node_id *val)
+int bt_mesh_priv_beacon_cli_node_id_set(uint16_t net_idx, uint16_t addr,
+					struct bt_mesh_priv_node_id *val)
 {
 	int err;
 
@@ -283,8 +276,7 @@ int bt_mesh_priv_beacon_cli_node_id_set(struct bt_mesh_priv_beacon_cli *cli, uin
 	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
-int bt_mesh_priv_beacon_cli_node_id_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
-					uint16_t addr, uint16_t key_net_idx,
+int bt_mesh_priv_beacon_cli_node_id_get(uint16_t net_idx, uint16_t addr, uint16_t key_net_idx,
 					struct bt_mesh_priv_node_id *val)
 {
 	int err;
