@@ -18,7 +18,7 @@ static int handle_beacon_status(struct bt_mesh_model *mod,
 				struct net_buf_simple *buf)
 {
 	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
-	struct bt_mesh_priv_beacon *rsp = cli->rsp;
+	struct bt_mesh_priv_beacon *rsp;
 	uint8_t beacon, rand_int;
 
 	beacon = net_buf_simple_pull_u8(buf);
@@ -32,14 +32,15 @@ static int handle_beacon_status(struct bt_mesh_model *mod,
 
 	BT_DBG("0x%02x (%u s)", beacon, 10U * rand_int);
 
-	if (cli->op != OP_PRIV_BEACON_STATUS || ctx->addr != cli->addr) {
+	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_PRIV_BEACON_STATUS, ctx->addr,
+				       (void **)&rsp)) {
 		BT_WARN("Unexpected beacon status from 0x%04x", ctx->addr);
 		return -EINVAL;
 	}
 
 	rsp->enabled = beacon;
 	rsp->rand_interval = rand_int;
-	k_sem_give(&cli->sem);
+	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
 
 	return 0;
 }
@@ -49,7 +50,7 @@ static int handle_gatt_proxy_status(struct bt_mesh_model *mod,
 				    struct net_buf_simple *buf)
 {
 	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
-	uint8_t *rsp = cli->rsp;
+	uint8_t *rsp;
 	uint8_t proxy;
 
 	proxy = net_buf_simple_pull_u8(buf);
@@ -61,13 +62,14 @@ static int handle_gatt_proxy_status(struct bt_mesh_model *mod,
 		return -EINVAL;
 	}
 
-	if (cli->op != OP_PRIV_GATT_PROXY_STATUS || ctx->addr != cli->addr) {
+	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_PRIV_GATT_PROXY_STATUS, ctx->addr,
+				       (void **)&rsp)) {
 		BT_WARN("Unexpected proxy status from 0x%04x", ctx->addr);
 		return -EINVAL;
 	}
 
 	*rsp = proxy;
-	k_sem_give(&cli->sem);
+	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
 
 	return 0;
 }
@@ -77,7 +79,7 @@ static int handle_node_id_status(struct bt_mesh_model *mod,
 				 struct net_buf_simple *buf)
 {
 	struct bt_mesh_priv_beacon_cli *cli = mod->user_data;
-	struct bt_mesh_priv_node_id *rsp = cli->rsp;
+	struct bt_mesh_priv_node_id *rsp;
 	uint8_t status, node_id;
 	uint16_t net_idx;
 
@@ -92,15 +94,16 @@ static int handle_node_id_status(struct bt_mesh_model *mod,
 		return -EINVAL;
 	}
 
-	if (cli->op != OP_PRIV_NODE_ID_STATUS || ctx->addr != cli->addr ||
-	    rsp->net_idx != net_idx) {
+
+	if (!bt_mesh_msg_ack_ctx_match(&cli->ack_ctx, OP_PRIV_NODE_ID_STATUS, ctx->addr,
+				       (void **)&rsp)) {
 		BT_WARN("Unexpected node ID status from 0x%04x", ctx->addr);
 		return -EINVAL;
 	}
 
 	rsp->status = status;
 	rsp->state = node_id;
-	k_sem_give(&cli->sem);
+	bt_mesh_msg_ack_ctx_rx(&cli->ack_ctx);
 
 	return 0;
 }
@@ -125,7 +128,8 @@ static int priv_beacon_cli_init(struct bt_mesh_model *mod)
 	cli->timeout = 2 * MSEC_PER_SEC;
 	mod->keys[0] = BT_MESH_KEY_DEV_ANY;
 	mod->flags |= BT_MESH_MOD_DEVKEY_ONLY;
-	k_sem_init(&cli->sem, 0, 1);
+
+	bt_mesh_msg_ack_ctx_init(&cli->ack_ctx);
 
 	return 0;
 }
@@ -147,36 +151,12 @@ static int send(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
 	return bt_mesh_model_send(cli->mod, &ctx, buf, NULL, NULL);
 }
 
-static int cli_prepare(struct bt_mesh_priv_beacon_cli *cli, uint16_t addr,
-		       uint32_t op, void *rsp)
-{
-	if (cli->op) {
-		return -EBUSY;
-	}
-
-	cli->addr = addr;
-	cli->op = op;
-	cli->rsp = rsp;
-
-	return 0;
-}
-
-static int cli_wait(struct bt_mesh_priv_beacon_cli *cli)
-{
-	int err;
-
-	err = k_sem_take(&cli->sem, K_MSEC(cli->timeout));
-	cli->op = 0U;
-
-	return err;
-}
-
 int bt_mesh_priv_beacon_cli_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
 				uint16_t addr, struct bt_mesh_priv_beacon *val)
 {
 	int err;
 
-	err = cli_prepare(cli, addr, OP_PRIV_BEACON_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_BEACON_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -191,11 +171,11 @@ int bt_mesh_priv_beacon_cli_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t ne
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
 int bt_mesh_priv_beacon_cli_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
@@ -203,7 +183,7 @@ int bt_mesh_priv_beacon_cli_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t ne
 {
 	int err;
 
-	err = cli_prepare(cli, addr, OP_PRIV_BEACON_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_BEACON_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -213,11 +193,11 @@ int bt_mesh_priv_beacon_cli_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t ne
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
 int bt_mesh_priv_beacon_cli_gatt_proxy_set(struct bt_mesh_priv_beacon_cli *cli,
@@ -231,7 +211,7 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_set(struct bt_mesh_priv_beacon_cli *cli,
 		return -EINVAL;
 	}
 
-	err = cli_prepare(cli, addr, OP_PRIV_GATT_PROXY_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_GATT_PROXY_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -243,11 +223,11 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_set(struct bt_mesh_priv_beacon_cli *cli,
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
 int bt_mesh_priv_beacon_cli_gatt_proxy_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
@@ -255,7 +235,7 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_get(struct bt_mesh_priv_beacon_cli *cli, 
 {
 	int err;
 
-	err = cli_prepare(cli, addr, OP_PRIV_GATT_PROXY_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_GATT_PROXY_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -265,11 +245,11 @@ int bt_mesh_priv_beacon_cli_gatt_proxy_get(struct bt_mesh_priv_beacon_cli *cli, 
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
 int bt_mesh_priv_beacon_cli_node_id_set(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
@@ -283,7 +263,7 @@ int bt_mesh_priv_beacon_cli_node_id_set(struct bt_mesh_priv_beacon_cli *cli, uin
 		return -EINVAL;
 	}
 
-	err = cli_prepare(cli, addr, OP_PRIV_NODE_ID_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_NODE_ID_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -296,11 +276,11 @@ int bt_mesh_priv_beacon_cli_node_id_set(struct bt_mesh_priv_beacon_cli *cli, uin
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }
 
 int bt_mesh_priv_beacon_cli_node_id_get(struct bt_mesh_priv_beacon_cli *cli, uint16_t net_idx,
@@ -309,7 +289,7 @@ int bt_mesh_priv_beacon_cli_node_id_get(struct bt_mesh_priv_beacon_cli *cli, uin
 {
 	int err;
 
-	err = cli_prepare(cli, addr, OP_PRIV_NODE_ID_STATUS, val);
+	err = bt_mesh_msg_ack_ctx_prepare(&cli->ack_ctx, OP_PRIV_NODE_ID_STATUS, addr, val);
 	if (err) {
 		return err;
 	}
@@ -323,9 +303,9 @@ int bt_mesh_priv_beacon_cli_node_id_get(struct bt_mesh_priv_beacon_cli *cli, uin
 
 	err = send(cli, net_idx, addr, &buf);
 	if (err) {
-		cli->op = 0U;
+		bt_mesh_msg_ack_ctx_clear(&cli->ack_ctx);
 		return err;
 	}
 
-	return cli_wait(cli);
+	return bt_mesh_msg_ack_ctx_wait(&cli->ack_ctx, K_MSEC(cli->timeout));
 }

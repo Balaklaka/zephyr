@@ -36,10 +36,9 @@ struct bt_mesh_priv_beacon_cli {
 	/** Timeout value in milliseconds. */
 	int32_t timeout;
 	struct bt_mesh_model *mod;
-	uint16_t addr;
-	uint32_t op;
-	void *rsp;
-	struct k_sem sem;
+
+	/* Internal parameters for tracking message responses. */
+	struct bt_mesh_msg_ack_ctx ack_ctx;
 };
 
 /** Private Beacon */
