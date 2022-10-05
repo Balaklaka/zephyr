@@ -46,8 +46,6 @@ enum {
 /** Remote provisioning server instance. */
 static struct {
 	struct bt_mesh_model *mod;
-	struct bt_mesh_rpr_node cli;
-	struct bt_mesh_rpr_unprov *dev;
 
 	ATOMIC_DEFINE(flags, RPR_SRV_NUM_FLAGS);
 
@@ -65,6 +63,8 @@ static struct {
 		/* Time to do regular scanning after extended scanning ends: */
 		uint32_t additional_time;
 		struct net_buf_simple *adv_data;
+		struct bt_mesh_rpr_node cli;
+		struct bt_mesh_rpr_unprov *dev;
 	} scan;
 	struct {
 		struct k_work report;
@@ -73,6 +73,8 @@ static struct {
 		uint8_t close_reason;
 		uint8_t tx_pdu;
 		uint8_t rx_pdu;
+		struct bt_mesh_rpr_node cli;
+		struct bt_mesh_rpr_unprov *dev;
 	} link;
 	struct {
 		const struct prov_bearer_cb *cb;
@@ -126,15 +128,16 @@ static uint8_t *get_ad_type(uint8_t *list, size_t count, uint8_t ad)
 	return NULL;
 }
 
-static void cli_set(const struct bt_mesh_rpr_node *cli)
+static void cli_scan_clear(void)
 {
-	srv.cli = *cli;
+	srv.scan.cli.addr = BT_MESH_ADDR_UNASSIGNED;
+	srv.scan.cli.net_idx = BT_MESH_KEY_UNUSED;
 }
 
-static void cli_clear(void)
+static void cli_link_clear(void)
 {
-	srv.cli.addr = BT_MESH_ADDR_UNASSIGNED;
-	srv.cli.net_idx = BT_MESH_KEY_UNUSED;
+	srv.link.cli.addr = BT_MESH_ADDR_UNASSIGNED;
+	srv.link.cli.net_idx = BT_MESH_KEY_UNUSED;
 }
 
 static void scan_status_send(struct bt_mesh_msg_ctx *ctx,
@@ -171,7 +174,7 @@ static void link_status_send(struct bt_mesh_msg_ctx *ctx,
 
 static void link_report_send(void)
 {
-	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.cli, true);
+	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.link.cli, true);
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, RPR_OP_LINK_REPORT, 3);
 	bt_mesh_model_msg_init(&buf, RPR_OP_LINK_REPORT);
@@ -213,7 +216,7 @@ static const struct bt_mesh_send_cb report_cb = {
 
 static void scan_report_send(void)
 {
-	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.cli, true);
+	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.scan.cli, true);
 	int i, err;
 
 	if (atomic_test_bit(srv.flags, SCAN_REPORT_PENDING)) {
@@ -254,32 +257,32 @@ static void scan_report_send(void)
 
 static void scan_ext_report_send(void)
 {
-	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.cli, true);
+	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.scan.cli, true);
 	int err;
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, RPR_OP_EXTENDED_SCAN_REPORT,
 				 19 + CONFIG_BT_MESH_RPR_SRV_AD_DATA_MAX);
 	bt_mesh_model_msg_init(&buf, RPR_OP_EXTENDED_SCAN_REPORT);
 	net_buf_simple_add_u8(&buf, BT_MESH_RPR_SUCCESS);
-	net_buf_simple_add_mem(&buf, srv.dev->uuid, 16);
-	if (!(srv.dev->flags & BT_MESH_RPR_UNPROV_FOUND)) {
+	net_buf_simple_add_mem(&buf, srv.scan.dev->uuid, 16);
+	if (!(srv.scan.dev->flags & BT_MESH_RPR_UNPROV_FOUND)) {
 		BT_DBG("not found");
 		goto send;
 	}
 
-	if (srv.dev->flags & BT_MESH_RPR_UNPROV_EXT_ADV_RXD) {
-		net_buf_simple_add_le16(&buf, srv.dev->oob);
+	if (srv.scan.dev->flags & BT_MESH_RPR_UNPROV_EXT_ADV_RXD) {
+		net_buf_simple_add_le16(&buf, srv.scan.dev->oob);
 		net_buf_simple_add_mem(&buf, srv.scan.adv_data->data,
 				       srv.scan.adv_data->len);
 		BT_DBG("adv data: %s",
 		       bt_hex(srv.scan.adv_data->data, srv.scan.adv_data->len));
 	}
 
-	srv.dev->flags &= ~BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
+	srv.scan.dev->flags &= ~BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
 send:
 	err = bt_mesh_model_send(srv.mod, &ctx, &buf, NULL, NULL);
 	if (!err) {
-		srv.dev->flags |= BT_MESH_RPR_UNPROV_REPORTED;
+		srv.scan.dev->flags |= BT_MESH_RPR_UNPROV_REPORTED;
 	}
 }
 
@@ -290,7 +293,7 @@ static void scan_stop(void)
 	k_work_cancel_delayable(&srv.scan.report);
 	k_work_cancel_delayable(&srv.scan.timeout);
 	srv.scan.state = BT_MESH_RPR_SCAN_IDLE;
-	cli_clear();
+	cli_scan_clear();
 	atomic_clear_bit(srv.flags, SCANNING);
 }
 
@@ -319,12 +322,12 @@ static void scan_ext_stop(uint32_t remaining_time)
 		atomic_clear_bit(srv.flags, SCANNING);
 	}
 
-	if (!(srv.dev->flags & BT_MESH_RPR_UNPROV_REPORTED)) {
+	if (!(srv.scan.dev->flags & BT_MESH_RPR_UNPROV_REPORTED)) {
 		scan_ext_report_send();
 	}
 
 	bt_mesh_scan_active_set(false);
-	srv.dev = NULL;
+	srv.scan.dev = NULL;
 }
 
 static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
@@ -332,9 +335,9 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 
 static void scan_timeout(struct k_work *work)
 {
-	BT_DBG("%s", (srv.dev ? "Extended scanning" : "Normal scanning"));
+	BT_DBG("%s", (srv.scan.dev ? "Extended scanning" : "Normal scanning"));
 
-	if (srv.dev) {
+	if (srv.scan.dev) {
 		scan_ext_stop(0);
 	} else {
 		scan_report_send();
@@ -358,7 +361,7 @@ static void link_close(enum bt_mesh_rpr_status status,
 		srv.refresh.cb->link_closed(&pb_remote_srv, srv.refresh.cb_data,
 					    srv.link.close_reason);
 
-		cli_clear();
+		cli_link_clear();
 	} else {
 		bt_mesh_pb_adv.link_close(reason);
 	}
@@ -366,7 +369,7 @@ static void link_close(enum bt_mesh_rpr_status status,
 
 static void outbound_pdu_report_send(void)
 {
-	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.cli, true);
+	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.link.cli, true);
 
 	BT_MESH_MODEL_BUF_DEFINE(buf, RPR_OP_PDU_OUTBOUND_REPORT, 1);
 	bt_mesh_model_msg_init(&buf, RPR_OP_PDU_OUTBOUND_REPORT);
@@ -392,7 +395,7 @@ static void pdu_send_complete(int err, void *cb_data)
 static int inbound_pdu_send(struct net_buf_simple *buf,
 			    const struct bt_mesh_send_cb *cb)
 {
-	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.cli, true);
+	struct bt_mesh_msg_ctx ctx = LINK_CTX(&srv.link.cli, true);
 
 	BT_MESH_MODEL_BUF_DEFINE(msg, RPR_OP_PDU_REPORT, 66);
 	bt_mesh_model_msg_init(&msg, RPR_OP_PDU_REPORT);
@@ -405,20 +408,22 @@ static int inbound_pdu_send(struct net_buf_simple *buf,
 static void subnet_evt_handler(struct bt_mesh_subnet *subnet,
 			       enum bt_mesh_key_evt evt)
 {
-	if (evt != BT_MESH_KEY_DELETED || subnet->net_idx != srv.cli.net_idx) {
+	if (!srv.mod || evt != BT_MESH_KEY_DELETED) {
 		return;
 	}
 
 	BT_DBG("Subnet deleted");
 
-	if (srv.link.state != BT_MESH_RPR_LINK_IDLE) {
+	if (srv.link.state != BT_MESH_RPR_LINK_IDLE &&
+	    subnet->net_idx == srv.link.cli.net_idx) {
 		link_close(BT_MESH_RPR_ERR_LINK_CLOSED_BY_SERVER,
 			   PROV_BEARER_LINK_STATUS_FAIL);
 		/* Skip the link closing stage, as specified in the Bluetooth
 		 * Mesh Profile specification, section 4.4.5.4.
 		 */
 		srv.link.state = BT_MESH_RPR_LINK_IDLE;
-	} else if (atomic_test_bit(srv.flags, SCANNING)) {
+	} else if (atomic_test_bit(srv.flags, SCANNING) &&
+		   subnet->net_idx == srv.scan.cli.net_idx) {
 		scan_stop();
 	}
 }
@@ -442,7 +447,7 @@ static void pb_link_opened(const struct prov_bearer *bearer, void *cb_data)
 static void link_report_send_and_clear(struct k_work *work)
 {
 	link_report_send();
-	cli_clear();
+	cli_link_clear();
 }
 
 static void pb_link_closed(const struct prov_bearer *bearer, void *cb_data,
@@ -491,7 +496,7 @@ static void pb_error(const struct prov_bearer *bearer, void *cb_data,
 	srv.link.state = BT_MESH_RPR_LINK_IDLE;
 	srv.link.status = BT_MESH_RPR_ERR_LINK_CLOSED_AS_CANNOT_RECEIVE_PDU;
 	link_report_send();
-	cli_clear();
+	cli_link_clear();
 }
 
 static void pb_rx(const struct prov_bearer *bearer, void *cb_data,
@@ -579,7 +584,7 @@ static int handle_scan_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 	}
 
 	if (srv.scan.state != BT_MESH_RPR_SCAN_IDLE &&
-	    !rpr_node_equal(&cli, &srv.cli)) {
+	    !rpr_node_equal(&cli, &srv.scan.cli)) {
 		status = BT_MESH_RPR_ERR_INVALID_STATE;
 		goto rsp;
 	}
@@ -600,7 +605,7 @@ static int handle_scan_start(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 	srv.scan.max_devs =
 		(max_devs ? max_devs :
 			    CONFIG_BT_MESH_RPR_SRV_SCANNED_ITEMS_MAX);
-	cli_set(&cli);
+	srv.scan.cli = cli;
 	status = BT_MESH_RPR_SUCCESS;
 
 	atomic_set_bit(srv.flags, SCANNING);
@@ -714,8 +719,8 @@ static int handle_extended_scan_start(struct bt_mesh_model *mod, struct bt_mesh_
 		goto rsp;
 	}
 
-	if (srv.dev && (memcmp(srv.dev->uuid, uuid, 16) ||
-			!rpr_node_equal(&srv.cli, &cli))) {
+	if (srv.scan.dev && (memcmp(srv.scan.dev->uuid, uuid, 16) ||
+			!rpr_node_equal(&srv.scan.cli, &cli))) {
 		BT_WARN("Extended scan fail: Busy");
 		status = BT_MESH_RPR_ERR_LIMITED_RESOURCES;
 		goto rsp;
@@ -726,18 +731,18 @@ static int handle_extended_scan_start(struct bt_mesh_model *mod, struct bt_mesh_
 		srv.scan.devs[0].flags = 0;
 	}
 
-	srv.dev = unprov_get(uuid);
-	if (!srv.dev) {
-		srv.dev = unprov_get(NULL);
-		if (!srv.dev) {
+	srv.scan.dev = unprov_get(uuid);
+	if (!srv.scan.dev) {
+		srv.scan.dev = unprov_get(NULL);
+		if (!srv.scan.dev) {
 			BT_WARN("Extended scan fail: No memory");
 			status = BT_MESH_RPR_ERR_LIMITED_RESOURCES;
 			goto rsp;
 		}
 
-		memcpy(srv.dev->uuid, uuid, 16);
-		srv.dev->oob = 0;
-		srv.dev->flags = 0;
+		memcpy(srv.scan.dev->uuid, uuid, 16);
+		srv.scan.dev->oob = 0;
+		srv.scan.dev->flags = 0;
 	}
 
 	memcpy(srv.scan.ad, ad, ad_count);
@@ -746,12 +751,12 @@ static int handle_extended_scan_start(struct bt_mesh_model *mod, struct bt_mesh_
 
 	atomic_set_bit(srv.flags, SCANNING);
 	atomic_clear_bit(srv.flags, SCAN_EXT_HAS_ADDR);
-	srv.dev->flags &= ~BT_MESH_RPR_UNPROV_REPORTED;
-	srv.dev->flags |= BT_MESH_RPR_UNPROV_ACTIVE | BT_MESH_RPR_UNPROV_EXT;
+	srv.scan.dev->flags &= ~BT_MESH_RPR_UNPROV_REPORTED;
+	srv.scan.dev->flags |= BT_MESH_RPR_UNPROV_ACTIVE | BT_MESH_RPR_UNPROV_EXT;
 
 	if (srv.scan.state == BT_MESH_RPR_SCAN_IDLE) {
 		srv.scan.additional_time = 0;
-		cli_set(&cli);
+		srv.scan.cli = cli;
 	} else if (k_ticks_to_ms_floor32(
 			k_work_delayable_remaining_get(&srv.scan.timeout)) <
 			(timeout * MSEC_PER_SEC)) {
@@ -823,7 +828,7 @@ static int handle_link_open(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 	if (srv.link.state == BT_MESH_RPR_LINK_OPENING ||
 	    srv.link.state == BT_MESH_RPR_LINK_ACTIVE) {
 
-		if (!rpr_node_equal(&cli, &srv.cli)) {
+		if (!rpr_node_equal(&cli, &srv.link.cli)) {
 			status = BT_MESH_RPR_ERR_LINK_CANNOT_OPEN;
 			goto rsp;
 		}
@@ -847,7 +852,7 @@ static int handle_link_open(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 
 		uuid = net_buf_simple_pull_mem(buf, 16);
 
-		if (memcmp(uuid, srv.dev->uuid, 16)) {
+		if (memcmp(uuid, srv.link.dev->uuid, 16)) {
 			status = BT_MESH_RPR_ERR_LINK_CANNOT_OPEN;
 		} else {
 			status = BT_MESH_RPR_SUCCESS;
@@ -876,7 +881,7 @@ static int handle_link_open(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 
 		atomic_set_bit(srv.flags, NODE_REFRESH);
 		srv.refresh.procedure = refresh;
-		cli_set(&cli);
+		srv.link.cli = cli;
 		srv.link.rx_pdu = 0;
 		srv.link.tx_pdu = 0;
 		srv.link.state = BT_MESH_RPR_LINK_ACTIVE;
@@ -902,11 +907,11 @@ static int handle_link_open(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 	 * much information as possible, but fall back to hijacking the first
 	 * slot if none was found.
 	 */
-	srv.dev = unprov_get(uuid);
-	if (!srv.dev) {
-		srv.dev = &srv.scan.devs[0];
-		memcpy(srv.dev->uuid, uuid, 16);
-		srv.dev->flags = 0;
+	srv.link.dev = unprov_get(uuid);
+	if (!srv.link.dev) {
+		srv.link.dev = &srv.scan.devs[0];
+		memcpy(srv.link.dev->uuid, uuid, 16);
+		srv.link.dev->flags = 0;
 	}
 
 	err = bt_mesh_pb_adv.link_open(uuid, timeout, &prov_bearer_cb, &srv);
@@ -915,12 +920,12 @@ static int handle_link_open(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *c
 		goto rsp;
 	}
 
-	cli_set(&cli);
+	srv.link.cli = cli;
 	srv.link.rx_pdu = 0;
 	srv.link.tx_pdu = 0;
 	srv.link.state = BT_MESH_RPR_LINK_OPENING;
 	srv.link.status = BT_MESH_RPR_SUCCESS;
-	srv.dev->flags |= BT_MESH_RPR_UNPROV_HAS_LINK;
+	srv.link.dev->flags |= BT_MESH_RPR_UNPROV_HAS_LINK;
 	status = BT_MESH_RPR_SUCCESS;
 
 rsp:
@@ -949,7 +954,7 @@ static int handle_link_close(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *
 		return 0;
 	}
 
-	if (!rpr_node_equal(&cli, &srv.cli)) {
+	if (!rpr_node_equal(&cli, &srv.link.cli)) {
 		link_status_send(ctx, BT_MESH_RPR_ERR_INVALID_STATE);
 		return 0;
 	}
@@ -980,7 +985,7 @@ static int handle_pdu_send(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx *ct
 		return 0;
 	}
 
-	if (!rpr_node_equal(&cli, &srv.cli)) {
+	if (!rpr_node_equal(&cli, &srv.link.cli)) {
 		BT_WARN("Unknown client 0x%04x", cli.addr);
 		return 0;
 	}
@@ -1071,7 +1076,7 @@ adv_handle_beacon(const struct bt_le_scan_recv_info *info,
 	       (dev->flags & BT_MESH_RPR_UNPROV_HASH) ? bt_hex(&dev->hash, 4) :
 					    "(no hash)");
 
-	if (dev != srv.dev && !(dev->flags & BT_MESH_RPR_UNPROV_REPORTED)) {
+	if (dev != srv.scan.dev && !(dev->flags & BT_MESH_RPR_UNPROV_REPORTED)) {
 		scan_report_schedule();
 	}
 
@@ -1109,7 +1114,7 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 
 	if (atomic_test_bit(srv.flags, SCAN_EXT_HAS_ADDR) &&
 	    !bt_addr_le_cmp(&srv.scan.addr, info->addr)) {
-		dev = srv.dev;
+		dev = srv.scan.dev;
 	}
 
 	/* Do AD data walk in two rounds: First to figure out which
@@ -1126,18 +1131,19 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 		if (ad.type == BT_DATA_MESH_BEACON && !dev) {
 			dev = adv_handle_beacon(info, &ad);
 			is_beacon = true;
-		} else if (ad.type == BT_DATA_URI && (srv.dev->flags & BT_MESH_RPR_UNPROV_HASH)) {
+		} else if (ad.type == BT_DATA_URI &&
+			   (srv.scan.dev->flags & BT_MESH_RPR_UNPROV_HASH)) {
 			uint8_t hash[16];
 
 			if (bt_mesh_s1(ad.data, ad.data_len, hash) ||
-			    memcmp(hash, &srv.dev->hash, 4)) {
+			    memcmp(hash, &srv.scan.dev->hash, 4)) {
 				continue;
 			}
 
 			BT_DBG("Found matching URI");
 			uri_match = true;
-			dev = srv.dev;
-			srv.dev->flags |= BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
+			dev = srv.scan.dev;
+			srv.scan.dev->flags |= BT_MESH_RPR_UNPROV_EXT_ADV_RXD;
 		}
 	}
 
@@ -1276,7 +1282,7 @@ static void scan_packet_recv(const struct bt_le_scan_recv_info *info,
 		return;
 	}
 
-	if (srv.dev) {
+	if (srv.scan.dev) {
 		adv_handle_ext_scan(info, buf);
 	} else {
 		adv_handle_scan(info, buf);
@@ -1310,14 +1316,16 @@ static int rpr_srv_init(struct bt_mesh_model *mod)
 
 static void rpr_srv_reset(struct bt_mesh_model *mod)
 {
-	cli_clear();
+	cli_link_clear();
+	cli_scan_clear();
 	srv.scan.state = BT_MESH_RPR_SCAN_IDLE;
 	srv.link.state = BT_MESH_RPR_LINK_IDLE;
 	k_work_cancel_delayable(&srv.scan.timeout);
 	k_work_cancel_delayable(&srv.scan.report);
 	net_buf_simple_init(srv.scan.adv_data, 0);
 	atomic_clear(srv.flags);
-	srv.dev = NULL;
+	srv.link.dev = NULL;
+	srv.scan.dev = NULL;
 	srv.mod = NULL;
 }
 
