@@ -571,7 +571,7 @@ int bt_mesh_rpr_link_close(struct bt_mesh_rpr_cli *cli,
 }
 
 static int link_open_prov(struct bt_mesh_rpr_cli *cli,
-			  struct bt_mesh_rpr_node *srv, const uint8_t uuid[16],
+			  const struct bt_mesh_rpr_node *srv, const uint8_t uuid[16],
 			  uint8_t timeout)
 {
 	struct bt_mesh_msg_ctx ctx = LINK_CTX(srv, false);
@@ -607,7 +607,7 @@ static int link_open_prov(struct bt_mesh_rpr_cli *cli,
 }
 
 static int link_open_node(struct bt_mesh_rpr_cli *cli,
-			  struct bt_mesh_rpr_node *srv,
+			  const struct bt_mesh_rpr_node *srv,
 			  enum bt_mesh_rpr_node_refresh type)
 {
 	struct bt_mesh_msg_ctx ctx = LINK_CTX(srv, false);

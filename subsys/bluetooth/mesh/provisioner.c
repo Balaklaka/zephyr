@@ -884,7 +884,7 @@ int bt_mesh_pb_gatt_open(const uint8_t uuid[16], uint16_t net_idx, uint16_t addr
 
 #if defined(CONFIG_BT_MESH_RPR_CLI)
 int bt_mesh_pb_remote_open(struct bt_mesh_rpr_cli *cli,
-			   struct bt_mesh_rpr_node *srv, const uint8_t uuid[16],
+			   const struct bt_mesh_rpr_node *srv, const uint8_t uuid[16],
 			   uint16_t net_idx, uint16_t addr)
 {
 	struct pb_remote_ctx ctx = { cli, srv };

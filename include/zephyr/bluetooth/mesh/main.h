@@ -488,7 +488,7 @@ int bt_mesh_provision_gatt(const uint8_t uuid[16], uint16_t net_idx, uint16_t ad
  *  @return Zero on success or (negative) error code otherwise.
  */
 int bt_mesh_provision_remote(struct bt_mesh_rpr_cli *cli,
-			     struct bt_mesh_rpr_node *srv,
+			     const struct bt_mesh_rpr_node *srv,
 			     const uint8_t uuid[16], uint16_t net_idx,
 			     uint16_t addr);
 
