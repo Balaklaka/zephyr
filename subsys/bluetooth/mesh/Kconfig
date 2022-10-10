@@ -1146,100 +1146,125 @@ menu "Transport SAR configuration"
 	visible if BT_MESH_SAR_CFG
 
 config BT_MESH_SAR_TX_SEG_INT_STEP
-	hex "Default value of SAR Segment Interval Step state"
+	hex "Interval between sending two consecutive segments"
 	range 0x00 0x0F
 	default 0x01
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the interval between sending two consecutive
+	  segments in a segmented message. The interval is measured in
+	  milliseconds and calculated using the following formula:
+	  (CONFIG_BT_MESH_SAR_TX_SEG_INT_STEP + 1) * 10 ms.
 
 config BT_MESH_SAR_TX_UNICAST_RETRANS_COUNT
-	hex "Default value of SAR Unicast Retransmissions Count state"
+	hex "Maximum number of retransmissions to unicast address"
 	range 0x00 0x0F
 	default 0x02
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the maximum number of retransmissions of a
+	  segmented message to a unicast address before giving up the transfer.
 
 config BT_MESH_SAR_TX_UNICAST_RETRANS_WITHOUT_PROG_COUNT
-	hex "Default value of SAR Unicast Retransmissions Without Progress Count state"
+	hex "Maximum number of retransmissions without progress to a unicast address"
 	range 0x00 0x0F
 	default 0x02
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value defines the maximum number of retransmissions of a
+	  segmented message to a unicast address that the stack will send if no
+	  acknowledgment was received during timeout, or if an
+	  acknowledgment with already confirmed segments was received.
 
 config BT_MESH_SAR_TX_UNICAST_RETRANS_INT_STEP
-	hex "Default value of SAR Unicast Retransmissions Interval Step state"
+	hex "Retransmissions interval step of missing segments to unicast address"
 	range 0x00 0x0F
 	default 0x07
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the interval step used for delaying the
+	  retransmissions of unacknowledged segments of a segmented message to
+	  a unicast address. The interval step is measured in milliseconds and
+	  calculated using the following formula:
+	  (CONFIG_BT_MESH_SAR_TX_UNICAST_RETRANS_INT_STEP + 1) * 25 ms.
 
 config BT_MESH_SAR_TX_UNICAST_RETRANS_INT_INC
-	hex "Default value of SAR Unicast Retransmissions Interval Increment state"
+	hex "Retransmissions interval increment of missing segments to unicast address"
 	range 0x00 0x0F
 	default 0x01
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the interval increment used for delaying the
+	  retransmissions of unacknowledged segments of a segmented message to
+	  a unicast address. The increment is measured in milliseconds and
+	  calculated using the following formula:
+	  (CONFIG_BT_MESH_SAR_TX_UNICAST_RETRANS_INT_INC + 1) * 25 ms.
 
 config BT_MESH_SAR_TX_MULTICAST_RETRANS_COUNT
-	hex "Default value of SAR Multicast Retransmissions Count state"
+	hex "Total number of retransmissions to multicast address"
 	range 0x00 0x0F
 	default 0x02
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the total number of retransmissions of a segmented
+	  message to a multicast address.
 
 config BT_MESH_SAR_TX_MULTICAST_RETRANS_INT
-	hex "Default value of SAR Multicast Retransmissions Interval state"
+	hex "Interval between retransmissions to multicast address"
 	range 0x00 0x0F
 	default 0x03
 	help
-	  Set the value of a parameter of the SAR Transmitter state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the interval between retransmissions of all
+	  segments in a segmented message to a multicast address. The
+	  interval is measured in milliseconds and calculated using the
+	  following formula:
+	  (CONFIG_BT_MESH_SAR_TX_MULTICAST_RETRANS_INT + 1) * 25 ms.
 
 config BT_MESH_SAR_RX_SEG_THRESHOLD
-	hex "Default value of SAR Segments Threshold state"
+	hex "Acknowledgments retransmission threshold"
 	range 0x00 0x1F
 	default 0x03
 	help
-	  Set the value of a parameter of the SAR Receiver state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value defines a threshold in number of segments of a segmented
+	  message for acknowledgment retransmissions. When the number of
+	  segments of a segmented message is above this threshold, the stack
+	  will additionally retransmit every acknowledgment message the
+	  number of times given by value of CONFIG_BT_MESH_SAR_RX_ACK_RETRANS_COUNT.
 
 config BT_MESH_SAR_RX_ACK_DELAY_INC
-	hex "Default value of SAR Acknowledgment Delay Increment state"
+	hex "Acknowledgment delay increment"
 	range 0x00 0x07
 	default 0x02
 	help
-	  Set the value of a parameter of the SAR Receiver state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value controls the delay increment of an interval used for
+	  delaying the transmission of an acknowledgment message after
+	  receiving a new segment. The increment is measured in segments
+	  and calculated using the following formula:
+	  CONFIG_BT_MESH_SAR_RX_ACK_DELAY_INC + 1.5.
 
 config BT_MESH_SAR_RX_SEG_INT_STEP
-	hex "Default value of SAR Receiver Segment Interval Step state"
+	hex "Segments reception interval step"
 	range 0x00 0x0F
 	default 0x01
 	help
-	  Set the value of a parameter of the SAR Receiver state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value defines the segments reception interval step used for
+	  delaying the transmission of an acknowledgment message after
+	  receiving a new segmnet. The interval is measured in milliseconds
+	  and calculated using the following formula:
+	  (CONFIG_BT_MESH_SAR_RX_SEG_INT_STEP + 1) * 10 ms
 
 config BT_MESH_SAR_RX_DISCARD_TIMEOUT
-	hex "Default value of SAR Discard Timeout state"
+	hex "Discard timeout for reception of a segmented message"
 	range 0x00 0x0F
 	default 0x01
 	help
-	  Set the value of a parameter of the SAR Receiver state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value defines the time since the last successfully received
+	  segment before giving up the reception of a segmented message.
 
 config BT_MESH_SAR_RX_ACK_RETRANS_COUNT
-	hex "Default value of SAR Acknowledgment Retransmissions Count state"
+	hex "Total number of acknowledgment message retransmission"
 	range 0x00 0x03
 	default 0x01
 	help
-	  Set the value of a parameter of the SAR Receiver state.
-	  The default values are defined by the Mesh Profile Specification.
+	  This value defines the total number of retranmissions of an
+	  acknowledgment message that the stack will additionally send when the
+	  size of segments in a segmented message is above the
+	  CONFIG_BT_MESH_SAR_RX_SEG_THRESHOLD value.
+
 endmenu
 
 config BT_MESH_OP_AGG
