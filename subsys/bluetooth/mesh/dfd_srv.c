@@ -786,6 +786,7 @@ enum bt_mesh_dfd_status bt_mesh_dfd_srv_receiver_add(struct bt_mesh_dfd_srv *srv
 						     uint8_t img_idx)
 {
 	struct bt_mesh_dfu_target *t;
+	struct bt_mesh_blob_target_pull *p;
 
 	if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
 		return BT_MESH_DFD_SUCCESS;
@@ -803,9 +804,14 @@ enum bt_mesh_dfd_status bt_mesh_dfd_srv_receiver_add(struct bt_mesh_dfd_srv *srv
 		return BT_MESH_DFD_ERR_INSUFFICIENT_RESOURCES;
 	}
 
-	t = &srv->targets[srv->target_cnt++];
+	t = &srv->targets[srv->target_cnt];
+	p = &srv->pull_ctxs[srv->target_cnt];
+	srv->target_cnt++;
+
 	memset(t, 0, sizeof(*t));
+	memset(p, 0, sizeof(*p));
 	t->blob.addr = addr;
+	t->blob.pull = p;
 	t->img_idx = img_idx;
 
 	BT_DBG("Added receiver 0x%04x img: %u", t->blob.addr,
