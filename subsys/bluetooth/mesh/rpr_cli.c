@@ -157,7 +157,7 @@ static int handle_link_report(struct bt_mesh_model *mod, struct bt_mesh_msg_ctx 
 		link_reset(cli);
 	}
 
-	link_report(cli, &srv, &link);
+	link_report(cli, &cli->link.srv, &link);
 
 	return 0;
 }
