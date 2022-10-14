@@ -85,13 +85,19 @@ static int cmd_dfd_receivers_add(const struct shell *sh, size_t argc, char *argv
 	while (token) {
 		char *addr_str = strtok_r(token, ",", &inner_state);
 		char *img_idx_str = strtok_r(NULL, ",", &inner_state);
+		int err = 0;
 
 		if (addr_str == NULL || img_idx_str == NULL) {
 			return -EINVAL;
 		}
 
-		uint16_t addr = (uint16_t)strtoul(addr_str, NULL, 0);
-		uint8_t img_idx = (uint8_t)strtoul(img_idx_str, NULL, 0);
+		uint16_t addr = shell_strtoul(addr_str, 0, &err);
+		uint8_t img_idx = shell_strtoul(img_idx_str, 0, &err);
+
+		if (err) {
+			shell_warn(sh, "Unable to parse input string argument");
+			return err;
+		}
 
 		enum bt_mesh_dfd_status status = bt_mesh_dfd_srv_receiver_add(
 			dfd_srv, addr, img_idx);
@@ -137,9 +143,15 @@ static int cmd_dfd_receivers_get(const struct shell *sh, size_t argc, char *argv
 	}
 
 	struct bt_mesh_dfd_srv *dfd_srv = mod->user_data;
+	int err = 0;
 
-	uint16_t first = (uint16_t)strtoul(argv[1], NULL, 0);
-	uint16_t cnt = (uint16_t)strtoul(argv[2], NULL, 0);
+	uint16_t first = shell_strtoul(argv[1], 0, &err);
+	uint16_t cnt = shell_strtoul(argv[2], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	if (cnt == 0 || dfd_srv->target_cnt <= first) {
 		return -EINVAL;
@@ -199,13 +211,13 @@ static int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	struct bt_mesh_dfd_srv *dfd_srv = mod->user_data;
-
 	struct bt_mesh_dfd_start_params params;
+	int err = 0;
 
-	params.app_idx = (uint16_t)strtoul(argv[1], NULL, 0);
-	params.slot_idx = (uint16_t)strtoul(argv[2], NULL, 0);
+	params.app_idx = shell_strtoul(argv[1], 0, &err);
+	params.slot_idx = shell_strtoul(argv[2], 0, &err);
 	if (argc > 3) {
-		params.group = (int16_t)strtoul(argv[3], NULL, 0);
+		params.group = shell_strtoul(argv[3], 0, &err);
 	} else {
 		params.group = BT_MESH_ADDR_UNASSIGNED;
 	}
@@ -217,21 +229,26 @@ static int cmd_dfd_start(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	if (argc > 5) {
-		params.ttl = (uint8_t)strtoul(argv[5], NULL, 0);
+		params.ttl = shell_strtoul(argv[5], 0, &err);
 	} else {
 		params.ttl = BT_MESH_TTL_DEFAULT;
 	}
 
 	if (argc > 6) {
-		params.timeout_base = (uint16_t)strtoul(argv[6], NULL, 0);
+		params.timeout_base = shell_strtoul(argv[6], 0, &err);
 	} else {
 		params.timeout_base = 0U;
 	}
 
 	if (argc > 7) {
-		params.xfer_mode = (enum bt_mesh_blob_xfer_mode)strtoul(argv[7], NULL, 0);
+		params.xfer_mode = (enum bt_mesh_blob_xfer_mode)shell_strtoul(argv[7], 0, &err);
 	} else {
 		params.xfer_mode = BT_MESH_BLOB_XFER_MODE_PUSH;
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	enum bt_mesh_dfd_status status = bt_mesh_dfd_srv_start(dfd_srv, &params);
@@ -323,8 +340,14 @@ static int cmd_dfd_fw_get(const struct shell *sh, size_t argc, char *argv[])
 
 static int cmd_dfd_fw_get_by_idx(const struct shell *sh, size_t argc, char *argv[])
 {
-	uint16_t idx = (uint16_t)strtoul(argv[1], NULL, 0);
+	int err = 0;
+	uint16_t idx = shell_strtoul(argv[1], 0, &err);
 	const struct bt_mesh_dfu_slot *slot = bt_mesh_dfu_slot_at(idx);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	if (slot && bt_mesh_dfu_slot_is_valid(slot)) {
 		print_fw_status(sh, BT_MESH_DFD_SUCCESS, idx, slot->fwid, slot->fwid_len);

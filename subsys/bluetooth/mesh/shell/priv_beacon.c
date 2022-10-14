@@ -40,7 +40,11 @@ static int cmd_priv_beacon_set(const struct shell *sh, size_t argc, char *argv[]
 		return err;
 	}
 
-	val.rand_interval = strtoul(argv[2], NULL, 0);
+	val.rand_interval = shell_strtoul(argv[2], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_priv_beacon_cli_set(bt_mesh_shell_target_ctx.net_idx,
 					  bt_mesh_shell_target_ctx.dst,
@@ -56,7 +60,7 @@ static int cmd_priv_beacon_set(const struct shell *sh, size_t argc, char *argv[]
 static int cmd_priv_gatt_proxy_get(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint8_t state;
-	int err = 0;
+	int err;
 
 	err = bt_mesh_priv_beacon_cli_gatt_proxy_get(bt_mesh_shell_target_ctx.net_idx,
 						     bt_mesh_shell_target_ctx.dst, &state);
@@ -95,9 +99,9 @@ static int cmd_priv_node_id_get(const struct shell *sh, size_t argc, char *argv[
 {
 	struct bt_mesh_priv_node_id val;
 	uint16_t key_net_idx;
-	int err;
+	int err = 0;
 
-	key_net_idx = strtoul(argv[1], NULL, 0);
+	key_net_idx = shell_strtoul(argv[1], 0, &err);
 
 	err = bt_mesh_priv_beacon_cli_node_id_get(bt_mesh_shell_target_ctx.net_idx,
 						  bt_mesh_shell_target_ctx.dst, key_net_idx, &val);
@@ -115,10 +119,15 @@ static int cmd_priv_node_id_get(const struct shell *sh, size_t argc, char *argv[
 static int cmd_priv_node_id_set(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct bt_mesh_priv_node_id val;
-	int err;
+	int err = 0;
 
-	val.net_idx = strtoul(argv[1], NULL, 0);
-	val.state = strtoul(argv[2], NULL, 0);
+	val.net_idx = shell_strtoul(argv[1], 0, &err);
+	val.state = shell_strtoul(argv[2], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_priv_beacon_cli_node_id_set(bt_mesh_shell_target_ctx.net_idx,
 						  bt_mesh_shell_target_ctx.dst, &val);

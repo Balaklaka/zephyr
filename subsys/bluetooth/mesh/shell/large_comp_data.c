@@ -16,12 +16,17 @@ static int cmd_large_comp_data_get(const struct shell *sh, size_t argc, char *ar
 	NET_BUF_SIMPLE_DEFINE(comp, 64);
 	uint8_t page;
 	uint16_t offset;
-	int err;
+	int err = 0;
 
 	net_buf_simple_init(&comp, 0);
 
-	page = strtoul(argv[1], NULL, 0);
-	offset = strtoul(argv[2], NULL, 0);
+	page = shell_strtoul(argv[1], 0, &err);
+	offset = shell_strtoul(argv[2], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_large_comp_data_get(bt_mesh_shell_target_ctx.net_idx,
 					  bt_mesh_shell_target_ctx.dst, page, offset,
@@ -41,12 +46,17 @@ static int cmd_models_metadata_get(const struct shell *sh, size_t argc, char *ar
 	NET_BUF_SIMPLE_DEFINE(metadata, 64);
 	uint8_t page;
 	uint16_t offset;
-	int err;
+	int err = 0;
 
 	net_buf_simple_init(&metadata, 0);
 
-	page = strtoul(argv[1], NULL, 0);
-	offset = strtoul(argv[2], NULL, 0);
+	page = shell_strtoul(argv[1], 0, &err);
+	offset = shell_strtoul(argv[2], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_models_metadata_get(bt_mesh_shell_target_ctx.net_idx,
 					  bt_mesh_shell_target_ctx.dst, page, offset,

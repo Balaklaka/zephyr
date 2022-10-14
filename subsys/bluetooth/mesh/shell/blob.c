@@ -194,16 +194,21 @@ static int cmd_flash_stream_set(const struct shell *sh, size_t argc, char *argv[
 {
 	uint8_t area_id;
 	uint32_t offset = 0;
-	int err;
+	int err = 0;
 
 	if (argc < 2) {
 		return -EINVAL;
 	}
 
-	area_id = strtoul(argv[1], NULL, 0);
+	area_id = shell_strtoul(argv[1], 0, &err);
 
 	if (argc >= 3) {
-		offset = strtoul(argv[2], NULL, 0);
+		offset = shell_strtoul(argv[2], 0, &err);
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	err = bt_mesh_blob_io_flash_init(&blob_flash_stream, area_id, offset);
@@ -256,19 +261,19 @@ static void blob_cli_inputs_prepare(uint16_t group)
 static int cmd_tx(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t group;
-	int err;
+	int err = 0;
 
 	if (!mod_cli && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_BLOB_CLI, &mod_cli)) {
 		return -ENODEV;
 	}
 
-	blob_cli_xfer.xfer.id = strtoul(argv[1], NULL, 0);
-	blob_cli_xfer.xfer.size = strtoul(argv[2], NULL, 0);
-	blob_cli_xfer.xfer.block_size_log = strtoul(argv[3], NULL, 0);
-	blob_cli_xfer.xfer.chunk_size = strtoul(argv[4], NULL, 0);
+	blob_cli_xfer.xfer.id = shell_strtoul(argv[1], 0, &err);
+	blob_cli_xfer.xfer.size = shell_strtoul(argv[2], 0, &err);
+	blob_cli_xfer.xfer.block_size_log = shell_strtoul(argv[3], 0, &err);
+	blob_cli_xfer.xfer.chunk_size = shell_strtoul(argv[4], 0, &err);
 
 	if (argc >= 6) {
-		group = strtoul(argv[5], NULL, 0);
+		group = shell_strtoul(argv[5], 0, &err);
 	} else {
 		group = BT_MESH_ADDR_UNASSIGNED;
 	}
@@ -283,9 +288,14 @@ static int cmd_tx(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	if (argc >= 8) {
-		blob_cli_xfer.inputs.timeout_base = strtoul(argv[7], NULL, 0);
+		blob_cli_xfer.inputs.timeout_base = shell_strtoul(argv[7], 0, &err);
 	} else {
 		blob_cli_xfer.inputs.timeout_base = 0;
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	if (!blob_cli_xfer.target_count) {
@@ -316,6 +326,7 @@ static int cmd_tx(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_target(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct bt_mesh_blob_target *t;
+	int err = 0;
 
 	if (blob_cli_xfer.target_count ==
 	    ARRAY_SIZE(blob_cli_xfer.targets)) {
@@ -324,7 +335,12 @@ static int cmd_target(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	t = &blob_cli_xfer.targets[blob_cli_xfer.target_count];
-	t->addr = strtoul(argv[1], NULL, 0);
+	t->addr = shell_strtoul(argv[1], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	shell_print(sh, "Added target 0x%04x", t->addr);
 
@@ -335,7 +351,7 @@ static int cmd_target(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_caps(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t group;
-	int err;
+	int err = 0;
 
 	if (!mod_cli && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_BLOB_CLI, &mod_cli)) {
 		return -ENODEV;
@@ -344,15 +360,20 @@ static int cmd_caps(const struct shell *sh, size_t argc, char *argv[])
 	shell_print(sh, "Retrieving transfer capabilities...");
 
 	if (argc > 1) {
-		group = strtoul(argv[1], NULL, 0);
+		group = shell_strtoul(argv[1], 0, &err);
 	} else {
 		group = BT_MESH_ADDR_UNASSIGNED;
 	}
 
 	if (argc > 2) {
-		blob_cli_xfer.inputs.timeout_base = strtoul(argv[2], NULL, 0);
+		blob_cli_xfer.inputs.timeout_base = shell_strtoul(argv[2], 0, &err);
 	} else {
 		blob_cli_xfer.inputs.timeout_base = 0;
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	if (!blob_cli_xfer.target_count) {
@@ -419,19 +440,24 @@ static int cmd_rx(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t timeout_base;
 	uint32_t id;
-	int err;
+	int err = 0;
 
 	if (!mod_srv && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_BLOB_SRV, &mod_srv)) {
 		return -ENODEV;
 	}
 
-	id = strtoul(argv[1], NULL, 0);
+	id = shell_strtoul(argv[1], 0, &err);
 	blob_rx_sum = 0;
 
 	if (argc > 2) {
-		timeout_base = strtoul(argv[2], NULL, 0);
+		timeout_base = shell_strtoul(argv[2], 0, &err);
 	} else {
 		timeout_base = 0U;
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	shell_print(sh, "Receive BLOB 0x%x", id);

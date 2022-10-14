@@ -14,9 +14,14 @@
 static int cmd_seq_start(const struct shell *sh, size_t argc, char *argv[])
 {
 	uint16_t elem_addr;
-	int err;
+	int err = 0;
 
-	elem_addr = strtoul(argv[1], NULL, 0);
+	elem_addr = shell_strtoul(argv[1], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
+
 	bt_mesh_shell_target_ctx.dst = elem_addr;
 	shell_print(sh, "mesh dst set to 0x%04x", elem_addr);
 

@@ -74,10 +74,17 @@ static int cmd_scan(const struct shell *sh, size_t argc, char *argv[])
 		.ttl = BT_MESH_TTL_DEFAULT,
 	};
 	uint8_t uuid[16] = {0};
-	int err;
+	uint8_t timeout;
+	int err = 0;
 
 	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_REMOTE_PROV_CLI, &mod)) {
 		return -ENODEV;
+	}
+
+	timeout = shell_strtoul(argv[1], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	if (argc > 2) {
@@ -85,8 +92,7 @@ static int cmd_scan(const struct shell *sh, size_t argc, char *argv[])
 	}
 
 	err = bt_mesh_rpr_scan_start((struct bt_mesh_rpr_cli *)mod->user_data,
-				     &srv, argc > 2 ? uuid : NULL,
-				     strtoul(argv[1], NULL, 0),
+				     &srv, argc > 2 ? uuid : NULL, timeout,
 				     BT_MESH_RPR_SCAN_MAX_DEVS_ANY, &rsp);
 	if (err) {
 		shell_print(sh, "Scan start failed: %d", err);
@@ -111,7 +117,8 @@ static int cmd_scan_ext(const struct shell *sh, size_t argc, char *argv[])
 	};
 	uint8_t ad_types[CONFIG_BT_MESH_RPR_AD_TYPES_MAX];
 	uint8_t uuid[16] = {0};
-	int i, err;
+	uint8_t timeout;
+	int i, err = 0;
 
 	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_REMOTE_PROV_CLI, &mod)) {
 		return -ENODEV;
@@ -120,12 +127,17 @@ static int cmd_scan_ext(const struct shell *sh, size_t argc, char *argv[])
 	hex2bin(argv[2], strlen(argv[2]), uuid, 16);
 
 	for (i = 0; i < argc - 3; i++) {
-		ad_types[i] = strtoul(argv[3 + i], NULL, 0);
+		ad_types[i] = shell_strtoul(argv[3 + i], 0, &err);
+	}
+
+	timeout = shell_strtoul(argv[1], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	err = bt_mesh_rpr_scan_start_ext((struct bt_mesh_rpr_cli *)mod->user_data,
-					 &srv, uuid,
-					 strtoul(argv[1], NULL, 0), ad_types,
+					 &srv, uuid, timeout, ad_types,
 					 (argc - 3));
 	if (err) {
 		shell_print(sh, "Scan start failed: %d", err);
@@ -145,14 +157,19 @@ static int cmd_scan_srv(const struct shell *sh, size_t argc, char *argv[])
 		.ttl = BT_MESH_TTL_DEFAULT,
 	};
 	uint8_t ad_types[CONFIG_BT_MESH_RPR_AD_TYPES_MAX];
-	int i, err;
+	int i, err = 0;
 
 	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_REMOTE_PROV_CLI, &mod)) {
 		return -ENODEV;
 	}
 
 	for (i = 0; i < argc - 1; i++) {
-		ad_types[i] = strtoul(argv[1 + i], NULL, 0);
+		ad_types[i] = shell_strtoul(argv[1 + i], 0, &err);
+	}
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
 	}
 
 	err = bt_mesh_rpr_scan_start_ext((struct bt_mesh_rpr_cli *)mod->user_data,
@@ -303,7 +320,9 @@ static int cmd_provision_remote(const struct shell *sh, size_t argc, char *argv[
 	};
 	uint8_t uuid[16];
 	size_t len;
-	int err;
+	uint16_t net_idx;
+	uint16_t addr;
+	int err = 0;
 
 	if (!mod && !bt_mesh_shell_mdl_first_get(BT_MESH_MODEL_ID_REMOTE_PROV_CLI, &mod)) {
 		return -ENODEV;
@@ -312,10 +331,15 @@ static int cmd_provision_remote(const struct shell *sh, size_t argc, char *argv[
 	len = hex2bin(argv[1], strlen(argv[1]), uuid, sizeof(uuid));
 	(void)memset(uuid + len, 0, sizeof(uuid) - len);
 
+	net_idx = shell_strtoul(argv[2], 0, &err);
+	addr = shell_strtoul(argv[3], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
+
 	err = bt_mesh_provision_remote((struct bt_mesh_rpr_cli *)mod->user_data,
-				       &srv, uuid,
-				       strtoul(argv[2], NULL, 0),
-				       strtoul(argv[3], NULL, 0));
+				       &srv, uuid, net_idx, addr);
 	if (err) {
 		shell_print(sh, "Prov remote start failed: %d", err);
 	}
@@ -338,7 +362,12 @@ static int cmd_reprovision_remote(const struct shell *sh, size_t argc, char *arg
 		return -ENODEV;
 	}
 
-	addr = strtoul(argv[1], NULL, 0);
+	addr = shell_strtoul(argv[1], 0, &err);
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
+
 	if (!BT_MESH_ADDR_IS_UNICAST(addr)) {
 		shell_print(sh, "Must be a valid unicast address");
 		return -EINVAL;

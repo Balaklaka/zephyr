@@ -37,15 +37,20 @@ static int cmd_tx_get(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_tx_set(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct bt_mesh_sar_tx set, rsp;
-	int err;
+	int err = 0;
 
-	set.seg_int_step = strtoul(argv[1], NULL, 0);
-	set.unicast_retrans_count = strtoul(argv[2], NULL, 0);
-	set.unicast_retrans_without_prog_count = strtoul(argv[3], NULL, 0);
-	set.unicast_retrans_int_step = strtoul(argv[4], NULL, 0);
-	set.unicast_retrans_int_inc = strtoul(argv[5], NULL, 0);
-	set.multicast_retrans_count = strtoul(argv[6], NULL, 0);
-	set.multicast_retrans_int = strtoul(argv[7], NULL, 0);
+	set.seg_int_step = shell_strtoul(argv[1], 0, &err);
+	set.unicast_retrans_count = shell_strtoul(argv[2], 0, &err);
+	set.unicast_retrans_without_prog_count = shell_strtoul(argv[3], 0, &err);
+	set.unicast_retrans_int_step = shell_strtoul(argv[4], 0, &err);
+	set.unicast_retrans_int_inc = shell_strtoul(argv[5], 0, &err);
+	set.multicast_retrans_count = shell_strtoul(argv[6], 0, &err);
+	set.multicast_retrans_int = shell_strtoul(argv[7], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_sar_cfg_cli_transmitter_set(bt_mesh_shell_target_ctx.net_idx,
 						  bt_mesh_shell_target_ctx.dst, &set, &rsp);
@@ -85,13 +90,18 @@ static int cmd_rx_get(const struct shell *sh, size_t argc, char *argv[])
 static int cmd_rx_set(const struct shell *sh, size_t argc, char *argv[])
 {
 	struct bt_mesh_sar_rx set, rsp;
-	int err;
+	int err = 0;
 
-	set.seg_thresh = strtoul(argv[1], NULL, 0);
-	set.ack_delay_inc = strtoul(argv[2], NULL, 0);
-	set.ack_retrans_count = strtoul(argv[3], NULL, 0);
-	set.discard_timeout = strtoul(argv[4], NULL, 0);
-	set.rx_seg_int_step = strtoul(argv[5], NULL, 0);
+	set.seg_thresh = shell_strtoul(argv[1], 0, &err);
+	set.ack_delay_inc = shell_strtoul(argv[2], 0, &err);
+	set.ack_retrans_count = shell_strtoul(argv[3], 0, &err);
+	set.discard_timeout = shell_strtoul(argv[4], 0, &err);
+	set.rx_seg_int_step = shell_strtoul(argv[5], 0, &err);
+
+	if (err) {
+		shell_warn(sh, "Unable to parse input string argument");
+		return err;
+	}
 
 	err = bt_mesh_sar_cfg_cli_receiver_set(bt_mesh_shell_target_ctx.net_idx,
 					       bt_mesh_shell_target_ctx.dst, &set, &rsp);
