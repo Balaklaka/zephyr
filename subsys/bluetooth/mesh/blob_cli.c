@@ -921,7 +921,20 @@ static void chunk_tx_complete(struct bt_mesh_blob_cli *cli, uint16_t dst)
 
 	/* This was the last chunk sent for this target. Now start the Block Report Timeout Timer.
 	 */
-	cli->tx.target->pull->block_report_timestamp = k_uptime_get() + BLOCK_REPORT_TIME_MSEC;
+	struct bt_mesh_blob_target *target;
+	int64_t timestamp = k_uptime_get() + BLOCK_REPORT_TIME_MSEC;
+
+	if (!UNICAST_MODE(cli)) {
+		/* If using group adressing, reset timestamp for all targets after all chunks are
+		 * sent to the group address
+		 */
+		TARGETS_FOR_EACH(cli, target) {
+			target->pull->block_report_timestamp = timestamp;
+		}
+		return;
+	}
+
+	cli->tx.target->pull->block_report_timestamp = timestamp;
 }
 
 static void chunk_send(struct bt_mesh_blob_cli *cli)
@@ -934,7 +947,6 @@ static void chunk_send(struct bt_mesh_blob_cli *cli)
 
 	if (cli->xfer->mode == BT_MESH_BLOB_XFER_MODE_PULL) {
 		ctx.send_complete = chunk_tx_complete;
-		ctx.force_unicast = true;
 	}
 
 	if (!targets_active(cli)) {
