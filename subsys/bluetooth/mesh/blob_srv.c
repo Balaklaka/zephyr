@@ -118,9 +118,12 @@ static void io_close(struct bt_mesh_blob_srv *srv)
 
 static void reset_timer(struct bt_mesh_blob_srv *srv)
 {
-	k_work_reschedule(
-		&srv->rx_timeout,
-		K_SECONDS(SERVER_TIMEOUT_SECS(srv)));
+	uint32_t timeout_secs =
+		srv->state.xfer.mode == BT_MESH_BLOB_XFER_MODE_PULL ?
+			MAX(SERVER_TIMEOUT_SECS(srv),
+			    CONFIG_BT_MESH_BLOB_REPORT_TIMEOUT + 1) :
+			SERVER_TIMEOUT_SECS(srv);
+	k_work_reschedule(&srv->rx_timeout, K_SECONDS(timeout_secs));
 }
 
 static void buf_chunk_index_add(struct net_buf_simple *buf, uint16_t chunk)
