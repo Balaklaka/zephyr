@@ -581,7 +581,7 @@ static int cmd_init(const struct shell *sh, size_t argc, char *argv[])
 #if defined(CONFIG_BT_MESH_DFU_SRV) && defined(CONFIG_BOOTLOADER_MCUBOOT)
 	struct mcuboot_img_header img_header;
 
-	int err = boot_read_bank_header(FLASH_AREA_ID(image_0), &img_header,
+	int err = boot_read_bank_header(FIXED_PARTITION_ID(slot0_partition), &img_header,
 					sizeof(img_header));
 	if (!err) {
 		struct shell_dfu_fwid *fwid =
