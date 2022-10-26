@@ -26,11 +26,11 @@ static void advertise(struct k_work *work)
 
 	rc = bt_le_adv_start(BT_LE_ADV_CONN_NAME, ad, ARRAY_SIZE(ad), NULL, 0);
 	if (rc) {
-		printk("SMP BT service advertising failed to start (rc %d)", rc);
+		printk("SMP BT service advertising failed to start (rc %d)\n", rc);
 		return;
 	}
 
-	printk("SMP BT service advertising successfully started");
+	printk("SMP BT service advertising successfully started\n");
 }
 
 static void disconnected(struct bt_conn *conn, uint8_t reason)
@@ -51,7 +51,7 @@ void smp_bt_start(void)
 	/* Initialize the Bluetooth mcumgr transport. */
 	err = smp_bt_register();
 	if (err) {
-		printk("SMP BT service registration failed (err %d)", err);
+		printk("SMP BT service registration failed (err %d)\n", err);
 		return;
 	}
 
