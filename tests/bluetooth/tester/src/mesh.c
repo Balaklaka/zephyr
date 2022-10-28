@@ -775,6 +775,9 @@ static struct bt_mesh_model root_models[] = {
 #if defined(CONFIG_BT_MESH_BLOB_CLI) && !defined(CONFIG_BT_MESH_DFD_SRV)
 	BT_MESH_MODEL_BLOB_CLI(&blob_cli),
 #endif
+#if defined(CONFIG_BT_MESH_PRIV_BEACON_SRV)
+	BT_MESH_MODEL_PRIV_BEACON_SRV,
+#endif
 };
 struct model_data *lookup_model_bound(uint16_t id)
 {
