@@ -523,6 +523,7 @@ static bool refresh_is_valid(const uint8_t *netkey, uint16_t net_idx,
 	enum bt_mesh_rpr_node_refresh proc = bt_mesh_node_refresh_get();
 	struct bt_mesh_subnet *sub = bt_mesh_subnet_get(net_idx);
 	uint16_t old_addr = bt_mesh_primary_addr();
+	bool valid_addr;
 
 	if (iv_index != bt_mesh.iv_index) {
 		BT_ERR("Invalid IV index");
@@ -535,11 +536,17 @@ static bool refresh_is_valid(const uint8_t *netkey, uint16_t net_idx,
 	}
 
 	if (proc == BT_MESH_RPR_NODE_REFRESH_ADDR) {
-		return bt_mesh_prov_link.addr < old_addr ||
+		valid_addr = bt_mesh_prov_link.addr < old_addr ||
 		       bt_mesh_prov_link.addr >= old_addr + bt_mesh_comp_get()->elem_count;
+	} else {
+		valid_addr = bt_mesh_prov_link.addr == bt_mesh_primary_addr();
 	}
 
-	return bt_mesh_prov_link.addr == bt_mesh_primary_addr();
+	if (!valid_addr) {
+		BT_ERR("Invalid address");
+	}
+
+	return valid_addr;
 }
 
 static void prov_data(const uint8_t *data)
