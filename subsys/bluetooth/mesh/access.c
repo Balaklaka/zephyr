@@ -1912,7 +1912,7 @@ void bt_mesh_comp_clear(void)
 	if (err) {
 		BT_ERR("Failed to clear composition data: %d", err);
 	} else {
-		BT_DBG("Cleared composition data");
+		BT_DBG("Cleared composition data page 128");
 	}
 
 	atomic_clear_bit(bt_mesh.flags, BT_MESH_COMP_DIRTY);
