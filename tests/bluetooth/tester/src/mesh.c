@@ -610,7 +610,7 @@ static void dfu_srv_apply(uint8_t *data, uint16_t len)
 #endif
 
 #ifdef CONFIG_BT_MESH_PRIV_BEACON_CLI
-struct bt_mesh_priv_beacon_cli priv_beacon_cli;
+static struct bt_mesh_priv_beacon_cli priv_beacon_cli;
 
 static void priv_beacon_get(uint8_t *data, uint16_t len)
 {
@@ -777,6 +777,9 @@ static struct bt_mesh_model root_models[] = {
 #endif
 #if defined(CONFIG_BT_MESH_PRIV_BEACON_SRV)
 	BT_MESH_MODEL_PRIV_BEACON_SRV,
+#endif
+#if defined(CONFIG_BT_MESH_PRIV_BEACON_CLI)
+	BT_MESH_MODEL_PRIV_BEACON_CLI(&priv_beacon_cli),
 #endif
 };
 struct model_data *lookup_model_bound(uint16_t id)
