@@ -48,6 +48,7 @@ else()
   src/test_advertiser.c
   src/test_blob.c
   src/test_op_agg.c
+  src/test_sar.c
  )
 endif()
 
