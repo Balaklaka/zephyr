@@ -354,7 +354,8 @@ do_update:
 	bt_mesh_subnet_foreach(bt_mesh_beacon_update);
 
 	if (IS_ENABLED(CONFIG_BT_MESH_GATT_PROXY) &&
-	    bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED) {
+		(bt_mesh_gatt_proxy_get() == BT_MESH_GATT_PROXY_ENABLED ||
+		 bt_mesh_priv_gatt_proxy_get() == BT_MESH_PRIV_GATT_PROXY_ENABLED)) {
 		bt_mesh_proxy_beacon_send(NULL);
 	}
 
