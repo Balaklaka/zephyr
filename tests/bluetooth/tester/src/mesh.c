@@ -2883,7 +2883,7 @@ static void health_fault_clear(uint8_t *data, uint16_t len)
 		.addr = cmd->address,
 		.app_idx = cmd->app_idx,
 	};
-	uint8_t test_id;
+	uint8_t test_id = 0;
 	size_t fault_count = 16;
 	uint8_t faults[fault_count];
 	int err;
@@ -2891,8 +2891,13 @@ static void health_fault_clear(uint8_t *data, uint16_t len)
 	LOG_DBG("");
 
 	if (cmd->ack) {
-		err = bt_mesh_health_cli_fault_clear(&health_cli, &ctx, cmd->cid, &test_id, faults,
-						     &fault_count);
+		err = bt_mesh_health_cli_fault_clear(&health_cli, &ctx, cmd->cid,
+						     bt_mesh_op_agg_cli_seq_is_started() ?
+						     NULL : &test_id,
+						     bt_mesh_op_agg_cli_seq_is_started() ?
+						     NULL : faults,
+						     bt_mesh_op_agg_cli_seq_is_started() ?
+						     NULL : &fault_count);
 	} else {
 		err = bt_mesh_health_cli_fault_clear_unack(&health_cli, &ctx, cmd->cid);
 	}
@@ -2925,20 +2930,24 @@ static void health_fault_test(uint8_t *data, uint16_t len)
 	};
 	size_t fault_count = 16;
 	uint8_t faults[fault_count];
-	uint8_t test_id;
-	uint16_t cid;
 	int err;
 
 	LOG_DBG("");
 
-	test_id = cmd->test_id;
-	cid = cmd->cid;
-
 	if (cmd->ack) {
-		err = bt_mesh_health_cli_fault_test(&health_cli, &ctx, cid, test_id, faults,
-						    &fault_count);
+		err = bt_mesh_health_cli_fault_test(&health_cli, &ctx, cmd->cid,
+						    bt_mesh_op_agg_cli_seq_is_started() ?
+						    0 : cmd->test_id,
+						    bt_mesh_op_agg_cli_seq_is_started() ?
+						    NULL : faults,
+						    bt_mesh_op_agg_cli_seq_is_started() ?
+						    NULL : &fault_count);
+		if (bt_mesh_op_agg_cli_seq_is_started()) {
+			fault_count = 0;
+		}
 	} else {
-		err = bt_mesh_health_cli_fault_test_unack(&health_cli, &ctx, cid, test_id);
+		err = bt_mesh_health_cli_fault_test_unack(&health_cli, &ctx,
+							  cmd->cid, cmd->test_id);
 	}
 
 	if (err) {
@@ -2948,8 +2957,8 @@ static void health_fault_test(uint8_t *data, uint16_t len)
 
 	if (cmd->ack) {
 		net_buf_simple_init(buf, 0);
-		net_buf_simple_add_u8(buf, test_id);
-		net_buf_simple_add_le16(buf, cid);
+		net_buf_simple_add_u8(buf, cmd->test_id);
+		net_buf_simple_add_le16(buf, cmd->cid);
 		net_buf_simple_add_mem(buf, faults, fault_count);
 
 		tester_send(BTP_SERVICE_ID_MESH, MESH_HEALTH_FAULT_TEST,
@@ -2997,14 +3006,14 @@ static void health_period_set(uint8_t *data, uint16_t len)
 		.addr = cmd->address,
 		.app_idx = cmd->app_idx,
 	};
-	uint8_t updated_divisor;
 	int err;
 
 	LOG_DBG("");
 
 	if (cmd->ack) {
 		err = bt_mesh_health_cli_period_set(&health_cli, &ctx, cmd->divisor,
-						    &updated_divisor);
+						    bt_mesh_op_agg_cli_seq_is_started() ?
+						    NULL : &cmd->divisor);
 	} else {
 		err = bt_mesh_health_cli_period_set_unack(&health_cli, &ctx, cmd->divisor);
 	}
@@ -3016,8 +3025,8 @@ static void health_period_set(uint8_t *data, uint16_t len)
 
 	if (cmd->ack) {
 		tester_send(BTP_SERVICE_ID_MESH, MESH_HEALTH_PERIOD_SET,
-			    CONTROLLER_INDEX, &updated_divisor,
-			    sizeof(updated_divisor));
+			    CONTROLLER_INDEX, &cmd->divisor,
+			    sizeof(cmd->divisor));
 		return;
 	}
 
@@ -3061,14 +3070,14 @@ static void health_attention_set(uint8_t *data, uint16_t len)
 		.addr = cmd->address,
 		.app_idx = cmd->app_idx,
 	};
-	uint8_t updated_attention;
 	int err;
 
 	LOG_DBG("");
 
 	if (cmd->ack) {
 		err = bt_mesh_health_cli_attention_set(&health_cli, &ctx, cmd->attention,
-						       &updated_attention);
+						       bt_mesh_op_agg_cli_seq_is_started() ?
+						       NULL : &cmd->attention);
 	} else {
 		err = bt_mesh_health_cli_attention_set_unack(&health_cli, &ctx, cmd->attention);
 	}
@@ -3080,8 +3089,8 @@ static void health_attention_set(uint8_t *data, uint16_t len)
 
 	if (cmd->ack) {
 		tester_send(BTP_SERVICE_ID_MESH, MESH_HEALTH_ATTENTION_SET,
-			    CONTROLLER_INDEX, &updated_attention,
-			    sizeof(updated_attention));
+			    CONTROLLER_INDEX, &cmd->attention,
+			    sizeof(cmd->attention));
 		return;
 	}
 
