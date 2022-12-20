@@ -1156,6 +1156,11 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 		return;
 	}
 
+	/* Do not process advertisement if it was not identified by URI hash from beacon */
+	if (!(dev->flags & BT_MESH_RPR_UNPROV_EXT_ADV_RXD)) {
+		return;
+	}
+
 	srv.scan.addr = *info->addr;
 	atomic_set_bit(srv.flags, SCAN_EXT_HAS_ADDR);
 
@@ -1188,6 +1193,7 @@ static void adv_handle_ext_scan(const struct bt_le_scan_recv_info *info,
 		}
 
 		BT_DBG("AD type 0x%02x", ad.type);
+
 		if (ad.type == BT_DATA_URI) {
 			atomic_set_bit(srv.flags, URI_REQUESTED);
 		}
